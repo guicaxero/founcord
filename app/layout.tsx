@@ -11,13 +11,14 @@ import { Providers } from "./providers";
 const siteTitle = "Ordem da Última Luz";
 const siteDescription =
   "Portal da campanha West Marches da Ordem da Última Luz em Shadow of the Demon Lord.";
-const siteOrigin = "https://ordem-da-ultima-luz.caxeropl.chatgpt.site";
+const siteOrigin = process.env.SITE_URL ?? "http://localhost:3000";
 
 export async function generateMetadata(): Promise<Metadata> {
   await headers();
   const socialImage = `${siteOrigin}/og.png`;
 
   return {
+    metadataBase: new URL(siteOrigin),
     title: {
       default: siteTitle,
       template: `%s — ${siteTitle}`,

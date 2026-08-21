@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { HttpError } from "../http";
 
 export type AuthConfig = Readonly<{
@@ -9,10 +9,17 @@ export type AuthConfig = Readonly<{
 }>;
 
 export function getAuthConfig(request: Request): AuthConfig {
-  const clientId = env.DISCORD_CLIENT_ID;
-  const clientSecret = env.DISCORD_CLIENT_SECRET;
-  const sessionSecret = env.SESSION_SECRET;
+  const { env } = getCloudflareContext();
+  const clientId = env.DISCORD_CLIENT_ID ?? process.env.DISCORD_CLIENT_ID;
+  const clientSecret = env.DISCORD_CLIENT_SECRET ?? process.env.DISCORD_CLIENT_SECRET;
+  const sessionSecret = env.SESSION_SECRET ?? process.env.SESSION_SECRET;
   if (!clientId || !clientSecret || !sessionSecret || sessionSecret.length < 32) {
+    const missing = [
+      !clientId ? "DISCORD_CLIENT_ID" : null,
+      !clientSecret ? "DISCORD_CLIENT_SECRET" : null,
+      !sessionSecret || sessionSecret.length < 32 ? "SESSION_SECRET_MIN_32" : null,
+    ].filter((key): key is string => key !== null);
+    console.error("OAuth Discord incompleto", { missing });
     throw new HttpError(
       503,
       "auth_not_configured",
@@ -25,7 +32,7 @@ export function getAuthConfig(request: Request): AuthConfig {
     clientSecret,
     sessionSecret,
     redirectUri:
-      env.DISCORD_REDIRECT_URI ??
+      env.DISCORD_REDIRECT_URI ?? process.env.DISCORD_REDIRECT_URI ??
       new URL("/api/auth/discord/callback", request.url).toString(),
   };
 }

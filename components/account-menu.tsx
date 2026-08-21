@@ -2,6 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CurrentUserResponse } from "@vigilia/contracts";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 
@@ -22,6 +24,7 @@ const managementPermissions = new Set([
 
 export function AccountMenu() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const me = useQuery({
     queryKey: queryKeys.me,
     queryFn: () => apiFetch<CurrentUserResponse>("/api/me"),
@@ -30,7 +33,8 @@ export function AccountMenu() {
     mutationFn: () => apiFetch<{ ok: true }>("/api/auth/logout", { method: "POST" }),
     onSuccess: async () => {
       await queryClient.invalidateQueries();
-      window.location.assign("/");
+      router.replace("/");
+      router.refresh();
     },
   });
 
@@ -63,7 +67,7 @@ export function AccountMenu() {
         <small>{globalRole ? roleLabel(globalRole) : "Membro da Ordem"}</small>
       </span>
       {canManage ? (
-        <a className="account-action" href="/dashboard">Painel de gestão</a>
+        <Link className="account-action" href="/dashboard">Painel de gestão</Link>
       ) : (
         <a className="account-action" href="#quadro">Minhas missões</a>
       )}

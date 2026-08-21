@@ -1,26 +1,31 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { convertV4MiniflareOptions, Miniflare } from "miniflare";
+
+const root = dirname(dirname(fileURLToPath(import.meta.url)));
+const workerRoot = join(root, ".wrangler", "test-bundle");
+const siteUrl = "https://ordem-da-ultima-luz.example.test";
+const mf = new Miniflare(convertV4MiniflareOptions({
+  modules: [{ type: "ESModule", path: join(workerRoot, "worker.js") }],
+  modulesRoot: workerRoot,
+  compatibilityDate: "2026-08-21",
+  compatibilityFlags: ["nodejs_compat", "global_fetch_strictly_public"],
+  d1Databases: ["DB"],
+  bindings: { SITE_URL: siteUrl },
+  serviceBindings: {
+    ASSETS: async () => new Response("Not found", { status: 404 }),
+  },
+}));
+
+test.after(() => mf.dispose());
 
 async function render(path = "/") {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-
-  return worker.fetch(
-    new Request(`http://localhost${path}`, {
-      headers: { accept: "text/html" },
-    }),
-    {
-      ASSETS: {
-        fetch: async () => new Response("Not found", { status: 404 }),
-      },
-    },
-    {
-      waitUntil() {},
-      passThroughOnException() {},
-    },
-  );
+  return mf.dispatchFetch(`http://localhost${path}`, {
+    headers: { accept: "text/html" },
+  });
 }
 
 test("renderiza a primeira superfície do portal", async () => {
@@ -38,7 +43,7 @@ test("renderiza a primeira superfície do portal", async () => {
   assert.match(html, /name="twitter:image"/i);
   assert.match(
     html,
-    /https:\/\/ordem-da-ultima-luz\.caxeropl\.chatgpt\.site\/og\.png/i,
+    /https:\/\/ordem-da-ultima-luz\.example\.test\/og\.png/i,
   );
   assert.match(html, /Enquanto houver luz/);
   assert.match(html, /Chamados da Ordem/);
@@ -57,16 +62,7 @@ test("renderiza o Código oficial da Ordem", async () => {
 });
 
 test("renderiza a entrada protegida do painel", async () => {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("dashboard-test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-  const response = await worker.fetch(
-    new Request("http://localhost/dashboard", {
-      headers: { accept: "text/html" },
-    }),
-    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
-    { waitUntil() {}, passThroughOnException() {} },
-  );
+  const response = await render("/dashboard");
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /Painel da campanha|Acendendo as lanternas/i);

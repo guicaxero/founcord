@@ -1,0 +1,7 @@
+# Usado por `npm run preview`, que executa o Worker localmente.
+NEXTJS_ENV=development
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+DISCORD_REDIRECT_URI=http://localhost:8787/api/auth/discord/callback
+SESSION_SECRET=
+SITE_URL=http://localhost:8787

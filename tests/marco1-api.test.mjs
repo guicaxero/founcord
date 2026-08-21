@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
-import { dirname, join, relative } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { Miniflare } from "miniflare";
+import { convertV4MiniflareOptions, Miniflare } from "miniflare";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const origin = "http://portal.test";
+const origin = "http://localhost:8787";
 const defaultCampaignId = "11111111-1111-4111-8111-111111111111";
 
 const identities = {
@@ -23,12 +23,12 @@ const identities = {
 };
 
 test("Marco 1: autenticação, RBAC, campanha, missões, posts e auditoria", async (t) => {
-  const serverRoot = join(root, "dist", "server");
-  const mf = new Miniflare({
-    modules: await workerModules(serverRoot),
+  const serverRoot = join(root, ".wrangler", "test-bundle");
+  const mf = new Miniflare(convertV4MiniflareOptions({
+    modules: [{ type: "ESModule", path: join(serverRoot, "worker.js") }],
     modulesRoot: serverRoot,
-    compatibilityDate: "2026-05-22",
-    compatibilityFlags: ["nodejs_compat"],
+    compatibilityDate: "2026-08-21",
+    compatibilityFlags: ["nodejs_compat", "global_fetch_strictly_public"],
     d1Databases: ["DB"],
     bindings: {
       DISCORD_CLIENT_ID: "test-client-id",
@@ -39,7 +39,7 @@ test("Marco 1: autenticação, RBAC, campanha, missões, posts e auditoria", asy
     serviceBindings: {
       ASSETS: async () => new Response("Not found", { status: 404 }),
     },
-  });
+  }));
 
   try {
     const db = await mf.getD1Database("DB");
@@ -90,7 +90,7 @@ test("Marco 1: autenticação, RBAC, campanha, missões, posts e auditoria", asy
           body: { status: "suspended" },
         },
       );
-      assert.equal(suspended.status, 200);
+      assert.equal(suspended.status, 200, JSON.stringify(suspended.data));
 
       const after = await api(mf, "/api/me", { token: identities.gm.token });
       assert.equal(hasCapability(after.data, "mission:create"), false);
@@ -287,29 +287,6 @@ async function applyMigrations(db) {
   }
 }
 
-async function workerModules(serverRoot) {
-  const files = await listJavaScriptFiles(serverRoot);
-  files.sort((left, right) => {
-    if (relative(serverRoot, left) === "index.js") return -1;
-    if (relative(serverRoot, right) === "index.js") return 1;
-    return left.localeCompare(right);
-  });
-  return files.map((path) => ({
-    type: "ESModule",
-    path,
-  }));
-}
-
-async function listJavaScriptFiles(directory) {
-  const files = [];
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) files.push(...(await listJavaScriptFiles(path)));
-    if (entry.isFile() && entry.name.endsWith(".js")) files.push(path);
-  }
-  return files;
-}
-
 async function seedDatabase(db) {
   const statements = [];
   for (const identity of Object.values(identities)) {
@@ -410,7 +387,6 @@ async function api(mf, path, options = {}) {
   if (options.token) headers.set("cookie", `vigilia_session=${options.token}`);
   if (options.body !== undefined) {
     headers.set("content-type", "application/json");
-    headers.set("origin", origin);
     headers.set("sec-fetch-site", "same-origin");
   }
   const response = await mf.dispatchFetch(`${origin}${path}`, {

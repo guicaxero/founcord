@@ -20,6 +20,10 @@ O Next é responsável pela experiência web, composição de respostas e sessã
 Regras de autorização, campanha ou integração pertencem aos respectivos
 serviços.
 
+Em produção, o Next.js é compilado pelo OpenNext e executado em Cloudflare
+Workers. A navegação interna usa o App Router oficial; o adaptador não substitui
+`next/link` nem mantém um roteador paralelo no navegador.
+
 ## Unidades de domínio
 
 ### Identity

@@ -6,9 +6,9 @@ Aceito em 21 de agosto de 2026.
 
 ## Decisão
 
-Usar Next.js/Vinext para o portal e Hono para serviços TypeScript executáveis em
-Cloudflare Workers. Os serviços serão mantidos no mesmo workspace, mas terão
-entradas e contratos independentes.
+Usar Next.js oficial com OpenNext para o portal e Hono para serviços TypeScript
+executáveis em Cloudflare Workers. Os serviços serão mantidos no mesmo
+workspace, mas terão entradas e contratos independentes.
 
 Na primeira fase, um único D1 físico reduz a carga operacional. A separação de
 bancos ocorrerá quando houver necessidade de escala, isolamento ou implantação

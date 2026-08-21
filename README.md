@@ -6,7 +6,8 @@ Discord e Foundry VTT.
 
 ## Fundamentos
 
-- Next.js/Vinext, React e TailwindCSS no portal.
+- Next.js oficial, React e TailwindCSS no portal.
+- OpenNext como adaptador de produção para Cloudflare Workers.
 - TypeScript estrito em toda a base Node.
 - Hono e OpenAPI nos serviços de domínio.
 - Zod como validação dos contratos em runtime.
@@ -65,5 +66,19 @@ Consulte [a arquitetura](docs/ARCHITECTURE.md) e
 ## Configuração local
 
 Copie `.env.example` para `.env.local`, preencha a aplicação Discord e cadastre
-`http://localhost:3000/api/auth/discord/callback` como redirect URI. A produção
-usa o mesmo caminho sob o domínio publicado.
+`http://localhost:3000/api/auth/discord/callback` como redirect URI. Para usar
+os bindings D1 durante `next dev`, mantenha também uma `.dev.vars` baseada no
+arquivo de exemplo. A produção usa o mesmo caminho sob o domínio publicado.
+
+Para testar o runtime Cloudflare localmente, copie `.dev.vars.example` para
+`.dev.vars`, aplique as migrations locais e execute `npm run preview`.
+
+## Marco 1.5 — Cloudflare
+
+O portal é publicado como um único Worker Next.js no plano gratuito, com D1
+como banco. Os limites de Identity, Campaign e Integration continuam separados
+por contratos e módulos; a divisão em Workers independentes só será feita
+quando houver ganho operacional real.
+
+Consulte [o runbook do Marco 1.5](docs/MARCO_1_5_CLOUDFLARE.md) para criação do
+banco, secrets, migrations, OAuth, publicação e rollback.

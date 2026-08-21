@@ -7,6 +7,7 @@ import type {
   CreateCampaignInput,
   CurrentUserResponse,
 } from "@vigilia/contracts";
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { hasCapability } from "@/lib/capabilities";
@@ -91,7 +92,7 @@ export function DashboardClient() {
         <a className="admin-primary" href="/api/auth/discord?returnTo=/dashboard">
           Entrar com Discord
         </a>
-        <a className="secondary-action" href="/">Voltar ao portal público</a>
+        <Link className="secondary-action" href="/">Voltar ao portal público</Link>
       </DashboardState>
     );
   }
@@ -109,8 +110,8 @@ export function DashboardClient() {
         title="Você não precisa do painel de gestão"
         text="Seu perfil participa das missões pelo portal público. Controles administrativos aparecem apenas para a equipe da campanha."
       >
-        <a className="admin-primary" href="/#quadro">Ver missões disponíveis</a>
-        <a className="secondary-action" href="/">Voltar ao portal</a>
+        <Link className="admin-primary" href="/#quadro">Ver missões disponíveis</Link>
+        <Link className="secondary-action" href="/">Voltar ao portal</Link>
       </DashboardState>
     );
   }
@@ -128,10 +129,10 @@ export function DashboardClient() {
   return (
     <main className="admin-shell">
       <aside className="admin-sidebar">
-        <a className="admin-brand" href="/">
+        <Link className="admin-brand" href="/">
           <span className="admin-brand-mark" aria-hidden="true">O</span>
           <span><small>Ordem da</small><strong>Última Luz</strong></span>
-        </a>
+        </Link>
 
         <div className="admin-campaign-picker">
           <label htmlFor="active-campaign">Campanha ativa</label>
@@ -185,9 +186,9 @@ export function DashboardClient() {
       <section className="admin-main">
         <header className="admin-topbar">
           <div className="admin-breadcrumb" aria-label="Localização atual">
-            <a href="/">Portal</a><span aria-hidden="true">/</span><strong>Painel de gestão</strong>
+            <Link href="/">Portal</Link><span aria-hidden="true">/</span><strong>Painel de gestão</strong>
           </div>
-          <a className="secondary-action" href="/">Visualizar portal</a>
+          <Link className="secondary-action" href="/">Visualizar portal</Link>
         </header>
 
         <div className="admin-page-heading">
