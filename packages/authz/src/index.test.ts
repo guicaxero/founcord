@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { hasPermission, type Principal } from "./index";
+import {
+  hasPermission,
+  permissionsForScope,
+  principalFromRoleAssignments,
+  type Principal,
+} from "./index";
 
 const principal: Principal = {
   subjectId: "user-1",
@@ -28,5 +33,29 @@ describe("hasPermission", () => {
         campaignId: "campaign-b",
       }),
     ).toBe(false);
+  });
+});
+
+describe("principalFromRoleAssignments", () => {
+  it("expande papéis sem deixar o escopo de campanha vazar", () => {
+    const campaignPrincipal = principalFromRoleAssignments("user-1", [
+      {
+        roleName: "gm",
+        scope: { kind: "campaign", campaignId: "campaign-a" },
+      },
+    ]);
+
+    expect(
+      permissionsForScope(campaignPrincipal, {
+        kind: "campaign",
+        campaignId: "campaign-a",
+      }),
+    ).toContain("mission:create");
+    expect(
+      permissionsForScope(campaignPrincipal, {
+        kind: "campaign",
+        campaignId: "campaign-b",
+      }),
+    ).not.toContain("mission:create");
   });
 });

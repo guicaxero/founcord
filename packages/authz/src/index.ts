@@ -1,4 +1,5 @@
 export const permissions = [
+  "audit:read",
   "campaign:manage",
   "integration:manage",
   "member:manage",
@@ -45,6 +46,7 @@ export const rolePermissions = {
   owner: permissions,
   administrator: permissions,
   campaign_manager: [
+    "audit:read",
     "campaign:manage",
     "integration:manage",
     "member:manage",
@@ -62,6 +64,34 @@ export const rolePermissions = {
   player: [],
   automation: ["post:create"],
 } as const satisfies Readonly<Record<RoleName, readonly Permission[]>>;
+
+export type RoleAssignment = Readonly<{
+  roleName: RoleName;
+  scope: AuthorizationScope;
+}>;
+
+export function principalFromRoleAssignments(
+  subjectId: string,
+  assignments: readonly RoleAssignment[],
+): Principal {
+  const grants = assignments.flatMap((assignment) =>
+    rolePermissions[assignment.roleName].map((permission) => ({
+      permission,
+      scope: assignment.scope,
+    })),
+  );
+
+  return { subjectId, grants };
+}
+
+export function permissionsForScope(
+  principal: Principal,
+  requestedScope: AuthorizationScope,
+): Permission[] {
+  return permissions.filter((permission) =>
+    hasPermission(principal, permission, requestedScope),
+  );
+}
 
 export function hasPermission(
   principal: Principal,

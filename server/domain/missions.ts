@@ -1,0 +1,557 @@
+import { hasPermission, requirePermission } from "@vigilia/authz";
+import type {
+  CreateMissionInput,
+  MissionSignup,
+  MissionStatus,
+  MissionSummary,
+  UpdateMissionInput,
+} from "@vigilia/contracts";
+import { getD1 } from "@/db";
+import {
+  prepareAuditAfterChange,
+  prepareOutboxEventAfterChange,
+} from "../audit";
+import type { AuthenticatedSession } from "../auth/session";
+import { HttpError } from "../http";
+import { toIsoDateTime } from "../time";
+
+type MissionRow = Readonly<{
+  id: string;
+  campaign_id: string;
+  author_user_id: string;
+  author_name: string;
+  title: string;
+  summary: string;
+  region: string;
+  status: MissionStatus;
+  risk: "unknown" | "moderate" | "dangerous" | "deadly";
+  scheduled_for: string | null;
+  party_size: number;
+  signup_count: number;
+  waitlist_count: number;
+  current_user_signup: "confirmed" | "waitlisted" | "withdrawn" | null;
+  version: number;
+}>;
+
+type SignupRow = Readonly<{
+  mission_id: string;
+  user_id: string;
+  display_name: string;
+  status: "confirmed" | "waitlisted" | "withdrawn";
+  created_at: string;
+}>;
+
+type MissionOwnership = Readonly<{
+  campaign_id: string;
+  author_user_id: string;
+  status: MissionStatus;
+}>;
+
+export async function listMissions(
+  campaignId: string,
+  session: AuthenticatedSession | null,
+  includeEditorial: boolean,
+): Promise<MissionSummary[]> {
+  const canEdit = Boolean(
+    session &&
+      hasPermission(session.principal, "mission:edit", {
+        kind: "campaign",
+        campaignId,
+      }),
+  );
+  const canSeeAll = Boolean(
+    session &&
+      (hasPermission(session.principal, "mission:review", {
+        kind: "campaign",
+        campaignId,
+      }) || hasElevatedMissionRole(session, campaignId)),
+  );
+  const userId = session?.user.id ?? "";
+  const result = await getD1()
+    .prepare(
+      `SELECT
+        m.id, m.campaign_id, m.author_user_id, u.display_name AS author_name,
+        m.title, m.summary, m.region, m.status, m.risk, m.scheduled_for,
+        m.party_size, m.version,
+        COALESCE(SUM(CASE WHEN ms.status = 'confirmed' THEN 1 ELSE 0 END), 0) AS signup_count,
+        COALESCE(SUM(CASE WHEN ms.status = 'waitlisted' THEN 1 ELSE 0 END), 0) AS waitlist_count,
+        mine.status AS current_user_signup
+       FROM missions m
+       JOIN iam_users u ON u.id = m.author_user_id
+       LEFT JOIN mission_signups ms ON ms.mission_id = m.id
+       LEFT JOIN mission_signups mine ON mine.mission_id = m.id AND mine.user_id = ?
+       WHERE m.campaign_id = ? AND (
+         m.status = 'published'
+         OR (? = 1)
+         OR (? = 1 AND m.author_user_id = ?)
+       )
+       GROUP BY m.id
+       ORDER BY
+         CASE WHEN m.scheduled_for IS NULL THEN 1 ELSE 0 END,
+         m.scheduled_for, m.published_at DESC, m.created_at DESC`,
+    )
+    .bind(
+      userId,
+      campaignId,
+      includeEditorial && canSeeAll ? 1 : 0,
+      includeEditorial && canEdit ? 1 : 0,
+      userId,
+    )
+    .all<MissionRow>();
+  return result.results.map(mapMission);
+}
+
+export async function getMission(
+  missionId: string,
+  session: AuthenticatedSession | null,
+): Promise<MissionSummary> {
+  const userId = session?.user.id ?? "";
+  const row = await getD1()
+    .prepare(
+      `SELECT
+        m.id, m.campaign_id, m.author_user_id, u.display_name AS author_name,
+        m.title, m.summary, m.region, m.status, m.risk, m.scheduled_for,
+        m.party_size, m.version,
+        COALESCE(SUM(CASE WHEN ms.status = 'confirmed' THEN 1 ELSE 0 END), 0) AS signup_count,
+        COALESCE(SUM(CASE WHEN ms.status = 'waitlisted' THEN 1 ELSE 0 END), 0) AS waitlist_count,
+        mine.status AS current_user_signup
+       FROM missions m
+       JOIN iam_users u ON u.id = m.author_user_id
+       LEFT JOIN mission_signups ms ON ms.mission_id = m.id
+       LEFT JOIN mission_signups mine ON mine.mission_id = m.id AND mine.user_id = ?
+       WHERE m.id = ?
+       GROUP BY m.id`,
+    )
+    .bind(userId, missionId)
+    .first<MissionRow>();
+  if (!row) throw new HttpError(404, "mission_not_found", "Missão não encontrada.");
+  if (
+    row.status !== "published" &&
+    !canReadEditorial(session, row.campaign_id, row.author_user_id)
+  ) {
+    throw new HttpError(404, "mission_not_found", "Missão não encontrada.");
+  }
+  return mapMission(row);
+}
+
+export async function createMission(
+  session: AuthenticatedSession,
+  input: CreateMissionInput,
+  correlationId: string,
+): Promise<MissionSummary> {
+  requirePermission(session.principal, "mission:create", {
+    kind: "campaign",
+    campaignId: input.campaignId,
+  });
+  await requireActiveMembership(input.campaignId, session.user.id);
+  const db = getD1();
+  const id = crypto.randomUUID();
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO missions (
+          id, campaign_id, author_user_id, title, summary, region, risk,
+          scheduled_for, party_size, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')`,
+      )
+      .bind(
+        id,
+        input.campaignId,
+        session.user.id,
+        input.title,
+        input.summary,
+        input.region,
+        input.risk,
+        input.scheduledFor,
+        input.partySize,
+      ),
+    prepareAuditAfterChange(db, {
+      actorUserId: session.user.id,
+      campaignId: input.campaignId,
+      action: "mission.created",
+      entityType: "mission",
+      entityId: id,
+      correlationId,
+      details: { title: input.title },
+    }),
+    prepareOutboxEventAfterChange(db, {
+      aggregateType: "mission",
+      aggregateId: id,
+      eventType: "mission.created",
+      payload: { missionId: id, campaignId: input.campaignId },
+    }),
+  ]);
+  return getMission(id, session);
+}
+
+export async function updateMission(
+  session: AuthenticatedSession,
+  missionId: string,
+  input: UpdateMissionInput,
+  correlationId: string,
+): Promise<MissionSummary> {
+  const existing = await getMissionOwnership(missionId);
+  const changesContent = [
+    input.title,
+    input.summary,
+    input.region,
+    input.risk,
+    input.scheduledFor,
+    input.partySize,
+  ].some((value) => value !== undefined);
+  const isReviewOnly = input.status === "approved" || input.status === "rejected";
+  const isPublishOnly = input.status === "published";
+  if (changesContent || (!isReviewOnly && !isPublishOnly)) {
+    assertCanEditMission(session, existing);
+  }
+  if (input.status && input.status !== existing.status) {
+    assertStatusTransition(session, existing.campaign_id, existing.status, input.status);
+  }
+  const db = getD1();
+  const publishedAt = input.status === "published" ? new Date().toISOString() : null;
+  const batch = await db.batch([
+    db
+      .prepare(
+        `UPDATE missions SET
+          title = COALESCE(?, title),
+          summary = COALESCE(?, summary),
+          region = COALESCE(?, region),
+          risk = COALESCE(?, risk),
+          scheduled_for = CASE WHEN ? = 1 THEN ? ELSE scheduled_for END,
+          party_size = COALESCE(?, party_size),
+          status = COALESCE(?, status),
+          published_at = COALESCE(?, published_at),
+          version = version + 1,
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND version = ?`,
+      )
+      .bind(
+        input.title ?? null,
+        input.summary ?? null,
+        input.region ?? null,
+        input.risk ?? null,
+        input.scheduledFor !== undefined ? 1 : 0,
+        input.scheduledFor ?? null,
+        input.partySize ?? null,
+        input.status ?? null,
+        publishedAt,
+        missionId,
+        input.version,
+      ),
+    prepareAuditAfterChange(db, {
+      actorUserId: session.user.id,
+      campaignId: existing.campaign_id,
+      action: input.status ? `mission.${input.status}` : "mission.updated",
+      entityType: "mission",
+      entityId: missionId,
+      correlationId,
+      details: { fields: Object.keys(input).filter((key) => key !== "version") },
+    }),
+    prepareOutboxEventAfterChange(db, {
+      aggregateType: "mission",
+      aggregateId: missionId,
+      eventType: input.status ? `mission.${input.status}` : "mission.updated",
+      payload: { missionId, campaignId: existing.campaign_id },
+    }),
+  ]);
+  if ((batch[0]?.meta.changes ?? 0) === 0) {
+    throw new HttpError(409, "version_conflict", "A missão foi alterada por outra pessoa.");
+  }
+  return getMission(missionId, session);
+}
+
+export async function archiveMission(
+  session: AuthenticatedSession,
+  missionId: string,
+  version: number,
+  correlationId: string,
+): Promise<void> {
+  const existing = await getMissionOwnership(missionId);
+  assertCanEditMission(session, existing);
+  const db = getD1();
+  const results = await db.batch([
+    db
+      .prepare(
+        `UPDATE missions SET status = 'archived', version = version + 1,
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND version = ?`,
+      )
+      .bind(missionId, version),
+    prepareAuditAfterChange(db, {
+      actorUserId: session.user.id,
+      campaignId: existing.campaign_id,
+      action: "mission.archived",
+      entityType: "mission",
+      entityId: missionId,
+      correlationId,
+    }),
+    prepareOutboxEventAfterChange(db, {
+      aggregateType: "mission",
+      aggregateId: missionId,
+      eventType: "mission.archived",
+      payload: { missionId, campaignId: existing.campaign_id },
+    }),
+  ]);
+  if ((results[0]?.meta.changes ?? 0) === 0) {
+    throw new HttpError(409, "version_conflict", "A missão foi alterada por outra pessoa.");
+  }
+}
+
+export async function signupForMission(
+  session: AuthenticatedSession,
+  missionId: string,
+  correlationId: string,
+): Promise<{ status: "confirmed" | "waitlisted" }> {
+  const mission = await getMissionOwnership(missionId);
+  if (mission.status !== "published") {
+    throw new HttpError(409, "mission_not_open", "Esta missão não aceita inscrições.");
+  }
+  await requireActiveMembership(mission.campaign_id, session.user.id);
+  const db = getD1();
+  const results = await db.batch([
+    db.prepare(
+      `INSERT INTO mission_signups (mission_id, user_id, status)
+       VALUES (
+         ?, ?,
+         CASE WHEN (
+           SELECT COUNT(*) FROM mission_signups
+           WHERE mission_id = ? AND status = 'confirmed' AND user_id <> ?
+         ) < (SELECT party_size FROM missions WHERE id = ?)
+         THEN 'confirmed' ELSE 'waitlisted' END
+       )
+       ON CONFLICT(mission_id, user_id) DO UPDATE SET
+         status = excluded.status,
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING status`,
+    ).bind(missionId, session.user.id, missionId, session.user.id, missionId),
+    prepareAuditAfterChange(db, {
+      actorUserId: session.user.id,
+      campaignId: mission.campaign_id,
+      action: "mission.signup",
+      entityType: "mission",
+      entityId: missionId,
+      correlationId,
+      details: {},
+    }),
+    prepareOutboxEventAfterChange(db, {
+      aggregateType: "mission",
+      aggregateId: missionId,
+      eventType: "mission.signup",
+      payload: { missionId, userId: session.user.id },
+    }),
+  ]);
+  const result = results[0]?.results?.[0] as
+    | { status: "confirmed" | "waitlisted" }
+    | undefined;
+  if (!result) throw new HttpError(500, "signup_failed", "A inscrição não foi concluída.");
+  return result;
+}
+
+export async function withdrawFromMission(
+  session: AuthenticatedSession,
+  missionId: string,
+  correlationId: string,
+): Promise<void> {
+  const mission = await getMissionOwnership(missionId);
+  const db = getD1();
+  const results = await db.batch([
+    db
+      .prepare(
+        `UPDATE mission_signups SET status = 'withdrawn', updated_at = CURRENT_TIMESTAMP
+         WHERE mission_id = ? AND user_id = ? AND status <> 'withdrawn'`,
+      )
+      .bind(missionId, session.user.id),
+    prepareAuditAfterChange(db, {
+      actorUserId: session.user.id,
+      campaignId: mission.campaign_id,
+      action: "mission.withdrawal",
+      entityType: "mission",
+      entityId: missionId,
+      correlationId,
+    }),
+    prepareOutboxEventAfterChange(db, {
+      aggregateType: "mission",
+      aggregateId: missionId,
+      eventType: "mission.withdrawal",
+      payload: { missionId, userId: session.user.id },
+    }),
+    db
+      .prepare(
+        `UPDATE mission_signups
+         SET status = 'confirmed', updated_at = CURRENT_TIMESTAMP
+         WHERE mission_id = ?
+           AND user_id = (
+             SELECT user_id FROM mission_signups
+             WHERE mission_id = ? AND status = 'waitlisted'
+             ORDER BY created_at LIMIT 1
+           )
+           AND (
+             SELECT COUNT(*) FROM mission_signups
+             WHERE mission_id = ? AND status = 'confirmed'
+           ) < (SELECT party_size FROM missions WHERE id = ?)`,
+      )
+      .bind(missionId, missionId, missionId, missionId),
+  ]);
+  if ((results[0]?.meta.changes ?? 0) === 0) {
+    throw new HttpError(404, "signup_not_found", "Inscrição não encontrada.");
+  }
+}
+
+export async function listSignups(
+  session: AuthenticatedSession,
+  missionId: string,
+): Promise<MissionSignup[]> {
+  const mission = await getMissionOwnership(missionId);
+  if (
+    !hasPermission(session.principal, "mission:edit", {
+      kind: "campaign",
+      campaignId: mission.campaign_id,
+    }) &&
+    !hasPermission(session.principal, "mission:review", {
+      kind: "campaign",
+      campaignId: mission.campaign_id,
+    })
+  ) {
+    throw new HttpError(403, "forbidden", "Você não pode visualizar esta companhia.");
+  }
+  const result = await getD1()
+    .prepare(
+      `SELECT ms.mission_id, ms.user_id, u.display_name, ms.status, ms.created_at
+       FROM mission_signups ms
+       JOIN iam_users u ON u.id = ms.user_id
+       WHERE ms.mission_id = ? AND ms.status <> 'withdrawn'
+       ORDER BY CASE ms.status WHEN 'confirmed' THEN 0 ELSE 1 END, ms.created_at`,
+    )
+    .bind(missionId)
+    .all<SignupRow>();
+  return result.results.map((row) => ({
+    missionId: row.mission_id,
+    userId: row.user_id,
+    displayName: row.display_name,
+    status: row.status,
+    createdAt: toIsoDateTime(row.created_at)!,
+  }));
+}
+
+async function getMissionOwnership(missionId: string): Promise<MissionOwnership> {
+  const mission = await getD1()
+    .prepare("SELECT campaign_id, author_user_id, status FROM missions WHERE id = ?")
+    .bind(missionId)
+    .first<MissionOwnership>();
+  if (!mission) throw new HttpError(404, "mission_not_found", "Missão não encontrada.");
+  return mission;
+}
+
+function assertCanEditMission(
+  session: AuthenticatedSession,
+  mission: MissionOwnership,
+): void {
+  requirePermission(session.principal, "mission:edit", {
+    kind: "campaign",
+    campaignId: mission.campaign_id,
+  });
+  if (mission.author_user_id === session.user.id) return;
+  const elevatedRoles = new Set(["owner", "administrator", "campaign_manager", "editor"]);
+  const elevated = session.assignments.some(
+    (assignment) =>
+      elevatedRoles.has(assignment.roleName) &&
+      (assignment.scope.kind === "global" ||
+        assignment.scope.campaignId === mission.campaign_id),
+  );
+  if (!elevated) {
+    throw new HttpError(403, "own_mission_only", "Mestres editam apenas as próprias missões.");
+  }
+}
+
+function assertStatusTransition(
+  session: AuthenticatedSession,
+  campaignId: string,
+  current: MissionStatus,
+  next: MissionStatus,
+): void {
+  const allowed: Readonly<Record<MissionStatus, readonly MissionStatus[]>> = {
+    draft: ["pending_review", "archived"],
+    pending_review: ["approved", "rejected", "draft", "archived"],
+    approved: ["published", "rejected", "archived"],
+    published: ["archived"],
+    archived: ["draft"],
+    rejected: ["draft", "pending_review", "archived"],
+  };
+  if (!allowed[current].includes(next)) {
+    throw new HttpError(409, "invalid_status_transition", "Mudança de estado inválida.");
+  }
+  if (next === "approved" || next === "rejected") {
+    requirePermission(session.principal, "mission:review", {
+      kind: "campaign",
+      campaignId,
+    });
+  }
+  if (next === "published") {
+    requirePermission(session.principal, "mission:publish", {
+      kind: "campaign",
+      campaignId,
+    });
+  }
+}
+
+function canReadEditorial(
+  session: AuthenticatedSession | null,
+  campaignId: string,
+  authorUserId: string,
+): boolean {
+  return Boolean(
+    session &&
+      (session.user.id === authorUserId ||
+        hasPermission(session.principal, "mission:review", {
+          kind: "campaign",
+          campaignId,
+        }) ||
+        hasElevatedMissionRole(session, campaignId)),
+  );
+}
+
+function hasElevatedMissionRole(
+  session: AuthenticatedSession,
+  campaignId: string,
+): boolean {
+  const elevatedRoles = new Set(["owner", "administrator", "campaign_manager", "editor"]);
+  return session.assignments.some(
+    (assignment) =>
+      elevatedRoles.has(assignment.roleName) &&
+      (assignment.scope.kind === "global" ||
+        assignment.scope.campaignId === campaignId),
+  );
+}
+
+async function requireActiveMembership(campaignId: string, userId: string) {
+  const membership = await getD1()
+    .prepare(
+      `SELECT 1 AS active FROM campaign_members
+       WHERE campaign_id = ? AND user_id = ? AND status = 'active'`,
+    )
+    .bind(campaignId, userId)
+    .first<{ active: number }>();
+  if (!membership) {
+    throw new HttpError(403, "membership_required", "Você não é membro ativo desta campanha.");
+  }
+}
+
+function mapMission(row: MissionRow): MissionSummary {
+  return {
+    id: row.id,
+    campaignId: row.campaign_id,
+    authorUserId: row.author_user_id,
+    authorName: row.author_name,
+    title: row.title,
+    summary: row.summary,
+    region: row.region,
+    status: row.status,
+    risk: row.risk,
+    scheduledFor: toIsoDateTime(row.scheduled_for),
+    partySize: row.party_size,
+    signupCount: Number(row.signup_count),
+    waitlistCount: Number(row.waitlist_count),
+    currentUserSignup: row.current_user_signup,
+    version: row.version,
+  };
+}

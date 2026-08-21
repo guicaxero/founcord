@@ -8,7 +8,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import { roleNames } from "@vigilia/authz";
-import { missionStatuses } from "@vigilia/contracts";
+import { missionStatuses, postStatuses } from "@vigilia/contracts";
 
 const timestamps = {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -38,6 +38,9 @@ export const sessions = sqliteTable(
       .references(() => users.id, { onDelete: "cascade" }),
     expiresAt: text("expires_at").notNull(),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    lastSeenAt: text("last_seen_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => [index("idx_iam_sessions_user_id").on(table.userId)],
 );
@@ -82,9 +85,16 @@ export const campaigns = sqliteTable(
     })
       .notNull()
       .default("draft"),
+    isPublic: integer("is_public", { mode: "boolean" })
+      .notNull()
+      .default(true),
+    version: integer("version").notNull().default(1),
     ...timestamps,
   },
-  (table) => [uniqueIndex("uq_campaigns_slug").on(table.slug)],
+  (table) => [
+    uniqueIndex("uq_campaigns_slug").on(table.slug),
+    index("idx_campaigns_public_status").on(table.status, table.isPublic),
+  ],
 );
 
 export const campaignMembers = sqliteTable(
@@ -161,6 +171,7 @@ export const missionSignups = sqliteTable(
       .notNull()
       .default("confirmed"),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => [
     primaryKey({ columns: [table.missionId, table.userId] }),
@@ -180,16 +191,7 @@ export const posts = sqliteTable(
       .references(() => users.id, { onDelete: "restrict" }),
     title: text("title").notNull(),
     body: text("body").notNull(),
-    status: text("status", {
-      enum: [
-        "draft",
-        "pending_review",
-        "approved",
-        "published",
-        "archived",
-        "rejected",
-      ],
-    })
+    status: text("status", { enum: postStatuses })
       .notNull()
       .default("draft"),
     source: text("source", {
@@ -260,5 +262,35 @@ export const integrationDeliveries = sqliteTable(
       table.destination,
       table.status,
     ),
+  ],
+);
+
+export const auditLog = sqliteTable(
+  "audit_log",
+  {
+    id: text("id").primaryKey(),
+    actorUserId: text("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    campaignId: text("campaign_id").references(() => campaigns.id, {
+      onDelete: "set null",
+    }),
+    action: text("action").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: text("entity_id").notNull(),
+    correlationId: text("correlation_id").notNull(),
+    detailsJson: text("details_json").notNull().default("{}"),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    index("idx_audit_log_campaign_created").on(
+      table.campaignId,
+      table.createdAt,
+    ),
+    index("idx_audit_log_actor_created").on(
+      table.actorUserId,
+      table.createdAt,
+    ),
+    index("idx_audit_log_correlation_id").on(table.correlationId),
   ],
 );

@@ -16,6 +16,7 @@ as campanhas; uma concessão de campanha nunca vaza para outra.
 | Criar post | ✓ | ✓ | ✓ | ✓ | ✓ |  |  | Rascunho |
 | Revisar post | ✓ | ✓ | ✓ |  | ✓ | ✓ |  |  |
 | Publicar post | ✓ | ✓ | ✓ |  |  | ✓ |  |  |
+| Consultar auditoria | ✓ | ✓ | ✓ |  |  |  |  |  |
 
 Regras como “editar somente a própria missão” são ABAC e complementam a matriz.
 O papel `automation` não recebe nenhuma permissão de publicação.

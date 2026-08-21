@@ -12,7 +12,7 @@ Discord e Foundry VTT.
 - Zod como validação dos contratos em runtime.
 - D1/SQLite para estado estruturado e Drizzle para migrations.
 - RBAC com escopo global ou por campanha; o backend é sempre autoritativo.
-- Server Components, Server Actions e cache nativo do Next; sem TanStack Query.
+- Server Components para a primeira renderização e TanStack Query para estado remoto no navegador.
 
 ## Estrutura
 
@@ -50,3 +50,20 @@ npm run db:generate
 
 Consulte [a arquitetura](docs/ARCHITECTURE.md) e
 [a matriz RBAC](docs/RBAC.md) antes de ampliar um domínio.
+
+## Marco 1
+
+- Discord OAuth 2 com PKCE e sessão opaca em cookie HTTP-only;
+- RBAC global e por campanha aplicado no servidor;
+- campanhas, membros e atribuição de papéis;
+- missões com revisão, publicação, inscrições e lista de espera;
+- posts com revisão humana e publicação no portal;
+- trilha de auditoria e outbox;
+- Next.js, TypeScript estrito, Tailwind CSS e TanStack Query;
+- persistência Cloudflare D1 com migrations Drizzle.
+
+## Configuração local
+
+Copie `.env.example` para `.env.local`, preencha a aplicação Discord e cadastre
+`http://localhost:3000/api/auth/discord/callback` como redirect URI. A produção
+usa o mesmo caminho sob o domínio publicado.

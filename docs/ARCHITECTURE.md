@@ -91,10 +91,25 @@ apenas UX. O serviço repete a autorização antes de acessar dados.
 
 ## Estado no frontend
 
-Server Components e o cache nativo do Next são o padrão. Server Actions fazem
-mutações e invalidam tags. TanStack Query não faz parte da fundação; só deverá
-ser avaliado se uma tela futura precisar de polling frequente ou sincronização
-de cache no navegador entre vários componentes.
+Server Components produzem a primeira renderização e metadados. TanStack Query
+é a camada de estado remoto no navegador: mantém query keys por agregado,
+coordena mutations, invalida quadro/painel após gravações e compartilha o estado
+de sessão entre componentes. O cache do cliente nunca participa de decisões de
+autorização; toda policy é repetida no servidor.
+
+## Marco 1
+
+O portal publica APIs BFF finas que chamam casos de uso separados por domínio:
+
+- `server/auth`: Discord OAuth com PKCE, estado assinado e sessões opacas;
+- `server/domain/campaigns`: campanhas, membros e papéis;
+- `server/domain/missions`: fluxo editorial, inscrições e lista de espera;
+- `server/domain/posts`: rascunho, revisão e publicação no portal;
+- `server/audit`: auditoria e outbox gravadas junto das mutações.
+
+O primeiro usuário Discord recebe o papel global `owner`. Usuários seguintes
+entram como `player` na campanha padrão e só ganham privilégios por atribuição
+explícita.
 
 ## Integrações
 
