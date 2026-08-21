@@ -14,8 +14,16 @@ export const GET = withApiHandler(async ({ request, correlationId }) => {
           authenticated: true,
           user: session.user,
           capabilities: capabilitiesForSession(session),
+          assignments: session.assignments.map((assignment) => ({
+            roleName: assignment.roleName,
+            scopeKind: assignment.scope.kind,
+            scopeId:
+              assignment.scope.kind === "global"
+                ? "*"
+                : assignment.scope.campaignId,
+          })),
         }
-      : { authenticated: false, user: null, capabilities: [] },
+      : { authenticated: false, user: null, capabilities: [], assignments: [] },
     {},
     correlationId,
   );

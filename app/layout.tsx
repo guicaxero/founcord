@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
+import "./styles/base.css";
+import "./styles/public-portal.css";
+import "./styles/order-document.css";
+import "./styles/admin.css";
+import "./styles/responsive.css";
 import { Providers } from "./providers";
 
 const siteTitle = "Ordem da Última Luz";

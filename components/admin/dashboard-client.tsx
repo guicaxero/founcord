@@ -19,9 +19,55 @@ import { PostsPanel } from "./posts-panel";
 
 type Tab = "missions" | "posts" | "members" | "audit" | "campaigns";
 
+type TabDefinition = Readonly<{
+  id: Tab;
+  label: string;
+  eyebrow: string;
+  description: string;
+  permissions: readonly string[];
+}>;
+
+const tabDefinitions: readonly TabDefinition[] = [
+  {
+    id: "missions",
+    label: "Missões",
+    eyebrow: "Quadro editorial",
+    description: "Crie chamados, organize a revisão e publique missões no quadro da Ordem.",
+    permissions: ["mission:create", "mission:edit", "mission:review", "mission:publish"],
+  },
+  {
+    id: "posts",
+    label: "Publicações",
+    eyebrow: "Mesa de revisão",
+    description: "Prepare crônicas e comunicados antes de publicá-los no portal.",
+    permissions: ["post:create", "post:review", "post:publish"],
+  },
+  {
+    id: "members",
+    label: "Pessoas e acessos",
+    eyebrow: "Comunidade",
+    description: "Gerencie participação e papéis sem confundir acessos globais e locais.",
+    permissions: ["member:manage"],
+  },
+  {
+    id: "audit",
+    label: "Histórico",
+    eyebrow: "Auditoria",
+    description: "Acompanhe as alterações relevantes realizadas dentro da campanha.",
+    permissions: ["audit:read"],
+  },
+  {
+    id: "campaigns",
+    label: "Configurações",
+    eyebrow: "Campanha",
+    description: "Atualize identidade, visibilidade e estado da campanha selecionada.",
+    permissions: ["campaign:manage"],
+  },
+];
+
 export function DashboardClient() {
   const [tab, setTab] = useState<Tab>("missions");
-  const [selectedCampaign, setSelectedCampaign] = useState<string>("");
+  const [selectedCampaign, setSelectedCampaign] = useState("");
   const me = useQuery({
     queryKey: queryKeys.me,
     queryFn: () => apiFetch<CurrentUserResponse>("/api/me"),
@@ -31,103 +77,187 @@ export function DashboardClient() {
     queryFn: () => apiFetch<CampaignListResponse>("/api/campaigns"),
     enabled: me.data?.authenticated === true,
   });
-  const campaignId = selectedCampaign || campaigns.data?.data[0]?.id || "";
-  const campaign = campaigns.data?.data.find((item) => item.id === campaignId);
 
-  if (me.isLoading) return <DashboardState text="Acendendo as lanternas…" />;
+  if (me.isLoading) {
+    return <DashboardState eyebrow="Aguarde" title="Preparando seu espaço de gestão" text="Estamos carregando suas permissões e campanhas." loading />;
+  }
+
   if (!me.data?.authenticated) {
     return (
-      <DashboardState text="Entre com o Discord para acessar o painel.">
+      <DashboardState
+        eyebrow="Acesso protegido"
+        title="Entre para continuar"
+        text="O painel de gestão está disponível somente para membros autorizados."
+      >
         <a className="admin-primary" href="/api/auth/discord?returnTo=/dashboard">
           Entrar com Discord
         </a>
+        <Link className="secondary-action" href="/">Voltar ao portal público</Link>
       </DashboardState>
     );
   }
 
+  const availableTabs = tabDefinitions.filter((definition) =>
+    definition.permissions.some((permission) =>
+      me.data?.capabilities.some((capability) => capability.permission === permission),
+    ),
+  );
+
+  if (availableTabs.length === 0) {
+    return (
+      <DashboardState
+        eyebrow="Área do jogador"
+        title="Você não precisa do painel de gestão"
+        text="Seu perfil participa das missões pelo portal público. Controles administrativos aparecem apenas para a equipe da campanha."
+      >
+        <Link className="admin-primary" href="/#quadro">Ver missões disponíveis</Link>
+        <Link className="secondary-action" href="/">Voltar ao portal</Link>
+      </DashboardState>
+    );
+  }
+
+  const campaignId = selectedCampaign || campaigns.data?.data[0]?.id || "";
+  const campaign = campaigns.data?.data.find((item) => item.id === campaignId);
+  const activeTab = availableTabs.some((definition) => definition.id === tab)
+    ? tab
+    : availableTabs[0]!.id;
+  const activeDefinition = availableTabs.find((definition) => definition.id === activeTab)!;
+  const globalRole = me.data.assignments.find(
+    (assignment) => assignment.scopeKind === "global",
+  )?.roleName;
+
   return (
     <main className="admin-shell">
-      <header className="admin-header">
-        <div>
-          <Link href="/" className="admin-kicker">← Ordem da Última Luz</Link>
-          <h1>Gabinete da campanha</h1>
-        </div>
-        <div className="admin-identity">
-          <span>{me.data.user?.displayName}</span>
-          <Link href="/">Ver portal</Link>
-        </div>
-      </header>
+      <aside className="admin-sidebar">
+        <Link className="admin-brand" href="/">
+          <span className="admin-brand-mark" aria-hidden="true">O</span>
+          <span><small>Ordem da</small><strong>Última Luz</strong></span>
+        </Link>
 
-      <div className="admin-context">
-        <label>
-          Campanha ativa
+        <div className="admin-campaign-picker">
+          <label htmlFor="active-campaign">Campanha ativa</label>
           <select
+            id="active-campaign"
             value={campaignId}
             onChange={(event) => setSelectedCampaign(event.target.value)}
+            disabled={campaigns.isLoading}
           >
             {campaigns.data?.data.map((item) => (
               <option value={item.id} key={item.id}>{item.name}</option>
             ))}
           </select>
-        </label>
-        {campaign ? <span className={`status-pill status-${campaign.status}`}>{campaign.status}</span> : null}
-      </div>
-
-      {!campaignId ? (
-        <section className="admin-empty">
-          <h2>Nenhuma campanha disponível</h2>
-          <p>Crie a primeira campanha caso você possua permissão global.</p>
-          {hasCapability(me.data, "campaign:manage") ? (
-            <CampaignCreator onCreated={setSelectedCampaign} />
+          {campaign ? (
+            <span className="campaign-state">
+              <i aria-hidden="true" />
+              {campaign.status === "active" ? "Campanha ativa" : campaign.status}
+            </span>
           ) : null}
-        </section>
-      ) : (
-        <>
-          <nav className="admin-tabs" aria-label="Áreas administrativas">
-            <TabButton active={tab === "missions"} onClick={() => setTab("missions")}>Missões</TabButton>
-            <TabButton active={tab === "posts"} onClick={() => setTab("posts")}>Posts</TabButton>
-            {hasCapability(me.data, "member:manage", campaignId) ? (
-              <TabButton active={tab === "members"} onClick={() => setTab("members")}>Membros</TabButton>
-            ) : null}
-            {hasCapability(me.data, "audit:read", campaignId) ? (
-              <TabButton active={tab === "audit"} onClick={() => setTab("audit")}>Auditoria</TabButton>
-            ) : null}
+        </div>
+
+        <nav className="admin-navigation" aria-label="Áreas de gestão">
+          <span className="admin-nav-label">Gestão</span>
+          {availableTabs.map((definition) => (
+            <button
+              key={definition.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === definition.id}
+              aria-controls="admin-active-panel"
+              className={activeTab === definition.id ? "is-active" : ""}
+              onClick={() => setTab(definition.id)}
+            >
+              <span>{definition.label}</span>
+              <small>{definition.eyebrow}</small>
+            </button>
+          ))}
+        </nav>
+
+        <div className="admin-user-card">
+          <span className="admin-user-avatar" aria-hidden="true">
+            {me.data.user?.displayName.slice(0, 1).toUpperCase()}
+          </span>
+          <span>
+            <strong>{me.data.user?.displayName}</strong>
+            <small>{globalRole ? roleLabel(globalRole) : "Equipe da campanha"}</small>
+          </span>
+        </div>
+      </aside>
+
+      <section className="admin-main">
+        <header className="admin-topbar">
+          <div className="admin-breadcrumb" aria-label="Localização atual">
+            <Link href="/">Portal</Link><span aria-hidden="true">/</span><strong>Painel de gestão</strong>
+          </div>
+          <Link className="secondary-action" href="/">Visualizar portal</Link>
+        </header>
+
+        <div className="admin-page-heading">
+          <div>
+            <span className="admin-eyebrow">{activeDefinition.eyebrow}</span>
+            <h1>{activeDefinition.label}</h1>
+            <p>{activeDefinition.description}</p>
+          </div>
+          {globalRole ? (
+            <div className="access-summary">
+              <span>Acesso atual</span>
+              <strong>{roleLabel(globalRole)}</strong>
+              <small>Permissões globais protegidas</small>
+            </div>
+          ) : null}
+        </div>
+
+        {!campaignId ? (
+          <section className="admin-empty">
+            <span className="empty-mark" aria-hidden="true">O</span>
+            <h2>Nenhuma campanha disponível</h2>
+            <p>Crie a primeira campanha para começar a organizar missões e membros.</p>
             {hasCapability(me.data, "campaign:manage") ? (
-              <TabButton active={tab === "campaigns"} onClick={() => setTab("campaigns")}>Campanhas</TabButton>
+              <CampaignCreator onCreated={setSelectedCampaign} />
             ) : null}
-          </nav>
-          <section className="admin-workspace">
-            {tab === "missions" ? <MissionsPanel campaignId={campaignId} me={me.data} /> : null}
-            {tab === "posts" ? <PostsPanel campaignId={campaignId} me={me.data} /> : null}
-            {tab === "members" ? <MembersPanel campaignId={campaignId} me={me.data} /> : null}
-            {tab === "audit" ? <AuditPanel campaignId={campaignId} /> : null}
-            {tab === "campaigns" ? (
+          </section>
+        ) : (
+          <section className="admin-workspace" id="admin-active-panel" role="tabpanel">
+            {activeTab === "missions" ? <MissionsPanel campaignId={campaignId} me={me.data} /> : null}
+            {activeTab === "posts" ? <PostsPanel campaignId={campaignId} me={me.data} /> : null}
+            {activeTab === "members" ? <MembersPanel campaignId={campaignId} me={me.data} /> : null}
+            {activeTab === "audit" ? <AuditPanel campaignId={campaignId} /> : null}
+            {activeTab === "campaigns" ? (
               <div className="admin-two-column">
                 {campaign ? <CampaignSettings campaign={campaign} /> : null}
                 <CampaignCreator onCreated={setSelectedCampaign} />
               </div>
             ) : null}
           </section>
-        </>
-      )}
+        )}
+      </section>
     </main>
   );
 }
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: Readonly<{ active: boolean; onClick: () => void; children: React.ReactNode }>) {
-  return <button className={active ? "is-active" : ""} onClick={onClick} type="button">{children}</button>;
-}
-
 function DashboardState({
+  eyebrow,
+  title,
   text,
+  loading = false,
   children,
-}: Readonly<{ text: string; children?: React.ReactNode }>) {
+}: Readonly<{
+  eyebrow: string;
+  title: string;
+  text: string;
+  loading?: boolean;
+  children?: React.ReactNode;
+}>) {
   return (
-    <main className="dashboard-state"><div className="sigil">O</div><p>{text}</p>{children}</main>
+    <main className="dashboard-state">
+      <div className="dashboard-state-card">
+        <span className="dashboard-state-mark" aria-hidden="true">O</span>
+        <span className="admin-eyebrow">{eyebrow}</span>
+        <h1>{title}</h1>
+        <p>{text}</p>
+        {loading ? <span className="loading-line" aria-hidden="true" /> : null}
+        {children ? <div className="dashboard-state-actions">{children}</div> : null}
+      </div>
+    </main>
   );
 }
 
@@ -158,17 +288,22 @@ function CampaignCreator({ onCreated }: Readonly<{ onCreated: (id: string) => vo
   }
 
   return (
-    <div className="admin-panel-narrow">
-      <div className="admin-section-title"><div><span>FUNDAÇÃO</span><h2>Nova campanha</h2></div></div>
+    <section className="admin-card admin-panel-narrow">
+      <div className="admin-section-title">
+        <div><span>Nova estrutura</span><h2>Criar campanha</h2><p>Abra um novo espaço persistente dentro do portal.</p></div>
+      </div>
       <form className="admin-form" onSubmit={submit}>
         <label>Nome<input name="name" required minLength={3} /></label>
         <label>Identificador<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" /></label>
         <label className="full">Descrição<textarea name="description" rows={4} /></label>
-        <label className="check full"><input type="checkbox" name="isPublic" defaultChecked /> Quadro público</label>
-        <button className="admin-primary" disabled={create.isPending}>Criar campanha</button>
+        <label className="check full"><input type="checkbox" name="isPublic" defaultChecked /> Exibir no portal público</label>
+        <button className="admin-primary" disabled={create.isPending}>
+          {create.isPending ? "Criando campanha…" : "Criar campanha"}
+        </button>
       </form>
+      {create.isSuccess ? <p className="inline-success" role="status">Campanha criada com sucesso.</p> : null}
       {create.isError ? <p className="inline-error">{errorMessage(create.error)}</p> : null}
-    </div>
+    </section>
   );
 }
 
@@ -180,8 +315,7 @@ function CampaignSettings({ campaign }: Readonly<{ campaign: Campaign }>) {
         method: "PATCH",
         body: JSON.stringify({ ...input, version: campaign.version }),
       }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.campaigns }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.campaigns }),
   });
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -197,17 +331,36 @@ function CampaignSettings({ campaign }: Readonly<{ campaign: Campaign }>) {
   }
 
   return (
-    <div>
-      <div className="admin-section-title"><div><span>CONFIGURAÇÃO</span><h2>{campaign.name}</h2></div></div>
+    <section className="admin-card">
+      <div className="admin-section-title">
+        <div><span>Configuração atual</span><h2>{campaign.name}</h2><p>Identidade e disponibilidade desta campanha.</p></div>
+      </div>
       <form className="admin-form" key={campaign.version} onSubmit={submit}>
         <label>Nome<input name="name" defaultValue={campaign.name} required /></label>
         <label>Identificador<input name="slug" defaultValue={campaign.slug} required /></label>
         <label className="full">Descrição<textarea name="description" rows={5} defaultValue={campaign.description} /></label>
         <label>Status<select name="status" defaultValue={campaign.status}><option value="draft">Rascunho</option><option value="active">Ativa</option><option value="archived">Arquivada</option></select></label>
-        <label className="check"><input type="checkbox" name="isPublic" defaultChecked={campaign.isPublic} /> Quadro público</label>
-        <button className="admin-primary" disabled={update.isPending}>Salvar campanha</button>
+        <label className="check"><input type="checkbox" name="isPublic" defaultChecked={campaign.isPublic} /> Exibir no portal público</label>
+        <button className="admin-primary" disabled={update.isPending}>
+          {update.isPending ? "Salvando alterações…" : "Salvar configurações"}
+        </button>
       </form>
+      {update.isSuccess ? <p className="inline-success" role="status">Configurações atualizadas.</p> : null}
       {update.isError ? <p className="inline-error">{errorMessage(update.error)}</p> : null}
-    </div>
+    </section>
   );
+}
+
+function roleLabel(role: string): string {
+  const labels: Record<string, string> = {
+    owner: "Proprietário global",
+    administrator: "Administrador global",
+    campaign_manager: "Gestor da campanha",
+    gm: "Mestre",
+    editor: "Editor",
+    moderator: "Moderador",
+    player: "Jogador",
+    automation: "Automação",
+  };
+  return labels[role] ?? role;
 }

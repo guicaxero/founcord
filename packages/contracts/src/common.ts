@@ -31,15 +31,36 @@ export const CapabilitySchema = z
   })
   .strict();
 
+export const RoleNameSchema = z.enum([
+  "owner",
+  "administrator",
+  "campaign_manager",
+  "gm",
+  "editor",
+  "moderator",
+  "player",
+  "automation",
+]);
+
+export const RoleAssignmentViewSchema = z
+  .object({
+    roleName: RoleNameSchema,
+    scopeKind: z.enum(["global", "campaign"]),
+    scopeId: z.string(),
+  })
+  .strict();
+
 export const CurrentUserResponseSchema = z
   .object({
     authenticated: z.boolean(),
     user: UserSchema.nullable(),
     capabilities: z.array(CapabilitySchema),
+    assignments: z.array(RoleAssignmentViewSchema),
   })
   .strict();
 
 export type ApiError = z.infer<typeof ApiErrorSchema>;
 export type User = z.infer<typeof UserSchema>;
 export type Capability = z.infer<typeof CapabilitySchema>;
+export type RoleAssignmentView = z.infer<typeof RoleAssignmentViewSchema>;
 export type CurrentUserResponse = z.infer<typeof CurrentUserResponseSchema>;
