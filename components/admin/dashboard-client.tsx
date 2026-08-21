@@ -1,7 +1,6 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
 import type {
   Campaign,
   CampaignListResponse,
@@ -92,7 +91,7 @@ export function DashboardClient() {
         <a className="admin-primary" href="/api/auth/discord?returnTo=/dashboard">
           Entrar com Discord
         </a>
-        <Link className="secondary-action" href="/">Voltar ao portal público</Link>
+        <a className="secondary-action" href="/">Voltar ao portal público</a>
       </DashboardState>
     );
   }
@@ -110,8 +109,8 @@ export function DashboardClient() {
         title="Você não precisa do painel de gestão"
         text="Seu perfil participa das missões pelo portal público. Controles administrativos aparecem apenas para a equipe da campanha."
       >
-        <Link className="admin-primary" href="/#quadro">Ver missões disponíveis</Link>
-        <Link className="secondary-action" href="/">Voltar ao portal</Link>
+        <a className="admin-primary" href="/#quadro">Ver missões disponíveis</a>
+        <a className="secondary-action" href="/">Voltar ao portal</a>
       </DashboardState>
     );
   }
@@ -129,10 +128,10 @@ export function DashboardClient() {
   return (
     <main className="admin-shell">
       <aside className="admin-sidebar">
-        <Link className="admin-brand" href="/">
+        <a className="admin-brand" href="/">
           <span className="admin-brand-mark" aria-hidden="true">O</span>
           <span><small>Ordem da</small><strong>Última Luz</strong></span>
-        </Link>
+        </a>
 
         <div className="admin-campaign-picker">
           <label htmlFor="active-campaign">Campanha ativa</label>
@@ -186,9 +185,9 @@ export function DashboardClient() {
       <section className="admin-main">
         <header className="admin-topbar">
           <div className="admin-breadcrumb" aria-label="Localização atual">
-            <Link href="/">Portal</Link><span aria-hidden="true">/</span><strong>Painel de gestão</strong>
+            <a href="/">Portal</a><span aria-hidden="true">/</span><strong>Painel de gestão</strong>
           </div>
-          <Link className="secondary-action" href="/">Visualizar portal</Link>
+          <a className="secondary-action" href="/">Visualizar portal</a>
         </header>
 
         <div className="admin-page-heading">
