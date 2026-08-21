@@ -1,0 +1,264 @@
+import { sql } from "drizzle-orm";
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
+import { roleNames } from "@vigilia/authz";
+import { missionStatuses } from "@vigilia/contracts";
+
+const timestamps = {
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+};
+
+export const users = sqliteTable(
+  "iam_users",
+  {
+    id: text("id").primaryKey(),
+    discordUserId: text("discord_user_id").notNull(),
+    displayName: text("display_name").notNull(),
+    avatarUrl: text("avatar_url"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("uq_iam_users_discord_user_id").on(table.discordUserId),
+  ],
+);
+
+export const sessions = sqliteTable(
+  "iam_sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: text("expires_at").notNull(),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [index("idx_iam_sessions_user_id").on(table.userId)],
+);
+
+export const roleAssignments = sqliteTable(
+  "iam_role_assignments",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    roleName: text("role_name", { enum: roleNames }).notNull(),
+    scopeKind: text("scope_kind", {
+      enum: ["global", "campaign"],
+    }).notNull(),
+    scopeId: text("scope_id").notNull(),
+    grantedBy: text("granted_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("uq_iam_role_assignment_scope").on(
+      table.userId,
+      table.roleName,
+      table.scopeKind,
+      table.scopeId,
+    ),
+    index("idx_iam_role_assignments_user_id").on(table.userId),
+  ],
+);
+
+export const campaigns = sqliteTable(
+  "campaigns",
+  {
+    id: text("id").primaryKey(),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    status: text("status", {
+      enum: ["draft", "active", "archived"],
+    })
+      .notNull()
+      .default("draft"),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("uq_campaigns_slug").on(table.slug)],
+);
+
+export const campaignMembers = sqliteTable(
+  "campaign_members",
+  {
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: text("status", {
+      enum: ["active", "suspended", "left"],
+    })
+      .notNull()
+      .default("active"),
+    joinedAt: text("joined_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    primaryKey({ columns: [table.campaignId, table.userId] }),
+    index("idx_campaign_members_user_id").on(table.userId),
+  ],
+);
+
+export const missions = sqliteTable(
+  "missions",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    authorUserId: text("author_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    title: text("title").notNull(),
+    summary: text("summary").notNull(),
+    region: text("region").notNull(),
+    status: text("status", { enum: missionStatuses })
+      .notNull()
+      .default("draft"),
+    risk: text("risk", {
+      enum: ["unknown", "moderate", "dangerous", "deadly"],
+    })
+      .notNull()
+      .default("unknown"),
+    scheduledFor: text("scheduled_for"),
+    partySize: integer("party_size").notNull().default(5),
+    publishedAt: text("published_at"),
+    version: integer("version").notNull().default(1),
+    ...timestamps,
+  },
+  (table) => [
+    index("idx_missions_campaign_status_published").on(
+      table.campaignId,
+      table.status,
+      table.publishedAt,
+    ),
+    index("idx_missions_author_user_id").on(table.authorUserId),
+  ],
+);
+
+export const missionSignups = sqliteTable(
+  "mission_signups",
+  {
+    missionId: text("mission_id")
+      .notNull()
+      .references(() => missions.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: text("status", {
+      enum: ["confirmed", "waitlisted", "withdrawn"],
+    })
+      .notNull()
+      .default("confirmed"),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    primaryKey({ columns: [table.missionId, table.userId] }),
+    index("idx_mission_signups_user_id").on(table.userId),
+  ],
+);
+
+export const posts = sqliteTable(
+  "posts",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    authorUserId: text("author_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    status: text("status", {
+      enum: [
+        "draft",
+        "pending_review",
+        "approved",
+        "published",
+        "archived",
+        "rejected",
+      ],
+    })
+      .notNull()
+      .default("draft"),
+    source: text("source", {
+      enum: ["manual", "discord", "foundry", "automation"],
+    })
+      .notNull()
+      .default("manual"),
+    reviewedBy: text("reviewed_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    publishedAt: text("published_at"),
+    version: integer("version").notNull().default(1),
+    ...timestamps,
+  },
+  (table) => [
+    index("idx_posts_campaign_status_published").on(
+      table.campaignId,
+      table.status,
+      table.publishedAt,
+    ),
+  ],
+);
+
+export const outboxEvents = sqliteTable(
+  "outbox_events",
+  {
+    id: text("id").primaryKey(),
+    aggregateType: text("aggregate_type").notNull(),
+    aggregateId: text("aggregate_id").notNull(),
+    eventType: text("event_type").notNull(),
+    payloadJson: text("payload_json").notNull(),
+    occurredAt: text("occurred_at").notNull(),
+    publishedAt: text("published_at"),
+    attempts: integer("attempts").notNull().default(0),
+  },
+  (table) => [
+    index("idx_outbox_events_unpublished").on(
+      table.publishedAt,
+      table.occurredAt,
+    ),
+  ],
+);
+
+export const integrationDeliveries = sqliteTable(
+  "integration_deliveries",
+  {
+    id: text("id").primaryKey(),
+    destination: text("destination", {
+      enum: ["discord", "foundry", "automation"],
+    }).notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    externalId: text("external_id"),
+    status: text("status", {
+      enum: ["pending", "succeeded", "failed"],
+    })
+      .notNull()
+      .default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("uq_integration_deliveries_idempotency").on(
+      table.destination,
+      table.idempotencyKey,
+    ),
+    index("idx_integration_deliveries_status").on(
+      table.destination,
+      table.status,
+    ),
+  ],
+);
