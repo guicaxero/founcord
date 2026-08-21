@@ -36,7 +36,10 @@ test("renderiza a primeira superfície do portal", async () => {
   assert.match(html, /name="twitter:title"/i);
   assert.match(html, /name="twitter:description"/i);
   assert.match(html, /name="twitter:image"/i);
-  assert.match(html, /http:\/\/localhost(?::\d+)?\/og\.png/i);
+  assert.match(
+    html,
+    /https:\/\/ordem-da-ultima-luz\.caxeropl\.chatgpt\.site\/og\.png/i,
+  );
   assert.match(html, /Enquanto houver luz/);
   assert.match(html, /Chamados da Ordem/);
   assert.match(html, /O Império está em crise/);

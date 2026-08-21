@@ -65,6 +65,7 @@ export function PostsPanel({
   const canCreate = hasCapability(me, "post:create", campaignId);
   const canReview = hasCapability(me, "post:review", campaignId);
   const canPublish = hasCapability(me, "post:publish", campaignId);
+  const canEditAll = canCreate && canReview;
 
   return (
     <div className="admin-two-column">
@@ -84,7 +85,9 @@ export function PostsPanel({
                 <p>{post.authorName} · origem {post.source}</p>
               </div>
               <div className="admin-row-actions">
-                {post.authorUserId === me.user?.id && canCreate && ["draft", "rejected"].includes(post.status) ? (
+                {canCreate &&
+                (post.authorUserId === me.user?.id || canEditAll) &&
+                ["draft", "pending_review", "rejected"].includes(post.status) ? (
                   <button type="button" onClick={() => setEditing(post)}>Editar</button>
                 ) : null}
                 {(post.status === "draft" || post.status === "rejected") && post.authorUserId === me.user?.id ? (

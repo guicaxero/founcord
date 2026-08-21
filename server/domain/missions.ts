@@ -14,6 +14,7 @@ import {
 import type { AuthenticatedSession } from "../auth/session";
 import { HttpError } from "../http";
 import { toIsoDateTime } from "../time";
+import { requireCampaignVisible } from "./campaigns";
 
 type MissionRow = Readonly<{
   id: string;
@@ -52,6 +53,7 @@ export async function listMissions(
   session: AuthenticatedSession | null,
   includeEditorial: boolean,
 ): Promise<MissionSummary[]> {
+  await requireCampaignVisible(campaignId, session);
   const canEdit = Boolean(
     session &&
       hasPermission(session.principal, "mission:edit", {
@@ -125,6 +127,7 @@ export async function getMission(
     .bind(userId, missionId)
     .first<MissionRow>();
   if (!row) throw new HttpError(404, "mission_not_found", "Missão não encontrada.");
+  await requireCampaignVisible(row.campaign_id, session);
   if (
     row.status !== "published" &&
     !canReadEditorial(session, row.campaign_id, row.author_user_id)
@@ -201,6 +204,22 @@ export async function updateMission(
   ].some((value) => value !== undefined);
   const isReviewOnly = input.status === "approved" || input.status === "rejected";
   const isPublishOnly = input.status === "published";
+  if (input.status === existing.status && !changesContent) {
+    if (isReviewOnly) {
+      requirePermission(session.principal, "mission:review", {
+        kind: "campaign",
+        campaignId: existing.campaign_id,
+      });
+    } else if (isPublishOnly) {
+      requirePermission(session.principal, "mission:publish", {
+        kind: "campaign",
+        campaignId: existing.campaign_id,
+      });
+    } else {
+      assertCanEditMission(session, existing);
+    }
+    throw new HttpError(422, "no_effect", "A missão já está nesse estado.");
+  }
   if (changesContent || (!isReviewOnly && !isPublishOnly)) {
     assertCanEditMission(session, existing);
   }
@@ -354,13 +373,14 @@ export async function withdrawFromMission(
 ): Promise<void> {
   const mission = await getMissionOwnership(missionId);
   const db = getD1();
+  const withdrawalAt = new Date().toISOString();
   const results = await db.batch([
     db
       .prepare(
-        `UPDATE mission_signups SET status = 'withdrawn', updated_at = CURRENT_TIMESTAMP
+        `UPDATE mission_signups SET status = 'withdrawn', updated_at = ?
          WHERE mission_id = ? AND user_id = ? AND status <> 'withdrawn'`,
       )
-      .bind(missionId, session.user.id),
+      .bind(withdrawalAt, missionId, session.user.id),
     prepareAuditAfterChange(db, {
       actorUserId: session.user.id,
       campaignId: mission.campaign_id,
@@ -388,9 +408,22 @@ export async function withdrawFromMission(
            AND (
              SELECT COUNT(*) FROM mission_signups
              WHERE mission_id = ? AND status = 'confirmed'
-           ) < (SELECT party_size FROM missions WHERE id = ?)`,
+           ) < (SELECT party_size FROM missions WHERE id = ?)
+           AND EXISTS (
+             SELECT 1 FROM mission_signups
+             WHERE mission_id = ? AND user_id = ?
+               AND status = 'withdrawn' AND updated_at = ?
+           )`,
       )
-      .bind(missionId, missionId, missionId, missionId),
+      .bind(
+        missionId,
+        missionId,
+        missionId,
+        missionId,
+        missionId,
+        session.user.id,
+        withdrawalAt,
+      ),
   ]);
   if ((results[0]?.meta.changes ?? 0) === 0) {
     throw new HttpError(404, "signup_not_found", "Inscrição não encontrada.");
@@ -402,16 +435,7 @@ export async function listSignups(
   missionId: string,
 ): Promise<MissionSignup[]> {
   const mission = await getMissionOwnership(missionId);
-  if (
-    !hasPermission(session.principal, "mission:edit", {
-      kind: "campaign",
-      campaignId: mission.campaign_id,
-    }) &&
-    !hasPermission(session.principal, "mission:review", {
-      kind: "campaign",
-      campaignId: mission.campaign_id,
-    })
-  ) {
+  if (!canReadEditorial(session, mission.campaign_id, mission.author_user_id)) {
     throw new HttpError(403, "forbidden", "Você não pode visualizar esta companhia.");
   }
   const result = await getD1()

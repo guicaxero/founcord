@@ -47,7 +47,9 @@ export function MembersPanel({
     const data = new FormData(event.currentTarget);
     add.mutate({
       discordUserId: String(data.get("discordUserId")),
-      role: String(data.get("role")) as AddCampaignMemberInput["role"],
+      role: canAssign
+        ? (String(data.get("role")) as AddCampaignMemberInput["role"])
+        : "player",
     });
     event.currentTarget.reset();
   }
@@ -117,18 +119,20 @@ export function MembersPanel({
         {members.isError ? <p className="inline-error">{errorMessage(members.error)}</p> : null}
         {update.isError ? <p className="inline-error">{errorMessage(update.error)}</p> : null}
       </div>
-      {canAssign ? (
-        <aside className="admin-editor">
-          <div className="admin-section-title"><div><span>CONVITE</span><h2>Adicionar membro</h2></div></div>
-          <form className="admin-form" onSubmit={submit}>
-            <label className="full">ID do usuário Discord<input name="discordUserId" required /></label>
+      <aside className="admin-editor">
+        <div className="admin-section-title"><div><span>CONVITE</span><h2>Adicionar membro</h2></div></div>
+        <form className="admin-form" onSubmit={submit}>
+          <label className="full">ID do usuário Discord<input name="discordUserId" required /></label>
+          {canAssign ? (
             <label className="full">Papel inicial<select name="role" defaultValue="player"><option value="player">Jogador</option><option value="gm">Mestre</option><option value="editor">Editor</option><option value="moderator">Moderador</option><option value="campaign_manager">Gestor</option></select></label>
-            <button className="admin-primary" disabled={add.isPending}>Adicionar</button>
-          </form>
-          <p className="editorial-note">A pessoa precisa ter entrado no portal pelo menos uma vez.</p>
-          {add.isError ? <p className="inline-error">{errorMessage(add.error)}</p> : null}
-        </aside>
-      ) : null}
+          ) : (
+            <p className="editorial-note full">O novo membro será adicionado como jogador.</p>
+          )}
+          <button className="admin-primary" disabled={add.isPending}>Adicionar</button>
+        </form>
+        <p className="editorial-note">A pessoa precisa ter entrado no portal pelo menos uma vez.</p>
+        {add.isError ? <p className="inline-error">{errorMessage(add.error)}</p> : null}
+      </aside>
     </div>
   );
 }

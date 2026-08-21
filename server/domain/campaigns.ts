@@ -28,6 +28,7 @@ type CampaignRow = Readonly<{
   version: number;
   created_at: string;
   updated_at: string;
+  active_member_id?: string | null;
 }>;
 
 type MemberRow = Readonly<{
@@ -48,11 +49,9 @@ export async function listCampaigns(
   const query = session
     ? db
         .prepare(
-          `SELECT DISTINCT c.* FROM campaigns c
+          `SELECT DISTINCT c.*, cm.user_id AS active_member_id FROM campaigns c
            LEFT JOIN campaign_members cm
              ON cm.campaign_id = c.id AND cm.user_id = ? AND cm.status = 'active'
-           WHERE (c.status = 'active' AND c.is_public = 1)
-              OR cm.user_id IS NOT NULL
            ORDER BY c.name`,
         )
         .bind(session.user.id)
@@ -62,7 +61,14 @@ export async function listCampaigns(
          ORDER BY name`,
       );
   const result = await query.all<CampaignRow>();
-  return result.results.map(mapCampaign);
+  return result.results
+    .filter(
+      (campaign) =>
+        (campaign.status === "active" &&
+          (Boolean(campaign.is_public) || Boolean(campaign.active_member_id))) ||
+        canManageCampaign(session, campaign.id),
+    )
+    .map(mapCampaign);
 }
 
 export async function getCampaign(
@@ -70,15 +76,25 @@ export async function getCampaign(
   session: AuthenticatedSession | null,
 ): Promise<Campaign> {
   const row = await getCampaignRow(campaignId);
+  const canManage = canManageCampaign(session, campaignId);
+  if (row.status !== "active" && !canManage) {
+    throw new HttpError(404, "campaign_not_found", "Campanha não encontrada.");
+  }
   if (
-    row.status !== "active" ||
-    (!row.is_public && !canManageCampaign(session, campaignId))
+    !row.is_public &&
+    !canManage &&
+    !(session && (await isActiveCampaignMember(campaignId, session.user.id)))
   ) {
-    if (!canManageCampaign(session, campaignId)) {
-      throw new HttpError(404, "campaign_not_found", "Campanha não encontrada.");
-    }
+    throw new HttpError(404, "campaign_not_found", "Campanha não encontrada.");
   }
   return mapCampaign(row);
+}
+
+export async function requireCampaignVisible(
+  campaignId: string,
+  session: AuthenticatedSession | null,
+): Promise<void> {
+  await getCampaign(campaignId, session);
 }
 
 async function getCampaignRow(campaignId: string): Promise<CampaignRow> {
@@ -164,43 +180,51 @@ export async function updateCampaign(
     campaignId,
   });
   const db = getD1();
-  const results = await db.batch([
-    db.prepare(
-      `UPDATE campaigns SET
-        slug = COALESCE(?, slug),
-        name = COALESCE(?, name),
-        description = COALESCE(?, description),
-        status = COALESCE(?, status),
-        is_public = COALESCE(?, is_public),
-        version = version + 1,
-        updated_at = CURRENT_TIMESTAMP
-       WHERE id = ? AND version = ?`,
-    )
-    .bind(
-      input.slug ?? null,
-      input.name ?? null,
-      input.description ?? null,
-      input.status ?? null,
-      input.isPublic === undefined ? null : input.isPublic ? 1 : 0,
-      campaignId,
-      input.version,
-    ),
-    prepareAuditAfterChange(db, {
-      actorUserId: session.user.id,
-      campaignId,
-      action: "campaign.updated",
-      entityType: "campaign",
-      entityId: campaignId,
-      correlationId,
-      details: { fields: Object.keys(input).filter((key) => key !== "version") },
-    }),
-    prepareOutboxEventAfterChange(db, {
-      aggregateType: "campaign",
-      aggregateId: campaignId,
-      eventType: "campaign.updated",
-      payload: { campaignId },
-    }),
-  ]);
+  let results;
+  try {
+    results = await db.batch([
+      db.prepare(
+        `UPDATE campaigns SET
+          slug = COALESCE(?, slug),
+          name = COALESCE(?, name),
+          description = COALESCE(?, description),
+          status = COALESCE(?, status),
+          is_public = COALESCE(?, is_public),
+          version = version + 1,
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND version = ?`,
+      )
+      .bind(
+        input.slug ?? null,
+        input.name ?? null,
+        input.description ?? null,
+        input.status ?? null,
+        input.isPublic === undefined ? null : input.isPublic ? 1 : 0,
+        campaignId,
+        input.version,
+      ),
+      prepareAuditAfterChange(db, {
+        actorUserId: session.user.id,
+        campaignId,
+        action: "campaign.updated",
+        entityType: "campaign",
+        entityId: campaignId,
+        correlationId,
+        details: { fields: Object.keys(input).filter((key) => key !== "version") },
+      }),
+      prepareOutboxEventAfterChange(db, {
+        aggregateType: "campaign",
+        aggregateId: campaignId,
+        eventType: "campaign.updated",
+        payload: { campaignId },
+      }),
+    ]);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("UNIQUE")) {
+      throw new HttpError(409, "campaign_slug_conflict", "Este endereço de campanha já existe.");
+    }
+    throw error;
+  }
   if ((results[0]?.meta.changes ?? 0) === 0) {
     await assertCampaignVersion(campaignId);
     throw new HttpError(409, "version_conflict", "A campanha foi alterada por outra pessoa.");
@@ -247,10 +271,12 @@ export async function addMember(
     kind: "campaign",
     campaignId,
   });
-  requirePermission(session.principal, "role:assign", {
-    kind: "campaign",
-    campaignId,
-  });
+  if (input.role !== "player") {
+    requirePermission(session.principal, "role:assign", {
+      kind: "campaign",
+      campaignId,
+    });
+  }
   const db = getD1();
   const user = await db
     .prepare("SELECT id FROM iam_users WHERE discord_user_id = ?")
@@ -383,6 +409,20 @@ export function canManageCampaign(
         campaignId,
       }),
   );
+}
+
+async function isActiveCampaignMember(
+  campaignId: string,
+  userId: string,
+): Promise<boolean> {
+  const membership = await getD1()
+    .prepare(
+      `SELECT 1 AS active FROM campaign_members
+       WHERE campaign_id = ? AND user_id = ? AND status = 'active'`,
+    )
+    .bind(campaignId, userId)
+    .first<{ active: number }>();
+  return Boolean(membership);
 }
 
 async function getMember(campaignId: string, userId: string): Promise<CampaignMember> {

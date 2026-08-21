@@ -79,9 +79,17 @@ export async function getOptionalSession(
 
   const result = await db
     .prepare(
-      `SELECT role_name, scope_kind, scope_id
-       FROM iam_role_assignments
-       WHERE user_id = ?`,
+      `SELECT ra.role_name, ra.scope_kind, ra.scope_id
+       FROM iam_role_assignments ra
+       LEFT JOIN campaign_members cm
+         ON ra.scope_kind = 'campaign'
+        AND cm.campaign_id = ra.scope_id
+        AND cm.user_id = ra.user_id
+       WHERE ra.user_id = ?
+         AND (
+           ra.scope_kind = 'global'
+           OR (ra.scope_kind = 'campaign' AND cm.status = 'active')
+         )`,
     )
     .bind(row.user_id)
     .all<AssignmentRow>();

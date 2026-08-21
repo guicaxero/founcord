@@ -72,6 +72,7 @@ export function MissionsPanel({
   });
 
   const canCreate = hasCapability(me, "mission:create", campaignId);
+  const canEdit = hasCapability(me, "mission:edit", campaignId);
   const canReview = hasCapability(me, "mission:review", campaignId);
   const canPublish = hasCapability(me, "mission:publish", campaignId);
 
@@ -93,10 +94,11 @@ export function MissionsPanel({
                 <p>{mission.region} · {mission.signupCount}/{mission.partySize} inscritos · {mission.authorName}</p>
               </div>
               <div className="admin-row-actions">
-                {hasCapability(me, "mission:edit", campaignId) ? (
+                {canEditMission(mission, me, canEdit, canReview, canPublish) ? (
                   <button type="button" onClick={() => setEditing(mission)}>Editar</button>
                 ) : null}
-                {(mission.status === "draft" || mission.status === "rejected") ? (
+                {(mission.status === "draft" || mission.status === "rejected") &&
+                canEditMission(mission, me, canEdit, canReview, canPublish) ? (
                   <button type="button" onClick={() => transition.mutate({ mission, status: "pending_review" })}>Enviar à revisão</button>
                 ) : null}
                 {mission.status === "pending_review" && canReview ? (
@@ -108,7 +110,8 @@ export function MissionsPanel({
                 {mission.status === "approved" && canPublish ? (
                   <button type="button" onClick={() => transition.mutate({ mission, status: "published" })}>Publicar</button>
                 ) : null}
-                {mission.status !== "archived" && hasCapability(me, "mission:edit", campaignId) ? (
+                {mission.status !== "archived" &&
+                canEditMission(mission, me, canEdit, canReview, canPublish) ? (
                   <button className="danger-link" type="button" onClick={() => archive.mutate(mission)}>Arquivar</button>
                 ) : null}
               </div>
@@ -132,6 +135,19 @@ export function MissionsPanel({
         <aside className="permission-note">Seu perfil pode acompanhar o fluxo, mas não criar missões.</aside>
       )}
     </div>
+  );
+}
+
+function canEditMission(
+  mission: MissionSummary,
+  me: CurrentUserResponse,
+  canEdit: boolean,
+  canReview: boolean,
+  canPublish: boolean,
+): boolean {
+  return Boolean(
+    canEdit &&
+      (mission.authorUserId === me.user?.id || canReview || canPublish),
   );
 }
 

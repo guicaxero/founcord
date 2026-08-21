@@ -6,16 +6,11 @@ import { Providers } from "./providers";
 const siteTitle = "Ordem da Última Luz";
 const siteDescription =
   "Portal da campanha West Marches da Ordem da Última Luz em Shadow of the Demon Lord.";
+const siteOrigin = "https://ordem-da-ultima-luz.caxeropl.chatgpt.site";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const requestHeaders = await headers();
-  const forwardedHost = requestHeaders.get("x-forwarded-host");
-  const host = forwardedHost ?? requestHeaders.get("host") ?? "localhost:3000";
-  const protocol =
-    requestHeaders.get("x-forwarded-proto") ??
-    (host.startsWith("localhost") ? "http" : "https");
-  const origin = new URL(`${protocol}://${host}`).origin;
-  const socialImage = `${origin}/og.png`;
+  await headers();
+  const socialImage = `${siteOrigin}/og.png`;
 
   return {
     title: {

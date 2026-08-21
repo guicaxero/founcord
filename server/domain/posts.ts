@@ -13,6 +13,7 @@ import {
 import type { AuthenticatedSession } from "../auth/session";
 import { HttpError } from "../http";
 import { toIsoDateTime } from "../time";
+import { requireCampaignVisible } from "./campaigns";
 
 type PostRow = Readonly<{
   id: string;
@@ -35,6 +36,7 @@ export async function listPosts(
   session: AuthenticatedSession | null,
   includeEditorial: boolean,
 ): Promise<Post[]> {
+  await requireCampaignVisible(campaignId, session);
   const canCreate = Boolean(
     session &&
       hasPermission(session.principal, "post:create", {
@@ -128,7 +130,26 @@ export async function updatePost(
   correlationId: string,
 ): Promise<Post> {
   const existing = await getPostRow(postId);
-  assertCanEditPost(session, existing, input.status);
+  const changesContent = input.title !== undefined || input.body !== undefined;
+  if (input.status === existing.status && !changesContent) {
+    if (input.status === "approved" || input.status === "rejected") {
+      requirePermission(session.principal, "post:review", {
+        kind: "campaign",
+        campaignId: existing.campaign_id,
+      });
+    } else if (input.status === "published" || input.status === "archived") {
+      requirePermission(session.principal, "post:publish", {
+        kind: "campaign",
+        campaignId: existing.campaign_id,
+      });
+    } else {
+      assertCanEditPost(session, existing);
+    }
+    throw new HttpError(422, "no_effect", "O post já está nesse estado.");
+  }
+  if (changesContent || !input.status) {
+    assertCanEditPost(session, existing);
+  }
   if (input.status && input.status !== existing.status) {
     assertPostTransition(
       session,
@@ -194,6 +215,9 @@ export async function archivePost(
   correlationId: string,
 ): Promise<void> {
   const existing = await getPostRow(postId);
+  if (existing.status === "archived") {
+    throw new HttpError(409, "invalid_status_transition", "O post já está arquivado.");
+  }
   requirePermission(session.principal, "post:publish", {
     kind: "campaign",
     campaignId: existing.campaign_id,
@@ -265,20 +289,27 @@ async function getPostRow(postId: string): Promise<PostRow> {
   return row;
 }
 
-function assertCanEditPost(
-  session: AuthenticatedSession,
-  post: PostRow,
-  nextStatus: PostStatus | undefined,
-) {
-  if (nextStatus === "approved" || nextStatus === "rejected") return;
-  if (nextStatus === "published" || nextStatus === "archived") return;
+function assertCanEditPost(session: AuthenticatedSession, post: PostRow) {
   requirePermission(session.principal, "post:create", {
     kind: "campaign",
     campaignId: post.campaign_id,
   });
-  if (post.author_user_id !== session.user.id) {
+  if (post.author_user_id !== session.user.id && !hasElevatedPostRole(session, post.campaign_id)) {
     throw new HttpError(403, "own_post_only", "Você edita apenas os próprios rascunhos.");
   }
+}
+
+function hasElevatedPostRole(
+  session: AuthenticatedSession,
+  campaignId: string,
+): boolean {
+  const elevatedRoles = new Set(["owner", "administrator", "campaign_manager", "editor"]);
+  return session.assignments.some(
+    (assignment) =>
+      elevatedRoles.has(assignment.roleName) &&
+      (assignment.scope.kind === "global" ||
+        assignment.scope.campaignId === campaignId),
+  );
 }
 
 function assertPostTransition(
