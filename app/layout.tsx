@@ -28,7 +28,7 @@ export async function generateMetadata(): Promise<Metadata> {
       locale: "pt_BR",
       title: siteTitle,
       description: siteDescription,
-      images: [{ url: socialImage, width: 1732, height: 908 }],
+      images: [{ url: socialImage, width: 1731, height: 908 }],
     },
     twitter: {
       card: "summary_large_image",
