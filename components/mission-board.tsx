@@ -55,7 +55,7 @@ export function MissionBoard({
       ) : missions.data.data.length === 0 ? (
         <div className="board-state">
           <strong>Nenhum chamado publicado.</strong>
-          <span>Os mestres ainda estão consultando os presságios.</span>
+          <span>Novas missões aparecerão aqui quando forem anunciadas pela Ordem.</span>
         </div>
       ) : (
         missions.data.data.map((mission, index) => (

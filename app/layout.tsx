@@ -3,9 +3,9 @@ import { headers } from "next/headers";
 import "./globals.css";
 import { Providers } from "./providers";
 
-const siteTitle = "Vigília do Último Farol";
+const siteTitle = "Ordem da Última Luz";
 const siteDescription =
-  "Portal da campanha West Marches de Shadow of the Demon Lord.";
+  "Portal da campanha West Marches da Ordem da Última Luz em Shadow of the Demon Lord.";
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
@@ -23,10 +23,6 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s — ${siteTitle}`,
     },
     description: siteDescription,
-    icons: {
-      icon: "/favicon.svg",
-      shortcut: "/favicon.svg",
-    },
     openGraph: {
       type: "website",
       locale: "pt_BR",

@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Painel da campanha",
-  description: "Administração da campanha Vigília do Último Farol.",
+  description: "Administração da campanha Ordem da Última Luz.",
   robots: { index: false, follow: false },
 };
 

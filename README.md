@@ -1,4 +1,4 @@
-# Vigília do Último Farol
+# Ordem da Última Luz
 
 Portal comunitário para uma campanha West Marches de **Shadow of the Demon
 Lord**, com quadro de missões, publicação editorial e integrações futuras com

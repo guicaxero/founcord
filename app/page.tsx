@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AccountMenu } from "@/components/account-menu";
 import { MissionBoard } from "@/components/mission-board";
 import { PublishedPosts } from "@/components/published-posts";
@@ -9,7 +10,7 @@ export default function Home() {
   return (
     <main className="site-shell">
       <aside className="brand-rail" aria-label="Identidade da campanha">
-        <div className="sigil" aria-hidden="true">V</div>
+        <div className="sigil" aria-hidden="true">O</div>
         <span>WM</span>
         <div className="rail-line" />
         <span>SDL</span>
@@ -17,11 +18,11 @@ export default function Home() {
       <div className="page-frame">
         <header className="topbar">
           <a className="wordmark" href="#inicio" aria-label="Ir para o início">
-            <span>Vigília do</span><strong>Último Farol</strong>
+            <span>Ordem da</span><strong>Última Luz</strong>
           </a>
           <nav aria-label="Navegação principal">
             <a className="nav-link is-active" href="#quadro">Missões</a>
-            <a className="nav-link" href="#campanha">Campanha</a>
+            <Link className="nav-link" href="/ordem">Código da Ordem</Link>
             <a className="nav-link" href="#cronicas">Crônicas</a>
           </nav>
           <AccountMenu />
@@ -30,57 +31,80 @@ export default function Home() {
         <section className="hero" id="inicio">
           <div className="hero-copy">
             <p className="eyebrow">West Marches <span>•</span> Shadow of the Demon Lord</p>
-            <h1>Os ermos não esperam<br />por <em>heróis.</em></h1>
+            <h1>Enquanto houver luz,<br />haverá <em>esperança.</em></h1>
             <p className="hero-description">
-              Escolha um rumor, reúna uma companhia e deixe sua marca em um mundo
-              que continua mudando — mesmo quando você não está olhando.
+              Uma Ordem para aqueles dispostos a enfrentar a escuridão — qualquer
+              que seja sua origem — e proteger o que ainda merece permanecer de pé.
             </p>
             <div className="hero-actions">
               <a className="primary-action" href="#quadro">
-                Explorar missões <span aria-hidden="true">→</span>
+                Ver chamados <span aria-hidden="true">→</span>
               </a>
-              <span className="world-status"><i aria-hidden="true" /> Mundo ativo</span>
+              <span className="world-status"><i aria-hidden="true" /> A chama permanece</span>
             </div>
           </div>
           <div className="campaign-seal" aria-hidden="true">
-            <span className="seal-kicker">Ano da Ruína</span>
-            <strong>17</strong>
-            <span>O farol ainda arde</span>
+            <span className="seal-kicker">Ano imperial</span>
+            <strong>888</strong>
+            <span>Depois da Fundação</span>
           </div>
         </section>
 
         <section className="content-grid" id="quadro">
           <div className="mission-board">
             <div className="section-heading">
-              <div><p className="section-index">01 / QUADRO</p><h2>Chamados em aberto</h2></div>
-              <span className="filter-button">Dados vivos da campanha</span>
+              <div><p className="section-index">01 / QUADRO</p><h2>Chamados da Ordem</h2></div>
+              <span className="filter-button">Missões publicadas</span>
             </div>
             <MissionBoard campaignId={DEFAULT_CAMPAIGN_ID} initialMissions={[]} />
           </div>
           <aside className="campaign-panel" id="campanha">
             <div className="section-heading compact">
-              <div><p className="section-index">02 / CAMPANHA</p><h2>O mundo agora</h2></div>
+              <div><p className="section-index">02 / URTH</p><h2>O mundo agora</h2></div>
             </div>
             <div className="world-card">
-              <p className="world-card-label">Presságio vigente</p>
-              <h3>A lua sangra sobre o poente</h3>
-              <p>Testes de Vontade recebem uma perdição nas terras além do Rio Negro.</p>
+              <p className="world-card-label">Uma das cinco verdades de Rûl</p>
+              <h3>O Império está em crise</h3>
+              <p>
+                A morte do imperador espalhou revoltas, guerras e disputas por poder.
+                Muitos acreditam que uma grande mudança está por vir.
+              </p>
             </div>
             <dl className="campaign-stats">
-              <div><dt>Companhias formadas</dt><dd>—</dd></div>
-              <div><dt>Regiões reveladas</dt><dd>07</dd></div>
-              <div><dt>Expedições concluídas</dt><dd>13</dd></div>
+              <div><dt>Sessões planejadas</dt><dd>1×</dd><small>por semana</small></div>
+              <div><dt>Grupo mínimo</dt><dd>3</dd><small>integrantes</small></div>
+              <div><dt>Duração mínima</dt><dd>3h</dd><small>por sessão</small></div>
             </dl>
             <div className="chronicle">
-              <span>Última crônica</span><p>“Cinzas no pomar de Corven”</p>
-              <time dateTime="2026-08-18">18 de agosto</time>
+              <span>Crônica da fundação</span><p>“A Chama que Permaneceu”</p>
+              <span>Guardião da Chama AP</span>
             </div>
           </aside>
         </section>
+
+        <section className="order-preview" id="ordem">
+          <div className="order-preview-heading">
+            <div>
+              <p className="section-index">03 / A ORDEM</p>
+              <h2>Uma história compartilhada.<br />Consequências reais.</h2>
+            </div>
+            <blockquote>
+              “A última luz não pertence a um homem. Ela pertence àqueles que
+              decidiram mantê-la acesa.”
+            </blockquote>
+          </div>
+          <div className="order-preview-grid">
+            <article><span>I—VII</span><h3>Código da Ordem</h3><p>Conduta à mesa, compromisso com missões, respeito e responsabilidade coletiva.</p></article>
+            <article><span>GRAUS</span><h3>Progressão</h3><p>Níveis, missões realizadas, promoções e a origem narrativa de cada nova Trilha.</p></article>
+            <article><span>PROTOCOLO</span><h3>Antes e depois</h3><p>Inscrições, chamadas, grupos mínimos e a distribuição transparente de tesouros.</p></article>
+          </div>
+          <Link className="text-action" href="/ordem">Consultar o Código completo <span aria-hidden="true">→</span></Link>
+        </section>
+
         <PublishedPosts campaignId={DEFAULT_CAMPAIGN_ID} initialPosts={[]} />
         <footer>
           <span>Uma campanha comunitária, sem fins lucrativos.</span>
-          <span>O mundo se lembra.</span>
+          <span>Enquanto houver luz, haverá esperança.</span>
         </footer>
       </div>
     </main>

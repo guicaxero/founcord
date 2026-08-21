@@ -49,7 +49,7 @@ export function DashboardClient() {
     <main className="admin-shell">
       <header className="admin-header">
         <div>
-          <Link href="/" className="admin-kicker">← Vigília do Último Farol</Link>
+          <Link href="/" className="admin-kicker">← Ordem da Última Luz</Link>
           <h1>Gabinete da campanha</h1>
         </div>
         <div className="admin-identity">
@@ -127,7 +127,7 @@ function DashboardState({
   children,
 }: Readonly<{ text: string; children?: React.ReactNode }>) {
   return (
-    <main className="dashboard-state"><div className="sigil">V</div><p>{text}</p>{children}</main>
+    <main className="dashboard-state"><div className="sigil">O</div><p>{text}</p>{children}</main>
   );
 }
 

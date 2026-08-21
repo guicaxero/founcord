@@ -20,17 +20,25 @@ export function PublishedPosts({
   return (
     <section className="publications" id="cronicas">
       <div className="section-heading">
-        <div><p className="section-index">03 / CRÔNICAS</p><h2>Últimas publicações</h2></div>
+        <div><p className="section-index">04 / CRÔNICAS</p><h2>Arquivo da Última Luz</h2></div>
       </div>
       <div className="publication-grid">
         {posts.data.data.length === 0 ? (
-          <article><span>O arquivo aguarda</span><h3>Nenhuma crônica publicada</h3><p>Textos aprovados aparecerão aqui.</p></article>
+          <article><span>O arquivo aguarda</span><h3>Nenhuma crônica publicada</h3><p>Os registros aprovados pela Ordem aparecerão aqui.</p></article>
         ) : (
-          posts.data.data.slice(0, 3).map((post) => (
+          posts.data.data.slice(0, 6).map((post) => (
             <article key={post.id}>
               <span>{post.authorName} · {formatDate(post.publishedAt)}</span>
               <h3>{post.title}</h3>
-              <p>{post.body}</p>
+              <p>{firstParagraph(post.body)}</p>
+              <details>
+                <summary>Ler crônica completa</summary>
+                <div className="chronicle-body">
+                  {post.body.split(/\n\s*\n/).map((paragraph, index) => (
+                    <p key={`${post.id}-${index}`}>{paragraph}</p>
+                  ))}
+                </div>
+              </details>
             </article>
           ))
         )}
@@ -40,10 +48,14 @@ export function PublishedPosts({
 }
 
 function formatDate(value: string | null): string {
-  if (!value) return "agora";
+  if (!value) return "data não informada";
   return new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
     month: "long",
     timeZone: "America/Sao_Paulo",
   }).format(new Date(value));
+}
+
+function firstParagraph(body: string): string {
+  return body.split(/\n\s*\n/, 1)[0] ?? body;
 }

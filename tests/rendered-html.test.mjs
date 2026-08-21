@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-async function render() {
+async function render(path = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
-    new Request("http://localhost/", {
+    new Request(`http://localhost${path}`, {
       headers: { accept: "text/html" },
     }),
     {
@@ -29,7 +29,7 @@ test("renderiza a primeira superfície do portal", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>Vigília do Último Farol<\/title>/i);
+  assert.match(html, /<title>Ordem da Última Luz<\/title>/i);
   assert.match(html, /property="og:title"/i);
   assert.match(html, /property="og:description"/i);
   assert.match(html, /property="og:image"/i);
@@ -37,10 +37,20 @@ test("renderiza a primeira superfície do portal", async () => {
   assert.match(html, /name="twitter:description"/i);
   assert.match(html, /name="twitter:image"/i);
   assert.match(html, /http:\/\/localhost(?::\d+)?\/og\.png/i);
-  assert.match(html, /Os ermos não esperam/);
-  assert.match(html, /Chamados em aberto/);
-  assert.match(html, /Dados vivos da campanha/);
+  assert.match(html, /Enquanto houver luz/);
+  assert.match(html, /Chamados da Ordem/);
+  assert.match(html, /O Império está em crise/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|Your site is taking shape/i);
+});
+
+test("renderiza o Código oficial da Ordem", async () => {
+  const response = await render("/ordem");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Código da Ordem/i);
+  assert.match(html, /O mestre conduz a mesa/i);
+  assert.match(html, /Novato.*Especialista/i);
+  assert.match(html, /Cinco verdades do mundo/i);
 });
 
 test("renderiza a entrada protegida do painel", async () => {
@@ -65,13 +75,14 @@ test("não mantém artefatos do starter na superfície final", async () => {
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
-    readFile(new URL("../drizzle/0001_petite_songbird.sql", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0003_official_campaign_content.sql", import.meta.url), "utf8"),
   ]);
 
   assert.doesNotMatch(page, /_sites-preview|SkeletonPreview|codex-preview/);
   assert.doesNotMatch(layout, /Starter Project|codex-preview/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   assert.match(packageJson, /@tanstack\/react-query/);
-  assert.match(migration, /CREATE TABLE `audit_log`/);
-  assert.match(migration, /Sinos sob a lama/);
+  assert.match(migration, /Ordem da Última Luz/);
+  assert.match(migration, /A Chama que Permaneceu/);
+  assert.match(migration, /DELETE FROM `missions`/);
 });
