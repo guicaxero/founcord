@@ -24,7 +24,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       input,
       correlationId,
     );
-    if (post.status === "published") {
+    if (post.status === "published" && post.source === "discord") {
       enqueueDiscordPublication(post, correlationId);
     }
     return jsonResponse(post, {}, correlationId);
