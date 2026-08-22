@@ -251,6 +251,20 @@ export async function archivePost(
   }
 }
 
+export async function getPublishedPostForIntegration(
+  postId: string,
+): Promise<Post> {
+  const row = await getPostRow(postId);
+  if (row.status !== "published") {
+    throw new HttpError(
+      409,
+      "post_not_published",
+      "O post ainda não foi publicado no portal.",
+    );
+  }
+  return mapPost(row);
+}
+
 async function getPost(
   postId: string,
   session: AuthenticatedSession | null,
