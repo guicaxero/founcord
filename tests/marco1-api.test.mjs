@@ -14,7 +14,10 @@ const identities = {
   owner: user("10000000-0000-4000-8000-000000000001", "owner", "owner"),
   gm: user("20000000-0000-4000-8000-000000000002", "gm", "gm"),
   moderator: user("30000000-0000-4000-8000-000000000003", "moderator", "moderator"),
-  automation: user("40000000-0000-4000-8000-000000000004", "automation", "automation"),
+  automation: {
+    ...user("40000000-0000-4000-8000-000000000004", "automation", "automation"),
+    discordId: "400000000000000004",
+  },
   playerOne: user("50000000-0000-4000-8000-000000000005", "player-one", "player"),
   playerTwo: user("60000000-0000-4000-8000-000000000006", "player-two", "player"),
   manager: user("70000000-0000-4000-8000-000000000007", "manager", "campaign_manager"),
@@ -35,6 +38,7 @@ test("Marco 1: autenticação, RBAC, campanha, missões, posts e auditoria", asy
       DISCORD_CLIENT_SECRET: "test-client-secret",
       DISCORD_REDIRECT_URI: `${origin}/api/auth/discord/callback`,
       SESSION_SECRET: "test-session-secret-with-at-least-32-bytes",
+      INTEGRATION_SERVICE_TOKEN: "test-integration-token-with-at-least-32-bytes",
     },
     serviceBindings: {
       ASSETS: async () => new Response("Not found", { status: 404 }),
@@ -232,6 +236,35 @@ test("Marco 1: autenticação, RBAC, campanha, missões, posts e auditoria", asy
       assert.equal(visible.title, "Relato extraído automaticamente");
     });
 
+    await t.test("protege a API interna e cria post Discord para revisão", async () => {
+      const path = "/api/internal/integration/discord/posts";
+      const body = {
+        campaignId: defaultCampaignId,
+        interactionId: "923456789012345678",
+        discordUserId: identities.automation.discordId,
+        guildId: "123456789012345678",
+        channelId: "223456789012345678",
+        personaName: "Aster",
+        title: "Sinais no ermo",
+        body: "A chama foi vista ao norte.",
+      };
+      const unauthorized = await api(mf, path, { method: "POST", body });
+      assert.equal(unauthorized.status, 401);
+
+      const created = await api(mf, path, {
+        method: "POST",
+        body,
+        headers: {
+          authorization:
+            "Bearer test-integration-token-with-at-least-32-bytes",
+        },
+      });
+      assert.equal(created.status, 201, JSON.stringify(created.data));
+      assert.equal(created.data.post.status, "pending_review");
+      assert.equal(created.data.post.source, "discord");
+      assert.match(created.data.post.body, /Escrito por \*\*Aster\*\*/);
+    });
+
     await t.test("registra as mutações na auditoria", async () => {
       const audit = await api(mf, `/api/campaigns/${defaultCampaignId}/audit`, {
         token: identities.owner.token,
@@ -384,6 +417,9 @@ function sessionId(token) {
 
 async function api(mf, path, options = {}) {
   const headers = new Headers({ accept: "application/json" });
+  for (const [name, value] of Object.entries(options.headers ?? {})) {
+    headers.set(name, value);
+  }
   if (options.token) headers.set("cookie", `vigilia_session=${options.token}`);
   if (options.body !== undefined) {
     headers.set("content-type", "application/json");

@@ -1,8 +1,8 @@
 # Ordem da Última Luz
 
 Portal comunitário para uma campanha West Marches de **Shadow of the Demon
-Lord**, com quadro de missões, publicação editorial e integrações futuras com
-Discord e Foundry VTT.
+Lord**, com quadro de missões, publicação editorial e integrações com Discord e
+Foundry VTT.
 
 ## Fundamentos
 
@@ -82,3 +82,14 @@ quando houver ganho operacional real.
 
 Consulte [o runbook do Marco 1.5](docs/MARCO_1_5_CLOUDFLARE.md) para criação do
 banco, secrets, migrations, OAuth, publicação e rollback.
+
+## Marco 2 — Discord
+
+O Discord recebe interações em um Worker HTTP separado. O comando `/post` abre
+um modal, associa o autor à identidade Discord já vinculada no portal e cria um
+post em `pending_review`. A aprovação e a publicação continuam exclusivamente
+humanas no painel; depois da publicação no portal, uma Queue cria o tópico no
+fórum do Discord de forma assíncrona e idempotente.
+
+Consulte [o runbook do Marco 2](docs/MARCO_2_DISCORD.md) para arquitetura,
+segredos, provisionamento, registro do comando e validação ponta a ponta.

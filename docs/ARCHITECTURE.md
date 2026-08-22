@@ -9,11 +9,12 @@ ociosos.
 ## Contexto
 
 ```text
-Navegador -> Next.js/BFF -> Identity
-                        -> Campaign -> D1
-Discord ----------------> Integration -> Campaign
-Foundry -----------------> Integration -> Campaign
-Automação Python --------> Integration -> rascunhos editoriais
+Navegador -> Portal Worker (Next.js/BFF) -> Identity
+                                        -> Campaign -> D1
+Discord -> Discord Integration Worker -> Portal por Service Binding
+                                      -> Queue -> fórum Discord
+Foundry -> Foundry Bridge Worker -> Campaign
+Automação Python -> Automation Worker -> rascunhos editoriais
 ```
 
 O Next é responsável pela experiência web, composição de respostas e sessão.
@@ -42,6 +43,12 @@ transação.
 
 É dono das conexões Discord/Foundry, jobs, tentativas, idempotência e IDs
 externos. Não é dono da ficha nem da missão.
+
+No Marco 2, Discord já possui uma unidade de implantação independente porque
+tem superfície pública assinada, segredos, limites e perfil de falha diferentes
+do portal. A comunicação síncrona usa Service Binding e a publicação externa
+usa Queue. Foundry e automações só recebem Workers próprios nos marcos em que
+forem implementados.
 
 ## Fontes de verdade
 
@@ -121,6 +128,10 @@ explícita.
 - O módulo Foundry inicia apenas conexões HTTPS de saída.
 - Filas usam entrega pelo menos uma vez; consumidores devem ser idempotentes.
 - Automações e IA produzem rascunhos, nunca conteúdo publicado diretamente.
+
+Um novo Worker é criado quando o domínio exige ao menos um destes limites:
+segurança própria, escala independente, isolamento de falhas ou ciclo de release
+diferente. Telas e CRUDs não justificam microsserviços por si só.
 
 ## Observabilidade
 

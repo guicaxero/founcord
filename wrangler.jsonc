@@ -21,6 +21,14 @@
     "DISCORD_REDIRECT_URI": "https://ordem-da-ultima-luz.ordem-da-ultima-luz.workers.dev/api/auth/discord/callback",
     "SITE_URL": "https://ordem-da-ultima-luz.ordem-da-ultima-luz.workers.dev"
   },
+  "queues": {
+    "producers": [
+      {
+        "binding": "DISCORD_PUBLICATIONS",
+        "queue": "ordem-discord-publications"
+      }
+    ]
+  },
   "observability": {
     "enabled": true
   }

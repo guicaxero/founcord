@@ -14,14 +14,18 @@ import { SESSION_COOKIE, SESSION_TTL_SECONDS } from "../constants";
 import { makeCookie, readCookie } from "./cookies";
 import { randomToken, sha256 } from "./crypto";
 
-type SessionRow = Readonly<{
-  session_id: string;
-  expires_at: string;
+type UserIdentityRow = Readonly<{
   user_id: string;
   discord_user_id: string;
   display_name: string;
   avatar_url: string | null;
 }>;
+
+type SessionRow = UserIdentityRow &
+  Readonly<{
+    session_id: string;
+    expires_at: string;
+  }>;
 
 type AssignmentRow = Readonly<{
   role_name: string;
@@ -77,6 +81,32 @@ export async function getOptionalSession(
     .first<SessionRow>();
   if (!row) return null;
 
+  return hydrateAuthenticatedSession(row, row.session_id);
+}
+
+export async function getSessionForDiscordUser(
+  discordUserId: string,
+): Promise<AuthenticatedSession | null> {
+  const row = await getD1()
+    .prepare(
+      `SELECT
+        u.id AS user_id, u.discord_user_id, u.display_name, u.avatar_url
+       FROM iam_users u
+       WHERE u.discord_user_id = ?`,
+    )
+    .bind(discordUserId)
+    .first<UserIdentityRow>();
+  if (!row) return null;
+
+  return hydrateAuthenticatedSession(row, `discord:${discordUserId}`);
+}
+
+async function hydrateAuthenticatedSession(
+  row: UserIdentityRow,
+  sessionId: string,
+): Promise<AuthenticatedSession> {
+  const db = getD1();
+
   const result = await db
     .prepare(
       `SELECT ra.role_name, ra.scope_kind, ra.scope_id
@@ -103,7 +133,7 @@ export async function getOptionalSession(
   });
 
   return {
-    sessionId: row.session_id,
+    sessionId,
     user: {
       id: row.user_id,
       discordUserId: row.discord_user_id,

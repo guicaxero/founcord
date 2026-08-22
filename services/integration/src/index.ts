@@ -1,32 +1,238 @@
-import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import { Hono } from "hono";
+import {
+  CreateDiscordPostDraftSchema,
+  DiscordInteractionSchema,
+  DiscordPostPublicationSchema,
+  type DiscordInteraction,
+  type DiscordPostPublication,
+} from "@vigilia/contracts";
+import { createForumThread, editOriginalInteraction } from "./discord-client";
+import {
+  extractModalValues,
+  POST_COMMAND_NAME,
+  POST_MODAL_ID,
+  postModalResponse,
+} from "./discord-components";
+import { createDiscordDraft, getPublishedPortalPost } from "./portal-client";
+import {
+  beginDiscordDelivery,
+  claimDiscordInteraction,
+  completeDiscordInteraction,
+  completeDiscordPublication,
+  failDiscordDelivery,
+  failDiscordInteraction,
+  hasDiscordPostLink,
+} from "./repository";
+import type { IntegrationEnv, PublicationBatch } from "./types";
+import { verifyDiscordRequest } from "./verify-discord-request";
 
-const integrationApp = new OpenAPIHono();
+const integrationApp = new Hono<{ Bindings: IntegrationEnv }>();
 
-const healthRoute = createRoute({
-  method: "get",
-  path: "/health",
-  responses: {
-    200: {
-      content: {
-        "application/json": {
-          schema: z.object({
-            service: z.literal("integration"),
-            status: z.literal("ok"),
-          }),
-        },
-      },
-      description: "Integration service health",
-    },
-  },
-});
-
-integrationApp.openapi(healthRoute, (context) =>
-  context.json({ service: "integration", status: "ok" }),
+integrationApp.get("/health", (context) =>
+  context.json({ service: "discord-integration", status: "ok" }),
 );
 
-integrationApp.doc("/openapi.json", {
-  openapi: "3.1.0",
-  info: { title: "Vigília Integration API", version: "0.1.0" },
+integrationApp.get("/openapi.json", (context) =>
+  context.json({
+    openapi: "3.1.0",
+    info: { title: "Ordem Discord Integration API", version: "0.2.0" },
+    paths: {
+      "/health": { get: { responses: { 200: { description: "Healthy" } } } },
+      "/interactions": {
+        post: { responses: { 200: { description: "Discord interaction response" } } },
+      },
+    },
+  }),
+);
+
+integrationApp.post("/interactions", async (context) => {
+  const body = await context.req.text();
+  const valid = await verifyDiscordRequest(
+    body,
+    context.req.header("x-signature-ed25519") ?? null,
+    context.req.header("x-signature-timestamp") ?? null,
+    context.env.DISCORD_PUBLIC_KEY,
+  );
+  if (!valid) return context.json({ error: "invalid_request_signature" }, 401);
+
+  let json: unknown;
+  try {
+    json = JSON.parse(body);
+  } catch {
+    return context.json({ error: "invalid_json" }, 400);
+  }
+  const parsed = DiscordInteractionSchema.safeParse(json);
+  if (!parsed.success) return context.json({ error: "invalid_interaction" }, 400);
+  const interaction = parsed.data;
+  if (interaction.application_id !== context.env.DISCORD_APPLICATION_ID) {
+    return context.json({ error: "invalid_application" }, 401);
+  }
+
+  if (interaction.type === 1) return context.json({ type: 1 });
+  if (interaction.guild_id !== context.env.DISCORD_GUILD_ID) {
+    return context.json({
+      type: 4,
+      data: { content: "Este servidor não está autorizado para a campanha.", flags: 64 },
+    });
+  }
+  if (interaction.type === 2 && interaction.data?.name === POST_COMMAND_NAME) {
+    return context.json(postModalResponse());
+  }
+  if (interaction.type === 5 && interaction.data?.custom_id === POST_MODAL_ID) {
+    context.executionCtx.waitUntil(processPostModal(context.env, interaction));
+    return context.json({ type: 5, data: { flags: 64 } });
+  }
+  return context.json({
+    type: 4,
+    data: { content: "Comando ainda não suportado.", flags: 64 },
+  });
 });
 
-export default integrationApp;
+async function processPostModal(
+  env: IntegrationEnv,
+  interaction: DiscordInteraction,
+): Promise<void> {
+  const user = interaction.member?.user ?? interaction.user;
+  const values = extractModalValues(interaction.data?.components);
+  const input = CreateDiscordPostDraftSchema.safeParse({
+    campaignId: env.DEFAULT_CAMPAIGN_ID,
+    interactionId: interaction.id,
+    discordUserId: user?.id,
+    guildId: interaction.guild_id ?? null,
+    channelId: interaction.channel_id ?? null,
+    personaName: values.post_persona?.trim() || null,
+    title: values.post_title,
+    body: values.post_body,
+  });
+  if (!input.success) {
+    await editOriginalInteraction(
+      env,
+      interaction.application_id,
+      interaction.token,
+      { content: "Não foi possível validar os campos do post.", embeds: [] },
+    );
+    return;
+  }
+
+  const correlationId = crypto.randomUUID();
+  try {
+    const claim = await claimDiscordInteraction(env, interaction.id);
+    if (claim.status !== "claimed") {
+      await editOriginalInteraction(
+        env,
+        interaction.application_id,
+        interaction.token,
+        {
+          content:
+            claim.status === "succeeded"
+              ? "Esse post já foi enviado para revisão."
+              : claim.status === "failed"
+                ? "Esse envio falhou após três tentativas. Procure a administração."
+              : "Esse envio já está sendo processado.",
+          components: dashboardButton(env),
+        },
+      );
+      return;
+    }
+
+    const post = await createDiscordDraft(env, input.data, correlationId);
+    await completeDiscordInteraction(env, interaction.id, post.id);
+    await editOriginalInteraction(env, interaction.application_id, interaction.token, {
+      content: "Post enviado para revisão humana no portal.",
+      embeds: [
+        {
+          title: post.title,
+          description: post.body.slice(0, 4_096),
+          color: 0xb78a4a,
+          footer: { text: "Status: aguardando revisão" },
+        },
+      ],
+      components: dashboardButton(env),
+      allowed_mentions: { parse: [] },
+    });
+  } catch (error) {
+    await failDiscordInteraction(env, interaction.id, error).catch(() => undefined);
+    await editOriginalInteraction(env, interaction.application_id, interaction.token, {
+      content: error instanceof Error ? error.message : "Não foi possível criar o post.",
+      embeds: [],
+      allowed_mentions: { parse: [] },
+    }).catch(() => undefined);
+  }
+}
+
+function dashboardButton(env: IntegrationEnv) {
+  return [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 5,
+          label: "Abrir painel de revisão",
+          url: `${env.SITE_URL}/dashboard`,
+        },
+      ],
+    },
+  ];
+}
+
+async function publishPost(
+  env: IntegrationEnv,
+  message: DiscordPostPublication,
+): Promise<void> {
+  if (await hasDiscordPostLink(env, message.postId)) return;
+  if ((await beginDiscordDelivery(env, message.postId)) === "succeeded") return;
+  try {
+    const post = await getPublishedPortalPost(
+      env,
+      message.postId,
+      message.correlationId,
+    );
+    const thread = await createForumThread(env, post);
+    await completeDiscordPublication(env, post, thread, message.correlationId);
+  } catch (error) {
+    await failDiscordDelivery(env, message.postId, error).catch(() => undefined);
+    throw error;
+  }
+}
+
+export async function handlePublicationBatch(
+  batch: PublicationBatch,
+  env: IntegrationEnv,
+): Promise<void> {
+  for (const message of batch.messages) {
+    const parsed = DiscordPostPublicationSchema.safeParse(message.body);
+    if (!parsed.success) {
+      console.error(JSON.stringify({ level: "error", code: "invalid_queue_message" }));
+      message.ack();
+      continue;
+    }
+    try {
+      await publishPost(env, parsed.data);
+      message.ack();
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          level: "error",
+          code: "discord_publication_failed",
+          postId: parsed.data.postId,
+          correlationId: parsed.data.correlationId,
+          message: error instanceof Error ? error.message : "Unknown error",
+        }),
+      );
+      message.retry();
+    }
+  }
+}
+
+const integrationWorker: ExportedHandler<IntegrationEnv, DiscordPostPublication> = {
+  fetch(request, env, executionContext) {
+    return integrationApp.fetch(request, env, executionContext);
+  },
+  queue(batch, env) {
+    return handlePublicationBatch(batch, env);
+  },
+};
+
+export { integrationApp, processPostModal, publishPost };
+export default integrationWorker;

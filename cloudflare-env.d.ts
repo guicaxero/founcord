@@ -5,4 +5,6 @@ interface CloudflareEnv {
   DISCORD_REDIRECT_URI?: string;
   SESSION_SECRET?: string;
   SITE_URL?: string;
+  INTEGRATION_SERVICE_TOKEN?: string;
+  DISCORD_PUBLICATIONS?: Queue<import("@vigilia/contracts").DiscordPostPublication>;
 }

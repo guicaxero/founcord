@@ -1,6 +1,7 @@
 import { UpdatePostSchema } from "@vigilia/contracts";
 import { requireSession } from "@/server/auth/session";
 import { archivePost, updatePost } from "@/server/domain/posts";
+import { enqueueDiscordPublication } from "@/server/integrations/discord-publications";
 import {
   assertSameOrigin,
   HttpError,
@@ -17,16 +18,16 @@ export async function PATCH(request: Request, context: RouteContext) {
     assertSameOrigin(request);
     const session = await requireSession(request);
     const input = await parseJson(request, UpdatePostSchema);
-    return jsonResponse(
-      await updatePost(
-        session,
-        postId,
-        input,
-        correlationId,
-      ),
-      {},
+    const post = await updatePost(
+      session,
+      postId,
+      input,
       correlationId,
     );
+    if (post.status === "published") {
+      enqueueDiscordPublication(post, correlationId);
+    }
+    return jsonResponse(post, {}, correlationId);
   })(request);
 }
 
