@@ -9,8 +9,8 @@ import {
 import { createForumThread, editOriginalInteraction } from "./discord-client";
 import {
   extractModalValues,
+  forumChannelIdFromModal,
   POST_COMMAND_NAME,
-  POST_MODAL_ID,
   postModalResponse,
 } from "./discord-components";
 import { createDiscordDraft, getPublishedPortalPost } from "./portal-client";
@@ -21,6 +21,7 @@ import {
   completeDiscordPublication,
   failDiscordDelivery,
   failDiscordInteraction,
+  getDiscordPostTarget,
   hasDiscordPostLink,
 } from "./repository";
 import type { IntegrationEnv, PublicationBatch } from "./types";
@@ -76,10 +77,23 @@ integrationApp.post("/interactions", async (context) => {
     });
   }
   if (interaction.type === 2 && interaction.data?.name === POST_COMMAND_NAME) {
-    return context.json(postModalResponse());
+    const forumChannelId = forumChannelIdFromCommand(interaction);
+    if (!forumChannelId) {
+      return context.json({
+        type: 4,
+        data: {
+          content: "Escolha um canal de fórum válido para publicar o post.",
+          flags: 64,
+        },
+      });
+    }
+    return context.json(postModalResponse(forumChannelId));
   }
-  if (interaction.type === 5 && interaction.data?.custom_id === POST_MODAL_ID) {
-    context.executionCtx.waitUntil(processPostModal(context.env, interaction));
+  const forumChannelId = forumChannelIdFromModal(interaction.data?.custom_id);
+  if (interaction.type === 5 && forumChannelId) {
+    context.executionCtx.waitUntil(
+      processPostModal(context.env, interaction, forumChannelId),
+    );
     return context.json({ type: 5, data: { flags: 64 } });
   }
   return context.json({
@@ -91,6 +105,7 @@ integrationApp.post("/interactions", async (context) => {
 async function processPostModal(
   env: IntegrationEnv,
   interaction: DiscordInteraction,
+  forumChannelId: string,
 ): Promise<void> {
   const user = interaction.member?.user ?? interaction.user;
   const values = extractModalValues(interaction.data?.components);
@@ -100,11 +115,12 @@ async function processPostModal(
     discordUserId: user?.id,
     guildId: interaction.guild_id ?? null,
     channelId: interaction.channel_id ?? null,
+    forumChannelId,
     personaName: values.post_persona?.trim() || null,
     title: values.post_title,
     body: values.post_body,
   });
-  if (!input.success) {
+  if (!input.success || !input.data.guildId) {
     await editOriginalInteraction(
       env,
       interaction.application_id,
@@ -136,7 +152,11 @@ async function processPostModal(
     }
 
     const post = await createDiscordDraft(env, input.data, correlationId);
-    await completeDiscordInteraction(env, interaction.id, post.id);
+    await completeDiscordInteraction(env, interaction.id, post.id, {
+      campaignId: post.campaignId,
+      guildId: input.data.guildId,
+      forumChannelId: input.data.forumChannelId,
+    });
     await editOriginalInteraction(env, interaction.application_id, interaction.token, {
       content: "Post enviado para revisão humana no portal.",
       embeds: [
@@ -188,8 +208,15 @@ async function publishPost(
       message.postId,
       message.correlationId,
     );
-    const thread = await createForumThread(env, post);
-    await completeDiscordPublication(env, post, thread, message.correlationId);
+    const target = await getDiscordPostTarget(env, post.id);
+    const thread = await createForumThread(env, post, target.forumChannelId);
+    await completeDiscordPublication(
+      env,
+      post,
+      thread,
+      target,
+      message.correlationId,
+    );
   } catch (error) {
     await failDiscordDelivery(env, message.postId, error).catch(() => undefined);
     throw error;
@@ -236,3 +263,15 @@ const integrationWorker: ExportedHandler<IntegrationEnv, DiscordPostPublication>
 
 export { integrationApp, processPostModal, publishPost };
 export default integrationWorker;
+
+function forumChannelIdFromCommand(
+  interaction: DiscordInteraction,
+): string | null {
+  const option = interaction.data?.options?.find(
+    (candidate) => candidate.name === "forum" && candidate.type === 7,
+  );
+  if (!option || typeof option.value !== "string") return null;
+  const channel = interaction.data?.resolved?.channels?.[option.value];
+  if (!channel || channel.id !== option.value || channel.type !== 15) return null;
+  return option.value;
+}

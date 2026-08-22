@@ -23,6 +23,22 @@ const DiscordComponentSchema: z.ZodType<unknown> = z.lazy(() =>
     .passthrough(),
 );
 
+const DiscordCommandOptionSchema = z
+  .object({
+    name: z.string().min(1),
+    type: z.number().int(),
+    value: z.union([z.string(), z.number(), z.boolean()]),
+  })
+  .passthrough();
+
+const DiscordResolvedChannelSchema = z
+  .object({
+    id: DiscordSnowflakeSchema,
+    type: z.number().int(),
+    name: z.string().optional(),
+  })
+  .passthrough();
+
 export const DiscordInteractionSchema = z
   .object({
     id: DiscordSnowflakeSchema,
@@ -41,6 +57,13 @@ export const DiscordInteractionSchema = z
         name: z.string().optional(),
         custom_id: z.string().optional(),
         components: z.array(DiscordComponentSchema).optional(),
+        options: z.array(DiscordCommandOptionSchema).optional(),
+        resolved: z
+          .object({
+            channels: z.record(DiscordSnowflakeSchema, DiscordResolvedChannelSchema).optional(),
+          })
+          .passthrough()
+          .optional(),
       })
       .passthrough()
       .optional(),
@@ -54,6 +77,7 @@ export const CreateDiscordPostDraftSchema = z
     discordUserId: DiscordSnowflakeSchema,
     guildId: DiscordSnowflakeSchema.nullable(),
     channelId: DiscordSnowflakeSchema.nullable(),
+    forumChannelId: DiscordSnowflakeSchema,
     personaName: z.string().trim().min(1).max(80).nullable(),
     title: z.string().trim().min(3).max(100),
     body: z.string().trim().min(1).max(4_000),

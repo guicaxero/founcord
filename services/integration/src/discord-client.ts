@@ -26,9 +26,10 @@ export async function editOriginalInteraction(
 export async function createForumThread(
   env: IntegrationEnv,
   post: Post,
+  forumChannelId: string,
 ): Promise<DiscordThread> {
   const response = await fetch(
-    `${apiBase(env)}/channels/${env.DISCORD_FORUM_CHANNEL_ID}/threads`,
+    `${apiBase(env)}/channels/${forumChannelId}/threads`,
     {
       method: "POST",
       headers: {

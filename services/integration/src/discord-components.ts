@@ -1,11 +1,11 @@
 export const POST_COMMAND_NAME = "post";
-export const POST_MODAL_ID = "post:create:v1";
+export const POST_MODAL_PREFIX = "post:create:v1:";
 
-export function postModalResponse() {
+export function postModalResponse(forumChannelId: string) {
   return {
     type: 9,
     data: {
-      custom_id: POST_MODAL_ID,
+      custom_id: `${POST_MODAL_PREFIX}${forumChannelId}`,
       title: "Novo post da Ordem",
       components: [
         {
@@ -54,6 +54,12 @@ export function postModalResponse() {
       ],
     },
   } as const;
+}
+
+export function forumChannelIdFromModal(customId: string | undefined): string | null {
+  if (!customId?.startsWith(POST_MODAL_PREFIX)) return null;
+  const forumChannelId = customId.slice(POST_MODAL_PREFIX.length);
+  return /^\d{6,32}$/.test(forumChannelId) ? forumChannelId : null;
 }
 
 export function extractModalValues(components: unknown): Readonly<Record<string, string>> {
