@@ -11,19 +11,26 @@ type InboxRow = Readonly<{
 type DeliveryRow = Readonly<{
   status: "pending" | "succeeded" | "failed";
   external_id: string | null;
+  attempts: number;
 }>;
 
 type DiscordPostTargetRow = Readonly<{
   campaign_id: string;
   guild_id: string;
   forum_channel_id: string;
+  forum_tag_id: string | null;
+  discord_user_id: string;
 }>;
 
 export type DiscordPostTarget = Readonly<{
   campaignId: string;
   guildId: string;
   forumChannelId: string;
+  forumTagId: string | null;
+  discordUserId: string;
 }>;
+
+export type NewDiscordPostTarget = Omit<DiscordPostTarget, "discordUserId">;
 
 export type InboxClaim =
   | Readonly<{ status: "claimed" }>
@@ -72,7 +79,7 @@ export async function completeDiscordInteraction(
   env: IntegrationEnv,
   interactionId: string,
   postId: string,
-  target: DiscordPostTarget,
+  target: NewDiscordPostTarget,
 ): Promise<void> {
   await env.DB.batch([
     env.DB.prepare(
@@ -83,8 +90,9 @@ export async function completeDiscordInteraction(
     ).bind(postId, interactionId),
     env.DB.prepare(
       `INSERT OR IGNORE INTO discord_post_targets (
-        id, post_id, interaction_id, campaign_id, guild_id, forum_channel_id
-      ) VALUES (?, ?, ?, ?, ?, ?)`,
+        id, post_id, interaction_id, campaign_id, guild_id, forum_channel_id,
+        forum_tag_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       crypto.randomUUID(),
       postId,
@@ -92,6 +100,7 @@ export async function completeDiscordInteraction(
       target.campaignId,
       target.guildId,
       target.forumChannelId,
+      target.forumTagId,
     ),
   ]);
 }
@@ -127,9 +136,12 @@ export async function getDiscordPostTarget(
   postId: string,
 ): Promise<DiscordPostTarget> {
   const row = await env.DB.prepare(
-    `SELECT campaign_id, guild_id, forum_channel_id
-     FROM discord_post_targets
-     WHERE post_id = ?`,
+    `SELECT t.campaign_id, t.guild_id, t.forum_channel_id, t.forum_tag_id,
+            u.discord_user_id
+     FROM discord_post_targets t
+     JOIN posts p ON p.id = t.post_id
+     JOIN iam_users u ON u.id = p.author_user_id
+     WHERE t.post_id = ?`,
   )
     .bind(postId)
     .first<DiscordPostTargetRow>();
@@ -138,6 +150,8 @@ export async function getDiscordPostTarget(
     campaignId: row.campaign_id,
     guildId: row.guild_id,
     forumChannelId: row.forum_channel_id,
+    forumTagId: row.forum_tag_id,
+    discordUserId: row.discord_user_id,
   };
 }
 
@@ -215,6 +229,7 @@ export async function completeDiscordPublication(
         postId: post.id,
         guildId: target.guildId,
         forumChannelId: target.forumChannelId,
+        forumTagId: target.forumTagId,
         starterMessageId: thread.messageId,
       }),
     ),
@@ -233,6 +248,20 @@ export async function failDiscordDelivery(
   )
     .bind(errorMessage(error), deliveryKey(postId))
     .run();
+}
+
+export async function getDiscordDeliveryAttempts(
+  env: IntegrationEnv,
+  postId: string,
+): Promise<number> {
+  const row = await env.DB.prepare(
+    `SELECT attempts
+     FROM integration_deliveries
+     WHERE destination = 'discord' AND idempotency_key = ?`,
+  )
+    .bind(deliveryKey(postId))
+    .first<Pick<DeliveryRow, "attempts">>();
+  return row?.attempts ?? 0;
 }
 
 function deliveryKey(postId: string): string {

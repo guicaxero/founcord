@@ -28,6 +28,7 @@ const DiscordCommandOptionSchema = z
     name: z.string().min(1),
     type: z.number().int(),
     value: z.union([z.string(), z.number(), z.boolean()]),
+    focused: z.boolean().optional(),
   })
   .passthrough();
 
@@ -78,6 +79,7 @@ export const CreateDiscordPostDraftSchema = z
     guildId: DiscordSnowflakeSchema.nullable(),
     channelId: DiscordSnowflakeSchema.nullable(),
     forumChannelId: DiscordSnowflakeSchema,
+    forumTagId: DiscordSnowflakeSchema.nullable().default(null),
     personaName: z.string().trim().min(1).max(80).nullable(),
     title: z.string().trim().min(3).max(100),
     body: z.string().trim().min(1).max(4_000),

@@ -245,6 +245,7 @@ test("Marco 1: autenticação, RBAC, campanha, missões, posts e auditoria", asy
         guildId: "123456789012345678",
         channelId: "223456789012345678",
         forumChannelId: "323456789012345678",
+        forumTagId: null,
         personaName: "Aster",
         title: "Sinais no ermo",
         body: "A chama foi vista ao norte.",
