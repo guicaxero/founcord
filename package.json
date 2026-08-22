@@ -27,7 +27,7 @@
     "typecheck": "tsc --noEmit",
     "test": "npm run typecheck && npm run build:cloudflare && npm run bundle:worker && npm run bundle:integration && npm run test:unit && node --test tests/rendered-html.test.mjs tests/marco1-api.test.mjs",
     "test:unit": "vitest run",
-    "discord:register": "node scripts/register-discord-commands.mjs",
+    "discord:register": "node --env-file-if-exists=.env.local scripts/register-discord-commands.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },

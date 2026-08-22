@@ -1,6 +1,7 @@
-const applicationId = required("DISCORD_APPLICATION_ID");
+const applicationId =
+  process.env.DISCORD_APPLICATION_ID?.trim() || "1540460545558323250";
 const botToken = required("DISCORD_BOT_TOKEN");
-const guildId = process.env.DISCORD_GUILD_ID?.trim();
+const guildId = process.env.DISCORD_GUILD_ID?.trim() || "1529124400694300702";
 const route = guildId
   ? `/applications/${applicationId}/guilds/${guildId}/commands`
   : `/applications/${applicationId}/commands`;

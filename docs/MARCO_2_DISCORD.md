@@ -78,10 +78,10 @@ versioná-lo:
 npx wrangler secret put INTEGRATION_SERVICE_TOKEN
 npx wrangler secret put INTEGRATION_SERVICE_TOKEN --config services/integration/wrangler.jsonc
 npx wrangler secret put DISCORD_BOT_TOKEN --config services/integration/wrangler.jsonc
-npx wrangler secret put DISCORD_GUILD_ID --config services/integration/wrangler.jsonc
 ```
 
 `DISCORD_PUBLIC_KEY` é pública e fica declarada em `wrangler.jsonc`.
+`DISCORD_GUILD_ID` também é público e limita as interações ao servidor oficial.
 `DISCORD_BOT_TOKEN` é o token secreto da aba Bot e não é o OAuth Client Secret.
 Não existe um fórum fixo no ambiente: a opção obrigatória `forum` do `/post` usa
 o seletor de canais do próprio Discord e aceita somente canais `GUILD_FORUM`.
@@ -97,8 +97,9 @@ Depois de testes, revisão e merge na `main`:
    `https://ordem-discord-integration.<subdominio>.workers.dev/interactions`.
 5. Convidar o bot ao servidor com acesso ao canal e permissões para visualizar o
    canal, enviar mensagens, criar posts e enviar mensagens em posts.
-6. Definir localmente `DISCORD_APPLICATION_ID`, `DISCORD_BOT_TOKEN` e,
-   preferencialmente, `DISCORD_GUILD_ID`; executar `npm run discord:register`.
+6. Definir `DISCORD_BOT_TOKEN` em `.env.local` e executar
+   `npm run discord:register`. O script carrega esse arquivo ignorado pelo Git e
+   registra o comando diretamente na guild oficial.
 
 O registro por guild aparece imediatamente e é indicado durante o
 desenvolvimento. Sem `DISCORD_GUILD_ID`, o script registra o comando global.
