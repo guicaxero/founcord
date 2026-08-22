@@ -5,6 +5,8 @@ import type { IntegrationEnv, PublicationBatch } from "./types";
 
 const applicationId = "1540460545558323250";
 const campaignId = "11111111-1111-4111-8111-111111111111";
+const guildId = "123456789012345678";
+const forumChannelId = "223456789012345678";
 
 describe("Discord integration Worker", () => {
   let keys: CryptoKeyPair;
@@ -33,8 +35,7 @@ describe("Discord integration Worker", () => {
       DISCORD_PUBLIC_KEY: publicKeyHex,
       DISCORD_APPLICATION_ID: applicationId,
       DISCORD_BOT_TOKEN: "bot-token",
-      DISCORD_GUILD_ID: "123456789012345678",
-      DISCORD_FORUM_CHANNEL_ID: "223456789012345678",
+      DISCORD_GUILD_ID: guildId,
       INTEGRATION_SERVICE_TOKEN: "i".repeat(64),
       DEFAULT_CAMPAIGN_ID: campaignId,
       SITE_URL: "https://ordem.example",
@@ -78,8 +79,20 @@ describe("Discord integration Worker", () => {
           application_id: applicationId,
           type: 2,
           token: "command",
-          guild_id: "123456789012345678",
-          data: { name: "post" },
+          guild_id: guildId,
+          data: {
+            name: "post",
+            options: [{ name: "forum", type: 7, value: forumChannelId }],
+            resolved: {
+              channels: {
+                [forumChannelId]: {
+                  id: forumChannelId,
+                  name: "relatos-do-ermo",
+                  type: 15,
+                },
+              },
+            },
+          },
         },
         keys.privateKey,
       ),
@@ -88,7 +101,39 @@ describe("Discord integration Worker", () => {
     );
     const body = (await response.json()) as { type: number; data: { custom_id: string } };
     expect(body.type).toBe(9);
-    expect(body.data.custom_id).toBe("post:create:v1");
+    expect(body.data.custom_id).toBe(`post:create:v1:${forumChannelId}`);
+  });
+
+  it("recusa um destino que não seja canal de fórum", async () => {
+    const response = await integrationApp.fetch(
+      await signedRequest(
+        {
+          id: "223457",
+          application_id: applicationId,
+          type: 2,
+          token: "command",
+          guild_id: guildId,
+          data: {
+            name: "post",
+            options: [{ name: "forum", type: 7, value: forumChannelId }],
+            resolved: {
+              channels: {
+                [forumChannelId]: {
+                  id: forumChannelId,
+                  name: "geral",
+                  type: 0,
+                },
+              },
+            },
+          },
+        },
+        keys.privateKey,
+      ),
+      env,
+      executionContext(),
+    );
+    const body = (await response.json()) as { type: number };
+    expect(body.type).toBe(4);
   });
 
   it("cria um rascunho idempotente e devolve a prévia efêmera", async () => {
@@ -102,11 +147,11 @@ describe("Discord integration Worker", () => {
       application_id: applicationId,
       type: 5,
       token: "modal-token",
-      guild_id: "123456789012345678",
-      channel_id: "223456789012345678",
+      guild_id: guildId,
+      channel_id: "323456789012345678",
       member: { user: { id: "423456789012345678", username: "guardiao" } },
       data: {
-        custom_id: "post:create:v1",
+        custom_id: `post:create:v1:${forumChannelId}`,
         components: [
           { type: 1, components: [{ type: 4, custom_id: "post_persona", value: "Aster" }] },
           { type: 1, components: [{ type: 4, custom_id: "post_title", value: "Sinais no ermo" }] },
@@ -154,6 +199,11 @@ describe("Discord integration Worker", () => {
       campaignId,
       correlationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     };
+    db.targets.set(body.postId, {
+      campaign_id: campaignId,
+      guild_id: guildId,
+      forum_channel_id: forumChannelId,
+    });
     const batch = {
       messages: [{ body, ack, retry }],
     } as unknown as PublicationBatch;
@@ -163,6 +213,10 @@ describe("Discord integration Worker", () => {
     expect(retry).not.toHaveBeenCalled();
     expect(db.links.has(body.postId)).toBe(true);
     expect(db.auditActions).toContain("discord.post.published");
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining(`/channels/${forumChannelId}/threads`),
+      expect.any(Object),
+    );
   });
 });
 
@@ -220,6 +274,7 @@ function toHex(value: ArrayBuffer): string {
 class FakeDatabase {
   readonly inbox = new Map<string, { status: "processing" | "succeeded" | "failed"; result: string | null; attempts: number }>();
   readonly deliveries = new Map<string, { status: "pending" | "succeeded" | "failed"; externalId: string | null }>();
+  readonly targets = new Map<string, { campaign_id: string; guild_id: string; forum_channel_id: string }>();
   readonly links = new Set<string>();
   readonly auditActions: string[] = [];
 
@@ -251,6 +306,9 @@ class FakeStatement {
       return (row
         ? { status: row.status, result_entity_id: row.result, attempts: row.attempts }
         : null) as T | null;
+    }
+    if (this.sql.includes("FROM discord_post_targets")) {
+      return (this.db.targets.get(String(this.args[0])) ?? null) as T | null;
     }
     if (this.sql.includes("FROM discord_post_links")) {
       return (this.db.links.has(String(this.args[0])) ? { linked: 1 } : null) as T | null;
@@ -303,6 +361,12 @@ class FakeStatement {
       } else if (row) {
         row.status = "pending";
       }
+    } else if (this.sql.includes("INSERT OR IGNORE INTO discord_post_targets")) {
+      this.db.targets.set(String(this.args[1]), {
+        campaign_id: String(this.args[3]),
+        guild_id: String(this.args[4]),
+        forum_channel_id: String(this.args[5]),
+      });
     } else if (this.sql.includes("INSERT OR IGNORE INTO discord_post_links")) {
       this.db.links.add(String(this.args[1]));
     } else if (this.sql.includes("INSERT INTO audit_log")) {

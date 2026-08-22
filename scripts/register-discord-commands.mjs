@@ -17,6 +17,15 @@ const response = await fetch(`https://discord.com/api/v10${route}`, {
       description: "Cria um post da Ordem e envia para revisão no portal.",
       type: 1,
       dm_permission: false,
+      options: [
+        {
+          type: 7,
+          name: "forum",
+          description: "Fórum onde o post será publicado após a revisão.",
+          required: true,
+          channel_types: [15],
+        },
+      ],
     },
   ]),
 });

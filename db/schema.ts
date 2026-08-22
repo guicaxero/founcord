@@ -292,6 +292,29 @@ export const integrationInboxEvents = sqliteTable(
   ],
 );
 
+export const discordPostTargets = sqliteTable(
+  "discord_post_targets",
+  {
+    id: text("id").primaryKey(),
+    postId: text("post_id").notNull(),
+    interactionId: text("interaction_id").notNull(),
+    campaignId: text("campaign_id").notNull(),
+    guildId: text("guild_id").notNull(),
+    forumChannelId: text("forum_channel_id").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("uq_discord_post_targets_post_id").on(table.postId),
+    uniqueIndex("uq_discord_post_targets_interaction_id").on(
+      table.interactionId,
+    ),
+    index("idx_discord_post_targets_campaign_forum").on(
+      table.campaignId,
+      table.forumChannelId,
+    ),
+  ],
+);
+
 export const discordPostLinks = sqliteTable(
   "discord_post_links",
   {

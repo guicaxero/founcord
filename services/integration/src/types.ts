@@ -7,7 +7,6 @@ export type IntegrationEnv = Readonly<{
   DISCORD_APPLICATION_ID: string;
   DISCORD_BOT_TOKEN: string;
   DISCORD_GUILD_ID: string;
-  DISCORD_FORUM_CHANNEL_ID: string;
   INTEGRATION_SERVICE_TOKEN: string;
   DEFAULT_CAMPAIGN_ID: string;
   SITE_URL: string;

@@ -9,8 +9,9 @@ fórum do Discord.
 ## Fluxo
 
 ```text
-/post
+/post forum:<canal de fórum>
   -> Discord Interaction HTTP
+  -> seletor nativo limitado a canais GUILD_FORUM
   -> modal e resposta diferida efêmera
   -> Discord Integration Worker
   -> Portal Worker por Service Binding
@@ -36,6 +37,7 @@ vinculado. O backend então aplica as permissões reais desse usuário.
 - `integration_inbox_events`: deduplicação e até três tentativas de uma
   interação recebida.
 - `integration_deliveries`: estado e tentativas da publicação externa.
+- `discord_post_targets`: fórum escolhido no comando para cada post.
 - `discord_post_links`: associação única entre post, fórum e tópico.
 - `audit_log`: registra `discord.post.published` com correlation ID.
 - Queue `ordem-discord-publications`: entrega assíncrona pelo menos uma vez.
@@ -75,14 +77,14 @@ versioná-lo:
 ```bash
 npx wrangler secret put INTEGRATION_SERVICE_TOKEN
 npx wrangler secret put INTEGRATION_SERVICE_TOKEN --config services/integration/wrangler.jsonc
-npx wrangler secret put DISCORD_PUBLIC_KEY --config services/integration/wrangler.jsonc
 npx wrangler secret put DISCORD_BOT_TOKEN --config services/integration/wrangler.jsonc
 npx wrangler secret put DISCORD_GUILD_ID --config services/integration/wrangler.jsonc
-npx wrangler secret put DISCORD_FORUM_CHANNEL_ID --config services/integration/wrangler.jsonc
 ```
 
-`DISCORD_PUBLIC_KEY` é a chave pública da aplicação. `DISCORD_BOT_TOKEN` é o
-token secreto da aba Bot; nenhum dos dois é o OAuth Client Secret.
+`DISCORD_PUBLIC_KEY` é pública e fica declarada em `wrangler.jsonc`.
+`DISCORD_BOT_TOKEN` é o token secreto da aba Bot e não é o OAuth Client Secret.
+Não existe um fórum fixo no ambiente: a opção obrigatória `forum` do `/post` usa
+o seletor de canais do próprio Discord e aceita somente canais `GUILD_FORUM`.
 
 ## Deploy e Discord
 
@@ -107,7 +109,8 @@ desenvolvimento. Sem `DISCORD_GUILD_ID`, o script registra o comando global.
 2. Confirmar que o Discord aceita a Interactions Endpoint URL.
 3. Entrar no portal com o mesmo usuário Discord e possuir `post:create` na
    campanha padrão.
-4. Executar `/post`, preencher o modal e receber uma prévia efêmera.
+4. Executar `/post`, selecionar um fórum, preencher o modal e receber uma prévia
+   efêmera.
 5. Confirmar `pending_review` no painel.
 6. Aprovar e publicar manualmente no portal.
 7. Confirmar um único tópico no fórum e sua associação no D1.

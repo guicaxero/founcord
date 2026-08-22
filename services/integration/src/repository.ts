@@ -13,6 +13,18 @@ type DeliveryRow = Readonly<{
   external_id: string | null;
 }>;
 
+type DiscordPostTargetRow = Readonly<{
+  campaign_id: string;
+  guild_id: string;
+  forum_channel_id: string;
+}>;
+
+export type DiscordPostTarget = Readonly<{
+  campaignId: string;
+  guildId: string;
+  forumChannelId: string;
+}>;
+
 export type InboxClaim =
   | Readonly<{ status: "claimed" }>
   | Readonly<{ status: "processing" }>
@@ -60,15 +72,28 @@ export async function completeDiscordInteraction(
   env: IntegrationEnv,
   interactionId: string,
   postId: string,
+  target: DiscordPostTarget,
 ): Promise<void> {
-  await env.DB.prepare(
-    `UPDATE integration_inbox_events
-     SET status = 'succeeded', result_entity_id = ?, last_error = NULL,
-         updated_at = CURRENT_TIMESTAMP
-     WHERE source = 'discord' AND external_event_id = ?`,
-  )
-    .bind(postId, interactionId)
-    .run();
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE integration_inbox_events
+       SET status = 'succeeded', result_entity_id = ?, last_error = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE source = 'discord' AND external_event_id = ?`,
+    ).bind(postId, interactionId),
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO discord_post_targets (
+        id, post_id, interaction_id, campaign_id, guild_id, forum_channel_id
+      ) VALUES (?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      crypto.randomUUID(),
+      postId,
+      interactionId,
+      target.campaignId,
+      target.guildId,
+      target.forumChannelId,
+    ),
+  ]);
 }
 
 export async function failDiscordInteraction(
@@ -95,6 +120,25 @@ export async function hasDiscordPostLink(
     .bind(postId)
     .first<{ linked: number }>();
   return Boolean(row?.linked);
+}
+
+export async function getDiscordPostTarget(
+  env: IntegrationEnv,
+  postId: string,
+): Promise<DiscordPostTarget> {
+  const row = await env.DB.prepare(
+    `SELECT campaign_id, guild_id, forum_channel_id
+     FROM discord_post_targets
+     WHERE post_id = ?`,
+  )
+    .bind(postId)
+    .first<DiscordPostTargetRow>();
+  if (!row) throw new Error("Discord publication target was not found.");
+  return {
+    campaignId: row.campaign_id,
+    guildId: row.guild_id,
+    forumChannelId: row.forum_channel_id,
+  };
 }
 
 export async function beginDiscordDelivery(
@@ -132,6 +176,7 @@ export async function completeDiscordPublication(
   env: IntegrationEnv,
   post: Post,
   thread: DiscordThread,
+  target: DiscordPostTarget,
   correlationId: string,
 ): Promise<void> {
   await env.DB.batch([
@@ -150,8 +195,8 @@ export async function completeDiscordPublication(
       crypto.randomUUID(),
       post.id,
       post.campaignId,
-      env.DISCORD_GUILD_ID,
-      env.DISCORD_FORUM_CHANNEL_ID,
+      target.guildId,
+      target.forumChannelId,
       thread.id,
       thread.messageId,
       new Date().toISOString(),
@@ -168,8 +213,8 @@ export async function completeDiscordPublication(
       correlationId,
       JSON.stringify({
         postId: post.id,
-        guildId: env.DISCORD_GUILD_ID,
-        forumChannelId: env.DISCORD_FORUM_CHANNEL_ID,
+        guildId: target.guildId,
+        forumChannelId: target.forumChannelId,
         starterMessageId: thread.messageId,
       }),
     ),
