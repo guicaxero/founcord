@@ -1,6 +1,10 @@
 import { UpdatePostSchema } from "@vigilia/contracts";
 import { requireSession } from "@/server/auth/session";
-import { archivePost, updatePost } from "@/server/domain/posts";
+import {
+  archivePost,
+  deletePostPermanently,
+  updatePost,
+} from "@/server/domain/posts";
 import { enqueueDiscordPublication } from "@/server/integrations/discord-publications";
 import {
   assertSameOrigin,
@@ -39,12 +43,12 @@ export async function DELETE(request: Request, context: RouteContext) {
     if (!Number.isInteger(version) || version < 1) {
       throw new HttpError(422, "invalid_version", "Informe a versão do post.");
     }
-    await archivePost(
-      await requireSession(request),
-      postId,
-      version,
-      correlationId,
-    );
+    const session = await requireSession(request);
+    if (new URL(request.url).searchParams.get("mode") === "permanent") {
+      await deletePostPermanently(session, postId, version, correlationId);
+    } else {
+      await archivePost(session, postId, version, correlationId);
+    }
     return new Response(null, { status: 204 });
   })(request);
 }

@@ -267,6 +267,77 @@ test("Marco 1: autenticação, RBAC, campanha, missões, posts e auditoria", asy
       assert.match(created.data.post.body, /Escrito por \*\*Aster\*\*/);
     });
 
+    await t.test("arquiva, restaura e restringe a exclusão permanente de posts", async () => {
+      const created = await api(mf, `/api/campaigns/${defaultCampaignId}/posts`, {
+        token: identities.owner.token,
+        method: "POST",
+        body: {
+          campaignId: defaultCampaignId,
+          title: "Registro descartável",
+          body: "Conteúdo usado para validar o ciclo de vida.",
+          source: "manual",
+        },
+      });
+      assert.equal(created.status, 201);
+
+      const archived = await api(
+        mf,
+        `/api/posts/${created.data.id}?version=${created.data.version}&mode=archive`,
+        { token: identities.owner.token, method: "DELETE" },
+      );
+      assert.equal(archived.status, 204);
+
+      const playerRestore = await api(mf, `/api/posts/${created.data.id}`, {
+        token: identities.playerOne.token,
+        method: "PATCH",
+        body: { version: created.data.version + 1, status: "draft" },
+      });
+      assert.equal(playerRestore.status, 403);
+
+      const restored = await api(mf, `/api/posts/${created.data.id}`, {
+        token: identities.owner.token,
+        method: "PATCH",
+        body: { version: created.data.version + 1, status: "draft" },
+      });
+      assert.equal(restored.status, 200, JSON.stringify(restored.data));
+
+      const rearchived = await api(
+        mf,
+        `/api/posts/${created.data.id}?version=${restored.data.version}&mode=archive`,
+        { token: identities.owner.token, method: "DELETE" },
+      );
+      assert.equal(rearchived.status, 204);
+
+      const editorial = await api(
+        mf,
+        `/api/campaigns/${defaultCampaignId}/posts?scope=editorial`,
+        { token: identities.owner.token },
+      );
+      const archivedPost = editorial.data.data.find((post) => post.id === created.data.id);
+      assert.equal(archivedPost.status, "archived");
+
+      const managerDelete = await api(
+        mf,
+        `/api/posts/${created.data.id}?version=${archivedPost.version}&mode=permanent`,
+        { token: identities.manager.token, method: "DELETE" },
+      );
+      assert.equal(managerDelete.status, 403);
+
+      const ownerDelete = await api(
+        mf,
+        `/api/posts/${created.data.id}?version=${archivedPost.version}&mode=permanent`,
+        { token: identities.owner.token, method: "DELETE" },
+      );
+      assert.equal(ownerDelete.status, 204, JSON.stringify(ownerDelete.data));
+
+      const afterDelete = await api(
+        mf,
+        `/api/campaigns/${defaultCampaignId}/posts?scope=editorial`,
+        { token: identities.owner.token },
+      );
+      assert.equal(afterDelete.data.data.some((post) => post.id === created.data.id), false);
+    });
+
     await t.test("registra as mutações na auditoria", async () => {
       const audit = await api(mf, `/api/campaigns/${defaultCampaignId}/audit`, {
         token: identities.owner.token,
@@ -283,6 +354,7 @@ test("Marco 1: autenticação, RBAC, campanha, missões, posts e auditoria", asy
         "post.created",
         "post.approved",
         "post.published",
+        "post.deleted_permanently",
       ]) {
         assert.equal(actions.has(action), true, `ação ausente: ${action}`);
       }

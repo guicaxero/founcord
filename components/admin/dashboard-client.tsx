@@ -40,7 +40,7 @@ const tabDefinitions: readonly TabDefinition[] = [
     label: "Publicações",
     eyebrow: "Mesa de revisão",
     description: "Prepare crônicas e comunicados antes de publicá-los no portal.",
-    permissions: ["post:create", "post:review", "post:publish"],
+    permissions: ["post:create", "post:review", "post:publish", "post:delete"],
   },
   {
     id: "members",

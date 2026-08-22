@@ -173,15 +173,7 @@ export async function createForumThread(
         name: truncate(post.title, 100),
         ...(forumTagId ? { applied_tags: [forumTagId] } : {}),
         message: {
-          content: `Publicado por **${escapeDiscord(post.authorName)}** · ${env.SITE_URL}`,
-          embeds: [
-            {
-              title: truncate(post.title, 256),
-              description: truncate(post.body, 4_096),
-              color: 0xb78a4a,
-              footer: { text: "Ordem da Última Luz · conteúdo revisado" },
-            },
-          ],
+          content: forumPostContent(post.body, env.SITE_URL),
           allowed_mentions: { parse: [] },
         },
       }),
@@ -262,8 +254,9 @@ function truncate(value: string, maxLength: number): string {
   return `${value.slice(0, Math.max(0, maxLength - 1))}…`;
 }
 
-function escapeDiscord(value: string): string {
-  return value.replaceAll("@", "＠").replaceAll("`", "ˋ");
+function forumPostContent(body: string, siteUrl: string): string {
+  const portalLink = `\n\n—\n🔗 [Ver este e outros registros no Portal da Ordem](${siteUrl})`;
+  return `${truncate(body, 2_000 - portalLink.length)}${portalLink}`;
 }
 
 const FORUM_REQUIRE_TAG_FLAG = 1 << 4;

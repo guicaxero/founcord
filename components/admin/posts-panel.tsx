@@ -9,7 +9,7 @@ import type {
   PostStatus,
   UpdatePostInput,
 } from "@vigilia/contracts";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { hasCapability } from "@/lib/capabilities";
 import { queryKeys } from "@/lib/query-keys";
@@ -29,6 +29,7 @@ export function PostsPanel({
 }: Readonly<{ campaignId: string; me: CurrentUserResponse }>) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Post | null>(null);
+  const [deleting, setDeleting] = useState<Post | null>(null);
   const posts = useQuery({
     queryKey: queryKeys.posts(campaignId, "editorial"),
     queryFn: () =>
@@ -61,10 +62,28 @@ export function PostsPanel({
       }),
     onSuccess: () => invalidatePosts(queryClient, campaignId),
   });
+  const archive = useMutation({
+    mutationFn: (post: Post) =>
+      apiFetch<void>(`/api/posts/${post.id}?version=${post.version}&mode=archive`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => invalidatePosts(queryClient, campaignId),
+  });
+  const destroy = useMutation({
+    mutationFn: (post: Post) =>
+      apiFetch<void>(`/api/posts/${post.id}?version=${post.version}&mode=permanent`, {
+        method: "DELETE",
+      }),
+    onSuccess: async () => {
+      setDeleting(null);
+      await invalidatePosts(queryClient, campaignId);
+    },
+  });
 
   const canCreate = hasCapability(me, "post:create", campaignId);
   const canReview = hasCapability(me, "post:review", campaignId);
   const canPublish = hasCapability(me, "post:publish", campaignId);
+  const canDelete = hasCapability(me, "post:delete", campaignId);
   const canEditAll = canCreate && canReview;
 
   return (
@@ -102,11 +121,21 @@ export function PostsPanel({
                 {post.status === "approved" && canPublish ? (
                   <button type="button" onClick={() => transition.mutate({ post, status: "published" })}>Publicar no portal</button>
                 ) : null}
+                {post.status === "archived" && canPublish ? (
+                  <button type="button" onClick={() => transition.mutate({ post, status: "draft" })}>Restaurar como rascunho</button>
+                ) : null}
+                {post.status !== "archived" && canPublish ? (
+                  <button className="danger-link" type="button" onClick={() => archive.mutate(post)}>Arquivar</button>
+                ) : null}
+                {post.status === "archived" && canDelete ? (
+                  <button className="danger-link" type="button" onClick={() => setDeleting(post)}>Excluir permanentemente</button>
+                ) : null}
               </div>
             </article>
           ))}
         </div>
         {transition.isError ? <p className="inline-error">{errorMessage(transition.error)}</p> : null}
+        {archive.isError ? <p className="inline-error">{errorMessage(archive.error)}</p> : null}
       </div>
       {canCreate || editing ? (
         <PostForm
@@ -120,7 +149,90 @@ export function PostsPanel({
       ) : (
         <aside className="permission-note">Seu perfil não cria conteúdo editorial.</aside>
       )}
+      {deleting ? (
+        <PermanentDeleteDialog
+          key={deleting.id}
+          post={deleting}
+          busy={destroy.isPending}
+          error={destroy.isError ? errorMessage(destroy.error) : null}
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => destroy.mutate(deleting)}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function PermanentDeleteDialog({
+  post,
+  busy,
+  error,
+  onCancel,
+  onConfirm,
+}: Readonly<{
+  post: Post;
+  busy: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}>) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const confirmationRef = useRef<HTMLInputElement>(null);
+  const [confirmation, setConfirmation] = useState("");
+  const confirmed = confirmation === "EXCLUIR";
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+      confirmationRef.current?.focus();
+    }
+    return () => {
+      if (dialog?.open) dialog.close();
+    };
+  }, []);
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (confirmed && !busy) onConfirm();
+  }
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="destructive-dialog"
+      aria-labelledby="permanent-delete-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!busy) onCancel();
+      }}
+    >
+      <form className="destructive-dialog-card" onSubmit={submit}>
+        <span className="dialog-kicker">AÇÃO IRREVERSÍVEL</span>
+        <h2 id="permanent-delete-title">Excluir post permanentemente?</h2>
+        <p>
+          O post <strong>{post.title}</strong> e seus registros internos serão removidos do
+          portal. Uma publicação já enviada ao Discord continuará existindo no fórum.
+        </p>
+        <label>
+          Digite <strong>EXCLUIR</strong> para confirmar
+          <input
+            ref={confirmationRef}
+            value={confirmation}
+            onChange={(event) => setConfirmation(event.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </label>
+        {error ? <p className="inline-error">{error}</p> : null}
+        <div className="dialog-actions">
+          <button type="button" disabled={busy} onClick={onCancel}>Cancelar</button>
+          <button className="danger-primary" disabled={!confirmed || busy}>
+            {busy ? "Excluindo…" : "Excluir permanentemente"}
+          </button>
+        </div>
+      </form>
+    </dialog>
   );
 }
 

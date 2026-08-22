@@ -432,6 +432,108 @@
   background: transparent;
 }
 
+.destructive-dialog {
+  width: min(92vw, 540px);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ink-950);
+}
+
+.destructive-dialog::backdrop {
+  background: rgb(17 18 16 / 72%);
+  backdrop-filter: blur(3px);
+}
+
+.destructive-dialog-card {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid #8b4b40;
+  border-radius: var(--radius-md);
+  background:
+    radial-gradient(circle at 100% 0%, rgb(138 48 36 / 12%), transparent 34%),
+    var(--paper-50);
+  padding: clamp(1.25rem, 4vw, 2rem);
+  box-shadow: 0 26px 70px rgb(0 0 0 / 38%);
+}
+
+.dialog-kicker {
+  color: var(--danger-700);
+  font-size: 0.65rem;
+  font-weight: 850;
+  letter-spacing: 0.14em;
+}
+
+.destructive-dialog h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 5vw, 2rem);
+  line-height: 1.05;
+}
+
+.destructive-dialog p {
+  margin: 0;
+  color: var(--ink-700);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.destructive-dialog label {
+  display: grid;
+  gap: 0.45rem;
+  color: var(--ink-700);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.destructive-dialog input {
+  min-height: 44px;
+  border: 1px solid var(--ink-400);
+  border-radius: var(--radius-sm);
+  background: var(--paper-50);
+  padding: 0.7rem 0.8rem;
+  color: var(--ink-950);
+  font: inherit;
+}
+
+.destructive-dialog input:focus-visible {
+  outline: 3px solid rgb(138 48 36 / 24%);
+  outline-offset: 2px;
+  border-color: var(--danger-700);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.25rem;
+}
+
+.dialog-actions button {
+  min-height: 42px;
+  border: 1px solid var(--ink-300);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.9rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.dialog-actions .danger-primary {
+  border-color: var(--danger-700);
+  background: var(--danger-700);
+  color: var(--paper-50);
+}
+
+.dialog-actions .danger-primary:hover:not(:disabled) {
+  filter: brightness(0.9);
+}
+
+.dialog-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .admin-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -849,4 +951,3 @@
   background-size: 200% 100%;
   animation: account-loading 1.2s linear infinite;
 }
-

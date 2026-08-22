@@ -22,6 +22,7 @@ const actionLabels: Readonly<Record<string, string>> = {
   "post.pending_review": "enviou um post à revisão",
   "post.approved": "aprovou um post",
   "post.published": "publicou um post",
+  "post.deleted_permanently": "excluiu um post permanentemente",
 };
 
 export function AuditPanel({ campaignId }: Readonly<{ campaignId: string }>) {

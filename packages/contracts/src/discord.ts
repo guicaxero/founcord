@@ -82,7 +82,7 @@ export const CreateDiscordPostDraftSchema = z
     forumTagId: DiscordSnowflakeSchema.nullable().default(null),
     personaName: z.string().trim().min(1).max(80).nullable(),
     title: z.string().trim().min(3).max(100),
-    body: z.string().trim().min(1).max(4_000),
+    body: z.string().trim().min(1).max(1_700),
   })
   .strict();
 

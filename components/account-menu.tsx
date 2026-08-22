@@ -17,6 +17,7 @@ const managementPermissions = new Set([
   "mission:publish",
   "mission:review",
   "post:create",
+  "post:delete",
   "post:publish",
   "post:review",
   "role:assign",

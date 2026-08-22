@@ -440,6 +440,11 @@
     justify-content: flex-start;
   }
 
+  .dialog-actions,
+  .dialog-actions button {
+    width: 100%;
+  }
+
   .admin-form {
     grid-template-columns: 1fr;
   }
@@ -503,4 +508,3 @@
     width: 100%;
   }
 }
-
