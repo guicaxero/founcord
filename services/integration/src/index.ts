@@ -9,13 +9,16 @@ import {
 import {
   createForumThread,
   editOriginalInteraction,
+  forumTagChoices,
+  getForumChannel,
   registerGuildCommands,
+  sendDirectMessage,
 } from "./discord-client";
 import {
   extractModalValues,
-  forumChannelIdFromModal,
   POST_COMMAND_NAME,
   postModalResponse,
+  postTargetFromModal,
 } from "./discord-components";
 import { createDiscordDraft, getPublishedPortalPost } from "./portal-client";
 import {
@@ -25,6 +28,7 @@ import {
   completeDiscordPublication,
   failDiscordDelivery,
   failDiscordInteraction,
+  getDiscordDeliveryAttempts,
   getDiscordPostTarget,
   hasDiscordPostLink,
 } from "./repository";
@@ -124,6 +128,29 @@ integrationApp.post("/interactions", async (context) => {
       data: { content: "Este servidor não está autorizado para a campanha.", flags: 64 },
     });
   }
+  if (interaction.type === 4 && interaction.data?.name === POST_COMMAND_NAME) {
+    const forumChannelId = forumChannelIdFromOption(interaction);
+    if (!forumChannelId) return context.json({ type: 8, data: { choices: [] } });
+    try {
+      const forum = await getForumChannel(context.env, forumChannelId);
+      if (forum.guildId !== context.env.DISCORD_GUILD_ID) {
+        return context.json({ type: 8, data: { choices: [] } });
+      }
+      return context.json({
+        type: 8,
+        data: { choices: forumTagChoices(forum, focusedTagQuery(interaction)) },
+      });
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          level: "error",
+          code: "discord_forum_tag_autocomplete_failed",
+          message: error instanceof Error ? error.message : "Unknown error",
+        }),
+      );
+      return context.json({ type: 8, data: { choices: [] } });
+    }
+  }
   if (interaction.type === 2 && interaction.data?.name === POST_COMMAND_NAME) {
     const forumChannelId = forumChannelIdFromCommand(interaction);
     if (!forumChannelId) {
@@ -135,12 +162,49 @@ integrationApp.post("/interactions", async (context) => {
         },
       });
     }
-    return context.json(postModalResponse(forumChannelId));
+    try {
+      const forum = await getForumChannel(context.env, forumChannelId);
+      const forumTagId = forumTagIdFromCommand(interaction);
+      if (forum.guildId !== context.env.DISCORD_GUILD_ID) {
+        throw new Error("Forum belongs to another guild.");
+      }
+      if (forumTagId && !forum.tags.some((tag) => tag.id === forumTagId)) {
+        return context.json({
+          type: 4,
+          data: { content: "Escolha uma tag válida desse fórum.", flags: 64 },
+        });
+      }
+      if (forum.requiresTag && !forumTagId) {
+        return context.json({
+          type: 4,
+          data: {
+            content: "Esse fórum exige uma tag. Execute /post novamente e escolha uma tag.",
+            flags: 64,
+          },
+        });
+      }
+      return context.json(postModalResponse(forumChannelId, forumTagId));
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          level: "error",
+          code: "discord_forum_validation_failed",
+          message: error instanceof Error ? error.message : "Unknown error",
+        }),
+      );
+      return context.json({
+        type: 4,
+        data: {
+          content: "Não foi possível validar o fórum agora. Tente novamente.",
+          flags: 64,
+        },
+      });
+    }
   }
-  const forumChannelId = forumChannelIdFromModal(interaction.data?.custom_id);
-  if (interaction.type === 5 && forumChannelId) {
+  const postTarget = postTargetFromModal(interaction.data?.custom_id);
+  if (interaction.type === 5 && postTarget) {
     context.executionCtx.waitUntil(
-      processPostModal(context.env, interaction, forumChannelId),
+      processPostModal(context.env, interaction, postTarget),
     );
     return context.json({ type: 5, data: { flags: 64 } });
   }
@@ -153,7 +217,7 @@ integrationApp.post("/interactions", async (context) => {
 async function processPostModal(
   env: IntegrationEnv,
   interaction: DiscordInteraction,
-  forumChannelId: string,
+  target: Readonly<{ forumChannelId: string; forumTagId: string | null }>,
 ): Promise<void> {
   const user = interaction.member?.user ?? interaction.user;
   const values = extractModalValues(interaction.data?.components);
@@ -163,7 +227,8 @@ async function processPostModal(
     discordUserId: user?.id,
     guildId: interaction.guild_id ?? null,
     channelId: interaction.channel_id ?? null,
-    forumChannelId,
+    forumChannelId: target.forumChannelId,
+    forumTagId: target.forumTagId,
     personaName: values.post_persona?.trim() || null,
     title: values.post_title,
     body: values.post_body,
@@ -204,6 +269,7 @@ async function processPostModal(
       campaignId: post.campaignId,
       guildId: input.data.guildId,
       forumChannelId: input.data.forumChannelId,
+      forumTagId: input.data.forumTagId,
     });
     await editOriginalInteraction(env, interaction.application_id, interaction.token, {
       content: "Post enviado para revisão humana no portal.",
@@ -257,13 +323,21 @@ async function publishPost(
       message.correlationId,
     );
     const target = await getDiscordPostTarget(env, post.id);
-    const thread = await createForumThread(env, post, target.forumChannelId);
+    const thread = await createForumThread(
+      env,
+      post,
+      target.forumChannelId,
+      target.forumTagId,
+    );
     await completeDiscordPublication(
       env,
       post,
       thread,
       target,
       message.correlationId,
+    );
+    await notifyPublicationSuccess(env, post, target, thread.id).catch((error) =>
+      logNotificationFailure(post.id, error),
     );
   } catch (error) {
     await failDiscordDelivery(env, message.postId, error).catch(() => undefined);
@@ -295,6 +369,12 @@ export async function handlePublicationBatch(
           message: error instanceof Error ? error.message : "Unknown error",
         }),
       );
+      if ((await getDiscordDeliveryAttempts(env, parsed.data.postId)) >= 6) {
+        await notifyPublicationFailure(env, parsed.data, error).catch(
+          (notificationError) =>
+            logNotificationFailure(parsed.data.postId, notificationError),
+        );
+      }
       message.retry();
     }
   }
@@ -322,4 +402,75 @@ function forumChannelIdFromCommand(
   const channel = interaction.data?.resolved?.channels?.[option.value];
   if (!channel || channel.id !== option.value || channel.type !== 15) return null;
   return option.value;
+}
+
+function forumChannelIdFromOption(interaction: DiscordInteraction): string | null {
+  const option = interaction.data?.options?.find(
+    (candidate) => candidate.name === "forum" && candidate.type === 7,
+  );
+  return option && typeof option.value === "string" ? option.value : null;
+}
+
+function forumTagIdFromCommand(interaction: DiscordInteraction): string | null {
+  const option = interaction.data?.options?.find(
+    (candidate) => candidate.name === "tag" && candidate.type === 3,
+  );
+  return option && typeof option.value === "string" ? option.value : null;
+}
+
+function focusedTagQuery(interaction: DiscordInteraction): string {
+  const option = interaction.data?.options?.find(
+    (candidate) =>
+      candidate.name === "tag" && candidate.type === 3 && candidate.focused,
+  );
+  return option && typeof option.value === "string" ? option.value : "";
+}
+
+async function notifyPublicationSuccess(
+  env: IntegrationEnv,
+  post: Readonly<{ id: string; title: string }>,
+  target: Readonly<{ discordUserId: string; guildId: string }>,
+  threadId: string,
+): Promise<void> {
+  await sendDirectMessage(env, target.discordUserId, {
+    content: `✅ Seu post **${post.title}** foi publicado no Discord.\nhttps://discord.com/channels/${target.guildId}/${threadId}`,
+    allowed_mentions: { parse: [] },
+  });
+}
+
+async function notifyPublicationFailure(
+  env: IntegrationEnv,
+  message: DiscordPostPublication,
+  error: unknown,
+): Promise<void> {
+  const [post, target] = await Promise.all([
+    getPublishedPortalPost(env, message.postId, message.correlationId),
+    getDiscordPostTarget(env, message.postId),
+  ]);
+  await sendDirectMessage(env, target.discordUserId, {
+    content:
+      `⚠️ Não foi possível publicar **${post.title}** no fórum do Discord após várias tentativas. ` +
+      `O conteúdo continua preservado no portal. Referência: \`${message.correlationId}\`.`,
+    allowed_mentions: { parse: [] },
+  });
+  console.error(
+    JSON.stringify({
+      level: "error",
+      code: "discord_publication_exhausted",
+      postId: message.postId,
+      correlationId: message.correlationId,
+      message: error instanceof Error ? error.message : "Unknown error",
+    }),
+  );
+}
+
+function logNotificationFailure(postId: string, error: unknown): void {
+  console.error(
+    JSON.stringify({
+      level: "error",
+      code: "discord_delivery_notification_failed",
+      postId,
+      message: error instanceof Error ? error.message : "Unknown error",
+    }),
+  );
 }

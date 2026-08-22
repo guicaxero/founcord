@@ -26,6 +26,13 @@ const response = await fetch(`https://discord.com/api/v10${route}`, {
           required: true,
           channel_types: [15],
         },
+        {
+          type: 3,
+          name: "tag",
+          description: "Tag aplicada ao post; obrigatória quando o fórum exigir.",
+          required: false,
+          autocomplete: true,
+        },
       ],
     },
   ]),

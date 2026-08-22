@@ -7,6 +7,8 @@ const applicationId = "1540460545558323250";
 const campaignId = "11111111-1111-4111-8111-111111111111";
 const guildId = "123456789012345678";
 const forumChannelId = "223456789012345678";
+const forumTagId = "233456789012345678";
+const discordUserId = "423456789012345678";
 
 describe("Discord integration Worker", () => {
   let keys: CryptoKeyPair;
@@ -104,12 +106,19 @@ describe("Discord integration Worker", () => {
     const request = discordFetch.mock.calls[0]?.[1] as RequestInit;
     const commands = JSON.parse(String(request.body)) as Array<{
       name: string;
-      options: Array<{ name: string; channel_types: number[] }>;
+      options: Array<{
+        name: string;
+        channel_types?: number[];
+        autocomplete?: boolean;
+      }>;
     }>;
-    expect(commands[0]).toMatchObject({
-      name: "post",
-      options: [{ name: "forum", channel_types: [15] }],
-    });
+    expect(commands[0]?.name).toBe("post");
+    expect(commands[0]?.options).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "forum", channel_types: [15] }),
+        expect.objectContaining({ name: "tag", autocomplete: true }),
+      ]),
+    );
   });
 
   it("responde ao PING assinado do Discord", async () => {
@@ -126,6 +135,10 @@ describe("Discord integration Worker", () => {
   });
 
   it("abre o modal do comando /post", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => forumChannelResponse()),
+    );
     const response = await integrationApp.fetch(
       await signedRequest(
         {
@@ -136,7 +149,10 @@ describe("Discord integration Worker", () => {
           guild_id: guildId,
           data: {
             name: "post",
-            options: [{ name: "forum", type: 7, value: forumChannelId }],
+            options: [
+              { name: "forum", type: 7, value: forumChannelId },
+              { name: "tag", type: 3, value: forumTagId },
+            ],
             resolved: {
               channels: {
                 [forumChannelId]: {
@@ -155,7 +171,42 @@ describe("Discord integration Worker", () => {
     );
     const body = (await response.json()) as { type: number; data: { custom_id: string } };
     expect(body.type).toBe(9);
-    expect(body.data.custom_id).toBe(`post:create:v1:${forumChannelId}`);
+    expect(body.data.custom_id).toBe(
+      `post:create:v2:${forumChannelId}:${forumTagId}`,
+    );
+  });
+
+  it("oferece autocomplete das tags do fórum escolhido", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => forumChannelResponse()),
+    );
+    const response = await integrationApp.fetch(
+      await signedRequest(
+        {
+          id: "223458",
+          application_id: applicationId,
+          type: 4,
+          token: "autocomplete",
+          guild_id: guildId,
+          data: {
+            name: "post",
+            options: [
+              { name: "forum", type: 7, value: forumChannelId },
+              { name: "tag", type: 3, value: "rel", focused: true },
+            ],
+          },
+        },
+        keys.privateKey,
+      ),
+      env,
+      executionContext(),
+    );
+
+    expect(await response.json()).toEqual({
+      type: 8,
+      data: { choices: [{ name: "Relato", value: forumTagId }] },
+    });
   });
 
   it("recusa um destino que não seja canal de fórum", async () => {
@@ -203,9 +254,9 @@ describe("Discord integration Worker", () => {
       token: "modal-token",
       guild_id: guildId,
       channel_id: "323456789012345678",
-      member: { user: { id: "423456789012345678", username: "guardiao" } },
+      member: { user: { id: discordUserId, username: "guardiao" } },
       data: {
-        custom_id: `post:create:v1:${forumChannelId}`,
+        custom_id: `post:create:v2:${forumChannelId}:${forumTagId}`,
         components: [
           { type: 1, components: [{ type: 4, custom_id: "post_persona", value: "Aster" }] },
           { type: 1, components: [{ type: 4, custom_id: "post_title", value: "Sinais no ermo" }] },
@@ -236,11 +287,18 @@ describe("Discord integration Worker", () => {
   it("publica uma única thread e registra a associação", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: string | URL | Request) => {
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
         const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-        if (url.includes("/channels/")) {
+        if (url.endsWith(`/channels/${forumChannelId}/threads`)) {
           return Response.json({ id: "523456789012345678", message: { id: "623456789012345678" } });
         }
+        if (url.endsWith("/users/@me/channels")) {
+          return Response.json({ id: "723456789012345678" });
+        }
+        if (url.endsWith("/channels/723456789012345678/messages")) {
+          return Response.json({ id: "823456789012345678" });
+        }
+        void init;
         return Response.json({});
       }),
     );
@@ -257,6 +315,8 @@ describe("Discord integration Worker", () => {
       campaign_id: campaignId,
       guild_id: guildId,
       forum_channel_id: forumChannelId,
+      forum_tag_id: forumTagId,
+      discord_user_id: discordUserId,
     });
     const batch = {
       messages: [{ body, ack, retry }],
@@ -271,8 +331,89 @@ describe("Discord integration Worker", () => {
       expect.stringContaining(`/channels/${forumChannelId}/threads`),
       expect.any(Object),
     );
+    const threadCall = vi.mocked(fetch).mock.calls.find(([input]) =>
+      String(input).includes(`/channels/${forumChannelId}/threads`),
+    );
+    const threadPayload = JSON.parse(String(threadCall?.[1]?.body)) as {
+      applied_tags: string[];
+    };
+    expect(threadPayload.applied_tags).toEqual([forumTagId]);
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/channels/723456789012345678/messages"),
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("avisa o autor por DM quando a entrega esgota as tentativas", async () => {
+    const dmMessages: unknown[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        if (url.endsWith(`/channels/${forumChannelId}/threads`)) {
+          return Response.json(
+            { code: 50035, message: "Invalid Form Body" },
+            { status: 400 },
+          );
+        }
+        if (url.endsWith("/users/@me/channels")) {
+          return Response.json({ id: "723456789012345678" });
+        }
+        if (url.endsWith("/channels/723456789012345678/messages")) {
+          dmMessages.push(JSON.parse(String(init?.body)));
+          return Response.json({ id: "823456789012345678" });
+        }
+        return Response.json({});
+      }),
+    );
+    const postId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    db.targets.set(postId, {
+      campaign_id: campaignId,
+      guild_id: guildId,
+      forum_channel_id: forumChannelId,
+      forum_tag_id: forumTagId,
+      discord_user_id: discordUserId,
+    });
+    db.deliveries.set(`post:${postId}:forum:v1`, {
+      status: "failed",
+      externalId: null,
+      attempts: 5,
+    });
+    const retry = vi.fn();
+    const body: DiscordPostPublication = {
+      type: "discord.post.publish",
+      version: 1,
+      postId,
+      campaignId,
+      correlationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    };
+
+    await handlePublicationBatch(
+      { messages: [{ body, ack: vi.fn(), retry }] } as unknown as PublicationBatch,
+      env,
+    );
+
+    expect(retry).toHaveBeenCalledOnce();
+    expect(dmMessages).toHaveLength(1);
+    expect(dmMessages[0]).toMatchObject({
+      content: expect.stringContaining("Não foi possível publicar"),
+    });
+    expect(db.deliveries.get(`post:${postId}:forum:v1`)?.attempts).toBe(6);
   });
 });
+
+function forumChannelResponse(): Response {
+  return Response.json({
+    id: forumChannelId,
+    guild_id: guildId,
+    type: 15,
+    flags: 16,
+    available_tags: [
+      { id: forumTagId, name: "Relato" },
+      { id: "243456789012345678", name: "Missão" },
+    ],
+  });
+}
 
 function executionContext(waits: Promise<unknown>[] = []): ExecutionContext {
   return {
@@ -327,8 +468,8 @@ function toHex(value: ArrayBuffer): string {
 
 class FakeDatabase {
   readonly inbox = new Map<string, { status: "processing" | "succeeded" | "failed"; result: string | null; attempts: number }>();
-  readonly deliveries = new Map<string, { status: "pending" | "succeeded" | "failed"; externalId: string | null }>();
-  readonly targets = new Map<string, { campaign_id: string; guild_id: string; forum_channel_id: string }>();
+  readonly deliveries = new Map<string, { status: "pending" | "succeeded" | "failed"; externalId: string | null; attempts: number }>();
+  readonly targets = new Map<string, { campaign_id: string; guild_id: string; forum_channel_id: string; forum_tag_id: string | null; discord_user_id: string }>();
   readonly links = new Set<string>();
   readonly auditActions: string[] = [];
 
@@ -370,7 +511,7 @@ class FakeStatement {
     if (this.sql.includes("FROM integration_deliveries")) {
       const row = this.db.deliveries.get(String(this.args[0]));
       return (row
-        ? { status: row.status, external_id: row.externalId }
+        ? { status: row.status, external_id: row.externalId, attempts: row.attempts }
         : null) as T | null;
     }
     return null;
@@ -402,7 +543,7 @@ class FakeStatement {
     } else if (this.sql.includes("INSERT OR IGNORE INTO integration_deliveries")) {
       const key = String(this.args[1]);
       if (!this.db.deliveries.has(key)) {
-        this.db.deliveries.set(key, { status: "pending", externalId: null });
+        this.db.deliveries.set(key, { status: "pending", externalId: null, attempts: 0 });
       }
     } else if (this.sql.includes("UPDATE integration_deliveries")) {
       const key = String(this.args.at(-1));
@@ -414,12 +555,15 @@ class FakeStatement {
         row.status = "failed";
       } else if (row) {
         row.status = "pending";
+        row.attempts += 1;
       }
     } else if (this.sql.includes("INSERT OR IGNORE INTO discord_post_targets")) {
       this.db.targets.set(String(this.args[1]), {
         campaign_id: String(this.args[3]),
         guild_id: String(this.args[4]),
         forum_channel_id: String(this.args[5]),
+        forum_tag_id: this.args[6] === null ? null : String(this.args[6]),
+        discord_user_id: discordUserId,
       });
     } else if (this.sql.includes("INSERT OR IGNORE INTO discord_post_links")) {
       this.db.links.add(String(this.args[1]));
