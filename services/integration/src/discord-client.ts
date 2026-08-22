@@ -1,10 +1,68 @@
 import type { Post } from "@vigilia/contracts";
+import { POST_COMMAND_NAME } from "./discord-components";
 import type { IntegrationEnv } from "./types";
 
 export type DiscordThread = Readonly<{
   id: string;
   messageId: string | null;
 }>;
+
+export type RegisteredDiscordCommand = Readonly<{
+  id: string;
+  name: string;
+}>;
+
+export async function registerGuildCommands(
+  env: IntegrationEnv,
+): Promise<readonly RegisteredDiscordCommand[]> {
+  const response = await fetch(
+    `${apiBase(env)}/applications/${env.DISCORD_APPLICATION_ID}/guilds/${env.DISCORD_GUILD_ID}/commands`,
+    {
+      method: "PUT",
+      headers: {
+        authorization: `Bot ${env.DISCORD_BOT_TOKEN}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify([
+        {
+          name: POST_COMMAND_NAME,
+          description: "Cria um post da Ordem e envia para revisão no portal.",
+          type: 1,
+          dm_permission: false,
+          options: [
+            {
+              type: 7,
+              name: "forum",
+              description: "Fórum onde o post será publicado após a revisão.",
+              required: true,
+              channel_types: [15],
+            },
+          ],
+        },
+      ]),
+    },
+  );
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(`Discord command registration failed with ${response.status}.`);
+  }
+  if (!Array.isArray(body)) throw new Error("Discord returned invalid commands.");
+
+  return body.map((command) => {
+    if (
+      !command ||
+      typeof command !== "object" ||
+      typeof (command as { id?: unknown }).id !== "string" ||
+      typeof (command as { name?: unknown }).name !== "string"
+    ) {
+      throw new Error("Discord returned an invalid command.");
+    }
+    return {
+      id: (command as { id: string }).id,
+      name: (command as { name: string }).name,
+    };
+  });
+}
 
 export async function editOriginalInteraction(
   env: IntegrationEnv,

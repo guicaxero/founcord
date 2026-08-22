@@ -6,7 +6,11 @@ import {
   type DiscordInteraction,
   type DiscordPostPublication,
 } from "@vigilia/contracts";
-import { createForumThread, editOriginalInteraction } from "./discord-client";
+import {
+  createForumThread,
+  editOriginalInteraction,
+  registerGuildCommands,
+} from "./discord-client";
 import {
   extractModalValues,
   forumChannelIdFromModal,
@@ -26,6 +30,7 @@ import {
 } from "./repository";
 import type { IntegrationEnv, PublicationBatch } from "./types";
 import { verifyDiscordRequest } from "./verify-discord-request";
+import { verifyInternalRequest } from "./verify-internal-request";
 
 const integrationApp = new Hono<{ Bindings: IntegrationEnv }>();
 
@@ -36,15 +41,58 @@ integrationApp.get("/health", (context) =>
 integrationApp.get("/openapi.json", (context) =>
   context.json({
     openapi: "3.1.0",
-    info: { title: "Ordem Discord Integration API", version: "0.2.0" },
+    info: { title: "Ordem Discord Integration API", version: "0.3.0" },
     paths: {
       "/health": { get: { responses: { 200: { description: "Healthy" } } } },
       "/interactions": {
         post: { responses: { 200: { description: "Discord interaction response" } } },
       },
+      "/internal/discord/register-commands": {
+        post: {
+          security: [{ internalBearer: [] }],
+          responses: {
+            200: { description: "Guild commands registered" },
+            401: { description: "Unauthorized" },
+          },
+        },
+      },
+    },
+    components: {
+      securitySchemes: {
+        internalBearer: { type: "http", scheme: "bearer" },
+      },
     },
   }),
 );
+
+integrationApp.post("/internal/discord/register-commands", async (context) => {
+  if (
+    !(await verifyInternalRequest(
+      context.req.raw,
+      context.env.INTEGRATION_SERVICE_TOKEN,
+    ))
+  ) {
+    return context.json({ error: "unauthorized" }, 401);
+  }
+
+  try {
+    const commands = await registerGuildCommands(context.env);
+    return context.json({
+      scope: "guild",
+      guildId: context.env.DISCORD_GUILD_ID,
+      commands,
+    });
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        level: "error",
+        code: "discord_command_registration_failed",
+        message: error instanceof Error ? error.message : "Unknown error",
+      }),
+    );
+    return context.json({ error: "discord_command_registration_failed" }, 502);
+  }
+});
 
 integrationApp.post("/interactions", async (context) => {
   const body = await context.req.text();

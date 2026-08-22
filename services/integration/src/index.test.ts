@@ -58,6 +58,60 @@ describe("Discord integration Worker", () => {
     expect(response.status).toBe(401);
   });
 
+  it("protege o registro de comandos com o segredo interno", async () => {
+    const response = await integrationApp.fetch(
+      new Request("https://integration.example/internal/discord/register-commands", {
+        method: "POST",
+      }),
+      env,
+      executionContext(),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  it("registra o /post no servidor sem expor o Bot Token", async () => {
+    const discordFetch = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        void input;
+        void init;
+        return Response.json([{ id: "323456789012345678", name: "post" }]);
+      },
+    );
+    vi.stubGlobal("fetch", discordFetch);
+    const response = await integrationApp.fetch(
+      new Request("https://integration.example/internal/discord/register-commands", {
+        method: "POST",
+        headers: { authorization: `Bearer ${env.INTEGRATION_SERVICE_TOKEN}` },
+      }),
+      env,
+      executionContext(),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      scope: "guild",
+      guildId,
+      commands: [{ id: "323456789012345678", name: "post" }],
+    });
+    expect(discordFetch).toHaveBeenCalledWith(
+      `https://discord.com/api/v10/applications/${applicationId}/guilds/${guildId}/commands`,
+      expect.objectContaining({
+        method: "PUT",
+        headers: expect.objectContaining({ authorization: "Bot bot-token" }),
+      }),
+    );
+    const request = discordFetch.mock.calls[0]?.[1] as RequestInit;
+    const commands = JSON.parse(String(request.body)) as Array<{
+      name: string;
+      options: Array<{ name: string; channel_types: number[] }>;
+    }>;
+    expect(commands[0]).toMatchObject({
+      name: "post",
+      options: [{ name: "forum", channel_types: [15] }],
+    });
+  });
+
   it("responde ao PING assinado do Discord", async () => {
     const response = await integrationApp.fetch(
       await signedRequest(
