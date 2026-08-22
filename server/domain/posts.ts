@@ -251,6 +251,86 @@ export async function archivePost(
   }
 }
 
+export async function deletePostPermanently(
+  session: AuthenticatedSession,
+  postId: string,
+  version: number,
+  correlationId: string,
+): Promise<void> {
+  const existing = await getPostRow(postId);
+  requirePermission(session.principal, "post:delete", {
+    kind: "campaign",
+    campaignId: existing.campaign_id,
+  });
+  if (existing.status !== "archived") {
+    throw new HttpError(
+      409,
+      "post_must_be_archived",
+      "Arquive o post antes de excluí-lo permanentemente.",
+    );
+  }
+
+  const db = getD1();
+  const postExistsAtVersion =
+    "EXISTS (SELECT 1 FROM posts WHERE id = ? AND version = ?)";
+  const results = await db.batch([
+    db
+      .prepare(
+        `DELETE FROM discord_post_links
+         WHERE post_id = ? AND ${postExistsAtVersion}`,
+      )
+      .bind(postId, postId, version),
+    db
+      .prepare(
+        `DELETE FROM discord_post_targets
+         WHERE post_id = ? AND ${postExistsAtVersion}`,
+      )
+      .bind(postId, postId, version),
+    db
+      .prepare(
+        `DELETE FROM integration_deliveries
+         WHERE destination = 'discord'
+           AND idempotency_key = ? AND ${postExistsAtVersion}`,
+      )
+      .bind(`post:${postId}:forum:v1`, postId, version),
+    db
+      .prepare(
+        `DELETE FROM integration_inbox_events
+         WHERE result_entity_id = ? AND ${postExistsAtVersion}`,
+      )
+      .bind(postId, postId, version),
+    db
+      .prepare(
+        `DELETE FROM outbox_events
+         WHERE aggregate_type = 'post' AND aggregate_id = ?
+           AND ${postExistsAtVersion}`,
+      )
+      .bind(postId, postId, version),
+    db
+      .prepare(
+        `DELETE FROM audit_log
+         WHERE entity_type = 'post' AND entity_id = ?
+           AND ${postExistsAtVersion}`,
+      )
+      .bind(postId, postId, version),
+    db
+      .prepare("DELETE FROM posts WHERE id = ? AND version = ?")
+      .bind(postId, version),
+  ]);
+  if ((results[6]?.meta.changes ?? 0) === 0) {
+    throw new HttpError(409, "version_conflict", "O post foi alterado por outra pessoa.");
+  }
+  await prepareAuditAfterChange(db, {
+    actorUserId: session.user.id,
+    campaignId: existing.campaign_id,
+    action: "post.deleted_permanently",
+    entityType: "post",
+    entityId: postId,
+    correlationId,
+    details: { previousStatus: existing.status, source: existing.source },
+  }).run();
+}
+
 export async function getPublishedPostForIntegration(
   postId: string,
 ): Promise<Post> {
@@ -350,6 +430,12 @@ function assertPostTransition(
     });
   }
   if (next === "published" || next === "archived") {
+    requirePermission(session.principal, "post:publish", {
+      kind: "campaign",
+      campaignId,
+    });
+  }
+  if (current === "archived" && next === "draft") {
     requirePermission(session.principal, "post:publish", {
       kind: "campaign",
       campaignId,

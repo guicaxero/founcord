@@ -336,8 +336,14 @@ describe("Discord integration Worker", () => {
     );
     const threadPayload = JSON.parse(String(threadCall?.[1]?.body)) as {
       applied_tags: string[];
+      message: { content: string; embeds?: unknown };
     };
     expect(threadPayload.applied_tags).toEqual([forumTagId]);
+    expect(threadPayload.message.content).toContain("A chama foi vista ao norte.");
+    expect(threadPayload.message.content).toContain(
+      "Ver este e outros registros no Portal da Ordem",
+    );
+    expect(threadPayload.message.embeds).toBeUndefined();
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining("/channels/723456789012345678/messages"),
       expect.objectContaining({ method: "POST" }),
