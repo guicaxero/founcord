@@ -14,3 +14,8 @@ Esse documento é a fonte de verdade para decisões de UI/UX do projeto. Nenhuma
 - O papel global de proprietário nunca deve parecer removível por um controle de campanha.
 - Use conteúdo real da Ordem da Última Luz; não invente ambientação quando houver conteúdo oficial no repositório.
 
+## Fluxo Git
+
+- Toda mudança deve chegar à `main` por Pull Request.
+- Depois de confirmar o merge de um Pull Request, exclua a branch correspondente no remoto e localmente.
+- Antes de excluir uma branch integrada por squash, confirme que seu conteúdo está integralmente representado na `main`.

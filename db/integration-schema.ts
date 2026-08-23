@@ -108,3 +108,111 @@ export const discordPostLinks = sqliteTable(
     index("idx_discord_post_links_campaign_id").on(table.campaignId),
   ],
 );
+
+export const foundryWorlds = sqliteTable(
+  "foundry_worlds",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id").notNull(),
+    worldInstanceId: text("world_instance_id").notNull(),
+    foundryWorldId: text("foundry_world_id").notNull(),
+    worldTitle: text("world_title").notNull(),
+    systemId: text("system_id", { enum: ["demonlord"] }).notNull(),
+    foundryVersion: text("foundry_version").notNull(),
+    systemVersion: text("system_version").notNull(),
+    moduleVersion: text("module_version").notNull(),
+    accessTokenHash: text("access_token_hash").notNull(),
+    accessTokenPrefix: text("access_token_prefix").notNull(),
+    lastSeenAt: text("last_seen_at"),
+    activeUsers: integer("active_users").notNull().default(0),
+    actorCount: integer("actor_count").notNull().default(0),
+    revokedAt: text("revoked_at"),
+    registeredAt: text("registered_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("uq_foundry_worlds_instance_id").on(table.worldInstanceId),
+    uniqueIndex("uq_foundry_worlds_access_token_hash").on(table.accessTokenHash),
+    index("idx_foundry_worlds_campaign_seen").on(
+      table.campaignId,
+      table.lastSeenAt,
+    ),
+  ],
+);
+
+export const foundryEnrollmentTokens = sqliteTable(
+  "foundry_enrollment_tokens",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    worldId: text("world_id").references(() => foundryWorlds.id, {
+      onDelete: "set null",
+    }),
+    claimedAt: text("claimed_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    consumedAt: text("consumed_at"),
+  },
+  (table) => [index("idx_foundry_enrollment_world").on(table.worldId)],
+);
+
+export const foundryCommands = sqliteTable(
+  "foundry_commands",
+  {
+    id: text("id").primaryKey(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => foundryWorlds.id, { onDelete: "cascade" }),
+    commandType: text("command_type", {
+      enum: ["actor.sync.request", "chat.message.create"],
+    }).notNull(),
+    payloadJson: text("payload_json").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    status: text("status", {
+      enum: ["pending", "dispatched", "succeeded", "failed", "expired"],
+    })
+      .notNull()
+      .default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    availableAt: text("available_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    expiresAt: text("expires_at"),
+    leaseToken: text("lease_token"),
+    leaseExpiresAt: text("lease_expires_at"),
+    resultJson: text("result_json"),
+    lastError: text("last_error"),
+    completedAt: text("completed_at"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("uq_foundry_commands_idempotency").on(
+      table.worldId,
+      table.idempotencyKey,
+    ),
+    uniqueIndex("uq_foundry_commands_lease_token").on(table.leaseToken),
+    index("idx_foundry_commands_dispatch").on(
+      table.worldId,
+      table.status,
+      table.availableAt,
+    ),
+  ],
+);
+
+export const foundryActorLinks = sqliteTable(
+  "foundry_actor_links",
+  {
+    id: text("id").primaryKey(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => foundryWorlds.id, { onDelete: "cascade" }),
+    actorId: text("actor_id").notNull(),
+    lastSyncId: text("last_sync_id").notNull(),
+    lastSeenAt: text("last_seen_at").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("uq_foundry_actor_links_world_actor").on(
+      table.worldId,
+      table.actorId,
+    ),
+    index("idx_foundry_actor_links_sync").on(table.worldId, table.lastSyncId),
+  ],
+);

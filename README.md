@@ -24,7 +24,9 @@ packages/contracts/     contratos compartilhados e schemas Zod
 packages/authz/         vocabulário de permissões e policies
 services/identity/      autenticação, sessões e autorização
 services/campaign/      missões, inscrições, posts e campanha
-services/integration/   Discord, Foundry e automações
+services/integration/   integração HTTP e Queue do Discord
+services/foundry/       Bridge HTTPS, presença, sync e comandos Foundry
+foundry-module/          módulo instalável para Foundry VTT 13–14
 docs/                   arquitetura, ADRs e matriz de acesso
 ```
 
@@ -103,3 +105,14 @@ Worker.
 
 Consulte [o runbook do Marco 2.5](docs/MARCO_2_5_STORAGE.md) para ownership,
 migração idempotente, ordem do corte e rollback.
+
+## Marco 3 — Foundry VTT
+
+O primeiro corte vertical do Marco 3 adiciona um Worker próprio para Foundry,
+registro de mundo com token de bootstrap de uso único, credencial rotacionável,
+heartbeat, estado online/offline, sincronização sanitizada de personagens e uma
+fila de comandos com lease e idempotência. O módulo suporta exclusivamente o
+sistema `demonlord` e inicia somente conexões HTTPS de saída.
+
+Consulte [o runbook do Marco 3](docs/MARCO_3_FOUNDRY.md) para segurança,
+contratos, migrations, instalação do módulo e validação.
