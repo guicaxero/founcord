@@ -4,7 +4,22 @@ Módulo de conexão para mundos **Shadow of the Demon Lord** (`demonlord`) em
 Foundry VTT 13 ou 14. A conexão é iniciada pelo navegador do mestre usando
 HTTPS de saída; não é necessário abrir portas no roteador nem expor o Foundry.
 
-## Instalação de desenvolvimento
+## Instalação
+
+No Foundry, abra **Add-on Modules → Install Module** e use o manifesto:
+
+```text
+https://github.com/guicaxero/founcord-module-foundryVTT/releases/latest/download/module.json
+```
+
+O Foundry usará esse endereço estável para instalar e detectar atualizações.
+
+### Instalação manual
+
+Baixe `ordem-foundry-bridge.zip` na release mais recente e extraia seu conteúdo
+em `Data/modules/ordem-foundry-bridge/`.
+
+### Instalação de desenvolvimento
 
 Copie a pasta `ordem-foundry-bridge` para `Data/modules/` da instalação do
 Foundry e ative o módulo no mundo da campanha.

@@ -117,9 +117,18 @@ npm run deploy:foundry
 
 ## Instalação do módulo
 
-Durante o desenvolvimento, copie
-`foundry-module/ordem-foundry-bridge` para `Data/modules/` e ative o módulo no
-mundo. Confira a URL e o ID da campanha nas configurações. Como mestre, execute:
+Em uma instalação de produção, abra **Add-on Modules → Install Module** e use o
+manifesto público:
+
+```text
+https://github.com/guicaxero/founcord-module-foundryVTT/releases/latest/download/module.json
+```
+
+As releases são empacotadas no repositório público
+`guicaxero/founcord-module-foundryVTT`; nenhum secret faz parte do artefato.
+Durante o desenvolvimento, copie `foundry-module/ordem-foundry-bridge` para
+`Data/modules/`. Depois de ativar o módulo no mundo, confira a URL e o ID da
+campanha nas configurações. Como mestre, execute:
 
 ```js
 await game.modules
