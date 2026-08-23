@@ -2,7 +2,8 @@
 
 ## Estado
 
-Aceito em 21 de agosto de 2026.
+Aceito em 21 de agosto de 2026. A decisão de D1 físico único foi parcialmente
+substituída pelo [ADR 0002](./0002-isolamento-do-banco-de-integracao.md).
 
 ## Decisão
 

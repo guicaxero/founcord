@@ -20,7 +20,11 @@ import {
   postModalResponse,
   postTargetFromModal,
 } from "./discord-components";
-import { createDiscordDraft, getPublishedPortalPost } from "./portal-client";
+import {
+  createDiscordDraft,
+  getPublishedPortalPost,
+  notifyPortalOfDiscordPublication,
+} from "./portal-client";
 import {
   beginDiscordDelivery,
   claimDiscordInteraction,
@@ -29,8 +33,9 @@ import {
   failDiscordDelivery,
   failDiscordInteraction,
   getDiscordDeliveryAttempts,
+  getDiscordPostLink,
   getDiscordPostTarget,
-  hasDiscordPostLink,
+  type DiscordPostLink,
 } from "./repository";
 import type { IntegrationEnv, PublicationBatch } from "./types";
 import { verifyDiscordRequest } from "./verify-discord-request";
@@ -267,6 +272,7 @@ async function processPostModal(
     const post = await createDiscordDraft(env, input.data, correlationId);
     await completeDiscordInteraction(env, interaction.id, post.id, {
       campaignId: post.campaignId,
+      discordUserId: input.data.discordUserId,
       guildId: input.data.guildId,
       forumChannelId: input.data.forumChannelId,
       forumTagId: input.data.forumTagId,
@@ -314,8 +320,19 @@ async function publishPost(
   env: IntegrationEnv,
   message: DiscordPostPublication,
 ): Promise<void> {
-  if (await hasDiscordPostLink(env, message.postId)) return;
-  if ((await beginDiscordDelivery(env, message.postId)) === "succeeded") return;
+  const existingLink = await getDiscordPostLink(env, message.postId);
+  if (existingLink) {
+    await notifyPortalOfDiscordPublication(
+      env,
+      publicationNotification(existingLink),
+      message.correlationId,
+    );
+    return;
+  }
+  if ((await beginDiscordDelivery(env, message.postId)) === "succeeded") {
+    throw new Error("Discord delivery succeeded without a persisted thread link.");
+  }
+  let linkPersisted = false;
   try {
     const post = await getPublishedPortalPost(
       env,
@@ -329,20 +346,51 @@ async function publishPost(
       target.forumChannelId,
       target.forumTagId,
     );
+    const publishedAt = new Date().toISOString();
     await completeDiscordPublication(
       env,
       post,
       thread,
       target,
+      publishedAt,
+    );
+    linkPersisted = true;
+    await notifyPortalOfDiscordPublication(
+      env,
+      {
+        postId: post.id,
+        campaignId: post.campaignId,
+        guildId: target.guildId,
+        forumChannelId: target.forumChannelId,
+        forumTagId: target.forumTagId,
+        threadId: thread.id,
+        starterMessageId: thread.messageId,
+        publishedAt,
+      },
       message.correlationId,
     );
     await notifyPublicationSuccess(env, post, target, thread.id).catch((error) =>
       logNotificationFailure(post.id, error),
     );
   } catch (error) {
-    await failDiscordDelivery(env, message.postId, error).catch(() => undefined);
+    if (!linkPersisted) {
+      await failDiscordDelivery(env, message.postId, error).catch(() => undefined);
+    }
     throw error;
   }
+}
+
+function publicationNotification(link: DiscordPostLink) {
+  return {
+    postId: link.postId,
+    campaignId: link.campaignId,
+    guildId: link.guildId,
+    forumChannelId: link.forumChannelId,
+    forumTagId: link.forumTagId,
+    threadId: link.threadId,
+    starterMessageId: link.starterMessageId,
+    publishedAt: link.publishedAt,
+  };
 }
 
 export async function handlePublicationBatch(

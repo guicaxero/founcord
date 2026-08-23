@@ -11,9 +11,10 @@ ociosos.
 ```text
 Navegador -> Portal Worker (Next.js/BFF) -> Identity
                                         -> Campaign -> D1
-Discord -> Discord Integration Worker -> Portal por Service Binding
+Discord -> Discord Integration Worker -> Integration D1
+                                      -> Portal por Service Binding
                                       -> Queue -> fórum Discord
-Foundry -> Foundry Bridge Worker -> Campaign
+Foundry -> Foundry Bridge Worker -> Integration D1 -> Campaign
 Automação Python -> Automation Worker -> rascunhos editoriais
 ```
 
@@ -44,11 +45,12 @@ transação.
 É dono das conexões Discord/Foundry, jobs, tentativas, idempotência e IDs
 externos. Não é dono da ficha nem da missão.
 
-No Marco 2, Discord já possui uma unidade de implantação independente porque
-tem superfície pública assinada, segredos, limites e perfil de falha diferentes
-do portal. A comunicação síncrona usa Service Binding e a publicação externa
-usa Queue. Foundry e automações só recebem Workers próprios nos marcos em que
-forem implementados.
+No Marco 2, Discord recebeu uma unidade de implantação independente porque tem
+superfície pública assinada, segredos, limites e perfil de falha diferentes do
+portal. No Marco 2.5, essa fronteira passou a possuir também um D1 independente.
+A comunicação síncrona usa Service Binding e a publicação externa usa Queue.
+Foundry e automações só recebem Workers próprios nos marcos em que forem
+implementados.
 
 ## Fontes de verdade
 
@@ -74,19 +76,17 @@ está offline.
 
 ## Persistência
 
-A primeira implantação utiliza um D1 físico, com tabelas agrupadas por domínio.
-Isso reduz custo e operação enquanto o tráfego é pequeno. O código não faz joins
-entre regras de serviços diferentes.
-
-Quando houver necessidade operacional, cada serviço receberá seu próprio D1:
+Produção utiliza dois D1 físicos. O portal mantém Identity e Campaign juntos;
+integrações externas possuem banco próprio e não acessam o binding do portal:
 
 ```text
-iam-db          <- tabelas iam_*
-campaign-db     <- campanhas, missões, inscrições e posts
-integration-db  <- entregas, inbox, outbox e jobs
+ordem-da-ultima-luz <- Identity, Campaign, auditoria e outbox
+ordem-integration-db <- inbox, deliveries, Discord e Foundry
 ```
 
-Clientes não mudam nessa separação porque dependem de contratos, não do banco.
+Uma separação futura de `identity-db` e `campaign-db` só acontecerá quando esses
+domínios tiverem limite de segurança, escala ou release realmente diferente.
+Clientes não mudam porque dependem de contratos, não do banco.
 
 ## Autorização
 
@@ -126,6 +126,7 @@ explícita.
 
 - Discord entrega slash commands por HTTP, sem Gateway na primeira fase.
 - O módulo Foundry inicia apenas conexões HTTPS de saída.
+- Integration Workers não recebem binding para o banco do portal.
 - Filas usam entrega pelo menos uma vez; consumidores devem ser idempotentes.
 - Automações e IA produzem rascunhos, nunca conteúdo publicado diretamente.
 

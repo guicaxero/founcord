@@ -276,31 +276,6 @@ export async function deletePostPermanently(
   const results = await db.batch([
     db
       .prepare(
-        `DELETE FROM discord_post_links
-         WHERE post_id = ? AND ${postExistsAtVersion}`,
-      )
-      .bind(postId, postId, version),
-    db
-      .prepare(
-        `DELETE FROM discord_post_targets
-         WHERE post_id = ? AND ${postExistsAtVersion}`,
-      )
-      .bind(postId, postId, version),
-    db
-      .prepare(
-        `DELETE FROM integration_deliveries
-         WHERE destination = 'discord'
-           AND idempotency_key = ? AND ${postExistsAtVersion}`,
-      )
-      .bind(`post:${postId}:forum:v1`, postId, version),
-    db
-      .prepare(
-        `DELETE FROM integration_inbox_events
-         WHERE result_entity_id = ? AND ${postExistsAtVersion}`,
-      )
-      .bind(postId, postId, version),
-    db
-      .prepare(
         `DELETE FROM outbox_events
          WHERE aggregate_type = 'post' AND aggregate_id = ?
            AND ${postExistsAtVersion}`,
@@ -317,7 +292,7 @@ export async function deletePostPermanently(
       .prepare("DELETE FROM posts WHERE id = ? AND version = ?")
       .bind(postId, version),
   ]);
-  if ((results[6]?.meta.changes ?? 0) === 0) {
+  if ((results[2]?.meta.changes ?? 0) === 0) {
     throw new HttpError(409, "version_conflict", "O post foi alterado por outra pessoa.");
   }
   await prepareAuditAfterChange(db, {

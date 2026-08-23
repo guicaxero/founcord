@@ -6,10 +6,10 @@
   "compatibility_flags": ["nodejs_compat"],
   "d1_databases": [
     {
-      "binding": "DB",
-      "database_name": "ordem-da-ultima-luz",
-      "database_id": "88493218-9d07-4649-98d4-2df515c724e4",
-      "migrations_dir": "../../drizzle"
+      "binding": "INTEGRATION_DB",
+      "database_name": "ordem-integration-db",
+      "database_id": "e3731eb0-addf-451b-b8e5-5d6e75f0ccef",
+      "migrations_dir": "../../drizzle-integration"
     }
   ],
   "services": [

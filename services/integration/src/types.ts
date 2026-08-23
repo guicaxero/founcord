@@ -1,7 +1,7 @@
 import type { DiscordPostPublication } from "@vigilia/contracts";
 
 export type IntegrationEnv = Readonly<{
-  DB: D1Database;
+  INTEGRATION_DB: D1Database;
   PORTAL: Fetcher;
   DISCORD_PUBLIC_KEY: string;
   DISCORD_APPLICATION_ID: string;

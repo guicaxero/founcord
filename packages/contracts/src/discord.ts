@@ -100,6 +100,19 @@ export const DiscordPostPublicationSchema = z
   })
   .strict();
 
+export const DiscordPostPublishedNotificationSchema = z
+  .object({
+    postId: EntityIdSchema,
+    campaignId: EntityIdSchema,
+    guildId: DiscordSnowflakeSchema,
+    forumChannelId: DiscordSnowflakeSchema,
+    forumTagId: DiscordSnowflakeSchema.nullable(),
+    threadId: DiscordSnowflakeSchema,
+    starterMessageId: DiscordSnowflakeSchema.nullable(),
+    publishedAt: z.string().datetime({ offset: true }),
+  })
+  .strict();
+
 export type DiscordInteraction = z.infer<typeof DiscordInteractionSchema>;
 export type CreateDiscordPostDraftInput = z.infer<
   typeof CreateDiscordPostDraftSchema
@@ -109,4 +122,7 @@ export type DiscordPostDraftResponse = z.infer<
 >;
 export type DiscordPostPublication = z.infer<
   typeof DiscordPostPublicationSchema
+>;
+export type DiscordPostPublishedNotification = z.infer<
+  typeof DiscordPostPublishedNotificationSchema
 >;

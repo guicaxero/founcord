@@ -93,3 +93,13 @@ fórum do Discord de forma assíncrona e idempotente.
 
 Consulte [o runbook do Marco 2](docs/MARCO_2_DISCORD.md) para arquitetura,
 segredos, provisionamento, registro do comando e validação ponta a ponta.
+
+## Marco 2.5 — Persistência isolada
+
+Discord e Foundry usam um D1 próprio para inbox, entregas, jobs e referências
+externas. O Integration Worker não recebe acesso ao banco do portal; identidade,
+RBAC, conteúdo e auditoria permanecem sob responsabilidade exclusiva do Portal
+Worker.
+
+Consulte [o runbook do Marco 2.5](docs/MARCO_2_5_STORAGE.md) para ownership,
+migração idempotente, ordem do corte e rollback.
