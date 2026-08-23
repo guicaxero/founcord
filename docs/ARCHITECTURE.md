@@ -14,7 +14,7 @@ Navegador -> Portal Worker (Next.js/BFF) -> Identity
 Discord -> Discord Integration Worker -> Integration D1
                                       -> Portal por Service Binding
                                       -> Queue -> fórum Discord
-Foundry -> Foundry Bridge Worker -> Integration D1 -> Campaign
+Foundry -> Foundry Bridge Worker -> Integration D1 -> Portal por Service Binding
 Automação Python -> Automation Worker -> rascunhos editoriais
 ```
 
@@ -49,8 +49,9 @@ No Marco 2, Discord recebeu uma unidade de implantação independente porque tem
 superfície pública assinada, segredos, limites e perfil de falha diferentes do
 portal. No Marco 2.5, essa fronteira passou a possuir também um D1 independente.
 A comunicação síncrona usa Service Binding e a publicação externa usa Queue.
-Foundry e automações só recebem Workers próprios nos marcos em que forem
-implementados.
+No Marco 3, o Foundry recebeu um Bridge Worker próprio: sua autenticação,
+presença, polling e perfil de falha são diferentes do Discord. Automações só
+recebem Worker próprio quando forem implementadas.
 
 ## Fontes de verdade
 
@@ -126,6 +127,12 @@ explícita.
 
 - Discord entrega slash commands por HTTP, sem Gateway na primeira fase.
 - O módulo Foundry inicia apenas conexões HTTPS de saída.
+- O token de bootstrap do Foundry é aceito uma única vez; o token operacional é
+  aleatório, armazenado apenas como hash no servidor e pode ser revogado.
+- Estado online é derivado do último heartbeat, nunca controlado diretamente
+  pelo cliente.
+- Comandos Foundry usam tipos permitidos, idempotência e lease; macros e código
+  arbitrário não fazem parte do contrato.
 - Integration Workers não recebem binding para o banco do portal.
 - Filas usam entrega pelo menos uma vez; consumidores devem ser idempotentes.
 - Automações e IA produzem rascunhos, nunca conteúdo publicado diretamente.

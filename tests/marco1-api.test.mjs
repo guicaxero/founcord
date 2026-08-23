@@ -313,6 +313,122 @@ test("Marco 1: autenticação, RBAC, campanha, missões, posts e auditoria", asy
       );
     });
 
+    await t.test("sincroniza personagens do Foundry com callback idempotente", async () => {
+      const path = "/api/internal/integration/foundry/characters/sync";
+      const sync = {
+        worldId: "22222222-2222-4222-8222-222222222222",
+        campaignId: defaultCampaignId,
+        syncId: "33333333-3333-4333-8333-333333333333",
+        capturedAt: "2026-08-23T02:00:00.000Z",
+        characters: [
+          {
+            actorId: "aster-001",
+            name: "Aster",
+            type: "character",
+            ownerUserIds: ["foundry-user-1"],
+            level: 2,
+            ancestry: "Humano",
+            paths: {
+              novice: "Guerreiro",
+              expert: null,
+              master: null,
+              legendary: null,
+            },
+            statistics: {
+              healthMax: 18,
+              damage: 3,
+              healingRate: 4,
+              insanity: 1,
+              corruption: 0,
+            },
+            sourceUpdatedAt: "2026-08-23T01:59:00.000Z",
+          },
+        ],
+      };
+
+      const unauthorized = await api(mf, path, { method: "POST", body: sync });
+      assert.equal(unauthorized.status, 401);
+
+      const first = await api(mf, path, {
+        method: "POST",
+        body: sync,
+        headers: {
+          authorization:
+            "Bearer test-integration-token-with-at-least-32-bytes",
+        },
+      });
+      assert.equal(first.status, 200, JSON.stringify(first.data));
+      assert.deepEqual(first.data, {
+        syncId: sync.syncId,
+        accepted: 1,
+        duplicate: false,
+        stale: false,
+      });
+
+      const duplicate = await api(mf, path, {
+        method: "POST",
+        body: sync,
+        headers: {
+          authorization:
+            "Bearer test-integration-token-with-at-least-32-bytes",
+        },
+      });
+      assert.equal(duplicate.status, 200, JSON.stringify(duplicate.data));
+      assert.equal(duplicate.data.duplicate, true);
+
+      const stale = await api(mf, path, {
+        method: "POST",
+        body: {
+          ...sync,
+          syncId: "44444444-4444-4444-8444-444444444444",
+          capturedAt: "2026-08-23T01:00:00.000Z",
+          characters: [
+            {
+              ...sync.characters[0],
+              name: "Aster antigo",
+              sourceUpdatedAt: "2026-08-23T00:59:00.000Z",
+            },
+          ],
+        },
+        headers: {
+          authorization:
+            "Bearer test-integration-token-with-at-least-32-bytes",
+        },
+      });
+      assert.equal(stale.status, 200, JSON.stringify(stale.data));
+      assert.deepEqual(stale.data, {
+        syncId: "44444444-4444-4444-8444-444444444444",
+        accepted: 0,
+        duplicate: false,
+        stale: true,
+      });
+
+      const projection = await db
+        .prepare(
+          `SELECT name, level, health_max, damage, is_active
+           FROM foundry_character_projections
+           WHERE world_id = ? AND foundry_actor_id = ?`,
+        )
+        .bind(sync.worldId, sync.characters[0].actorId)
+        .first();
+      assert.deepEqual(projection, {
+        name: "Aster",
+        level: 2,
+        health_max: 18,
+        damage: 3,
+        is_active: 1,
+      });
+      const auditCount = await db
+        .prepare(
+          `SELECT COUNT(*) AS count FROM audit_log
+           WHERE action = 'foundry.characters.synced'
+             AND entity_id = ?`,
+        )
+        .bind(sync.syncId)
+        .first();
+      assert.equal(auditCount.count, 1);
+    });
+
     await t.test("arquiva, restaura e restringe a exclusão permanente de posts", async () => {
       const created = await api(mf, `/api/campaigns/${defaultCampaignId}/posts`, {
         token: identities.owner.token,

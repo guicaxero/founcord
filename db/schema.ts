@@ -215,6 +215,60 @@ export const posts = sqliteTable(
   ],
 );
 
+export const foundryCharacterProjections = sqliteTable(
+  "foundry_character_projections",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    worldId: text("world_id").notNull(),
+    foundryActorId: text("foundry_actor_id").notNull(),
+    name: text("name").notNull(),
+    ownerUserIdsJson: text("owner_user_ids_json").notNull().default("[]"),
+    level: integer("level").notNull().default(0),
+    ancestry: text("ancestry"),
+    novicePath: text("novice_path"),
+    expertPath: text("expert_path"),
+    masterPath: text("master_path"),
+    legendaryPath: text("legendary_path"),
+    healthMax: integer("health_max").notNull().default(0),
+    damage: integer("damage").notNull().default(0),
+    healingRate: integer("healing_rate").notNull().default(0),
+    insanity: integer("insanity").notNull().default(0),
+    corruption: integer("corruption").notNull().default(0),
+    sourceUpdatedAt: text("source_updated_at").notNull(),
+    lastSyncedAt: text("last_synced_at").notNull(),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("uq_foundry_character_world_actor").on(
+      table.worldId,
+      table.foundryActorId,
+    ),
+    index("idx_foundry_character_campaign_active").on(
+      table.campaignId,
+      table.isActive,
+      table.name,
+    ),
+  ],
+);
+
+export const foundrySyncCursors = sqliteTable(
+  "foundry_sync_cursors",
+  {
+    worldId: text("world_id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    lastSyncId: text("last_sync_id").notNull(),
+    lastCapturedAt: text("last_captured_at").notNull(),
+    ...timestamps,
+  },
+  (table) => [index("idx_foundry_sync_cursor_campaign").on(table.campaignId)],
+);
+
 export const outboxEvents = sqliteTable(
   "outbox_events",
   {
