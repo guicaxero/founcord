@@ -26,13 +26,16 @@ describe("Discord integration Worker", () => {
     publicKeyHex = toHex(await crypto.subtle.exportKey("raw", keys.publicKey));
     db = new FakeDatabase();
     portalFetch = vi.fn(async (request: Request) => {
+      if (request.url.endsWith("/api/internal/integration/discord/publications")) {
+        return Response.json({ ok: true });
+      }
       const published = request.method === "GET";
       return Response.json({ post: postFixture(published ? "published" : "pending_review") }, {
         status: published ? 200 : 201,
       });
     });
     env = {
-      DB: db as unknown as D1Database,
+      INTEGRATION_DB: db as unknown as D1Database,
       PORTAL: { fetch: portalFetch } as unknown as Fetcher,
       DISCORD_PUBLIC_KEY: publicKeyHex,
       DISCORD_APPLICATION_ID: applicationId,
@@ -326,7 +329,12 @@ describe("Discord integration Worker", () => {
     expect(ack).toHaveBeenCalledOnce();
     expect(retry).not.toHaveBeenCalled();
     expect(db.links.has(body.postId)).toBe(true);
-    expect(db.auditActions).toContain("discord.post.published");
+    expect(portalFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "POST",
+        url: expect.stringContaining("/api/internal/integration/discord/publications"),
+      }),
+    );
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining(`/channels/${forumChannelId}/threads`),
       expect.any(Object),
@@ -348,6 +356,18 @@ describe("Discord integration Worker", () => {
       expect.stringContaining("/channels/723456789012345678/messages"),
       expect.objectContaining({ method: "POST" }),
     );
+
+    const duplicateAck = vi.fn();
+    await handlePublicationBatch(
+      { messages: [{ body, ack: duplicateAck, retry: vi.fn() }] } as unknown as PublicationBatch,
+      env,
+    );
+    expect(duplicateAck).toHaveBeenCalledOnce();
+    expect(
+      vi.mocked(fetch).mock.calls.filter(([input]) =>
+        String(input).includes(`/channels/${forumChannelId}/threads`),
+      ),
+    ).toHaveLength(1);
   });
 
   it("avisa o autor por DM quando a entrega esgota as tentativas", async () => {
@@ -476,8 +496,16 @@ class FakeDatabase {
   readonly inbox = new Map<string, { status: "processing" | "succeeded" | "failed"; result: string | null; attempts: number }>();
   readonly deliveries = new Map<string, { status: "pending" | "succeeded" | "failed"; externalId: string | null; attempts: number }>();
   readonly targets = new Map<string, { campaign_id: string; guild_id: string; forum_channel_id: string; forum_tag_id: string | null; discord_user_id: string }>();
-  readonly links = new Set<string>();
-  readonly auditActions: string[] = [];
+  readonly links = new Map<string, {
+    post_id: string;
+    campaign_id: string;
+    guild_id: string;
+    forum_channel_id: string;
+    forum_tag_id: string | null;
+    thread_id: string;
+    starter_message_id: string | null;
+    published_at: string;
+  }>();
 
   prepare(sql: string) {
     return new FakeStatement(this, sql);
@@ -512,7 +540,7 @@ class FakeStatement {
       return (this.db.targets.get(String(this.args[0])) ?? null) as T | null;
     }
     if (this.sql.includes("FROM discord_post_links")) {
-      return (this.db.links.has(String(this.args[0])) ? { linked: 1 } : null) as T | null;
+      return (this.db.links.get(String(this.args[0])) ?? null) as T | null;
     }
     if (this.sql.includes("FROM integration_deliveries")) {
       const row = this.db.deliveries.get(String(this.args[0]));
@@ -569,12 +597,19 @@ class FakeStatement {
         guild_id: String(this.args[4]),
         forum_channel_id: String(this.args[5]),
         forum_tag_id: this.args[6] === null ? null : String(this.args[6]),
-        discord_user_id: discordUserId,
+        discord_user_id: String(this.args[7]),
       });
     } else if (this.sql.includes("INSERT OR IGNORE INTO discord_post_links")) {
-      this.db.links.add(String(this.args[1]));
-    } else if (this.sql.includes("INSERT INTO audit_log")) {
-      this.db.auditActions.push("discord.post.published");
+      this.db.links.set(String(this.args[1]), {
+        post_id: String(this.args[1]),
+        campaign_id: String(this.args[2]),
+        guild_id: String(this.args[3]),
+        forum_channel_id: String(this.args[4]),
+        thread_id: String(this.args[5]),
+        starter_message_id: this.args[6] === null ? null : String(this.args[6]),
+        published_at: String(this.args[7]),
+        forum_tag_id: this.args[8] === null ? null : String(this.args[8]),
+      });
     }
     return { success: true, meta: { changes } };
   }

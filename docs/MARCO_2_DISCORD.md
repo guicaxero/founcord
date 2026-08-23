@@ -43,9 +43,9 @@ vinculado. O backend então aplica as permissões reais desse usuário.
 - Queue `ordem-discord-publications`: entrega assíncrona pelo menos uma vez.
 - Queue `ordem-discord-publications-dlq`: mensagens que esgotaram as tentativas.
 
-O Marco 2 ainda compartilha o D1 físico com o portal para manter custo e operação
-baixos. As tabelas de integração não são acessadas pelo navegador e podem migrar
-para um `integration-db` sem alterar os contratos públicos.
+Desde o Marco 2.5, o Integration Worker usa `ordem-integration-db` e não possui
+acesso físico ao D1 do portal. Identidade, RBAC, posts e auditoria são acessados
+somente por contratos internos autenticados e idempotentes.
 
 ## Recursos Cloudflare
 
@@ -53,7 +53,7 @@ para um `integration-db` sem alterar os contratos públicos.
 - Integration Worker: `ordem-discord-integration`.
 - Service Binding no Integration: `PORTAL`.
 - Producer binding no Portal: `DISCORD_PUBLICATIONS`.
-- D1 binding no Integration: `DB`.
+- D1 binding no Integration: `INTEGRATION_DB`.
 
 Antes do primeiro deploy, criar as filas:
 
@@ -62,10 +62,11 @@ npx wrangler queues create ordem-discord-publications
 npx wrangler queues create ordem-discord-publications-dlq
 ```
 
-Aplicar a migration remota somente no pipeline de implantação aprovado:
+Aplicar as migrations remotas somente no pipeline de implantação aprovado:
 
 ```bash
 npm run db:migrate:remote
+npm run db:migrate:integration:remote
 ```
 
 ## Configuração e segredos
@@ -90,7 +91,7 @@ o seletor de canais do próprio Discord e aceita somente canais `GUILD_FORUM`.
 
 Depois de testes, revisão e merge na `main`:
 
-1. Aplicar a migration remota.
+1. Aplicar as migrations do portal e da integração conforme o runbook do corte.
 2. Publicar o portal para ativar o producer da Queue.
 3. Publicar a integração com `npm run deploy:integration`.
 4. No Discord Developer Portal, definir a Interactions Endpoint URL como
@@ -118,6 +119,9 @@ desenvolvimento. Sem `DISCORD_GUILD_ID`, o script registra o comando global.
 8. Reprocessar a mensagem de teste e confirmar que nenhum tópico duplicado é
    criado.
 9. Conferir logs estruturados e a ação `discord.post.published` na auditoria.
+
+A criação do banco, migração dos registros legados e rollback estão descritos
+em [Marco 2.5 — Isolamento de persistência](./MARCO_2_5_STORAGE.md).
 
 ## Limites desta entrega
 

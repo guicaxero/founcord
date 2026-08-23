@@ -1,6 +1,8 @@
 import {
   DiscordPostDraftResponseSchema,
+  DiscordPostPublishedNotificationSchema,
   type CreateDiscordPostDraftInput,
+  type DiscordPostPublishedNotification,
   type Post,
 } from "@vigilia/contracts";
 import type { IntegrationEnv } from "./types";
@@ -34,6 +36,27 @@ export async function getPublishedPortalPost(
     ),
   );
   return parsePortalPost(response);
+}
+
+export async function notifyPortalOfDiscordPublication(
+  env: IntegrationEnv,
+  input: DiscordPostPublishedNotification,
+  correlationId: string,
+): Promise<void> {
+  const payload = DiscordPostPublishedNotificationSchema.parse(input);
+  const response = await env.PORTAL.fetch(
+    new Request(`${INTERNAL_ORIGIN}/api/internal/integration/discord/publications`, {
+      method: "POST",
+      headers: internalHeaders(env, correlationId),
+      body: JSON.stringify(payload),
+    }),
+  );
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => null);
+    throw new Error(
+      extractErrorMessage(body) ?? `Portal respondeu ${response.status} ao registrar a publicação.`,
+    );
+  }
 }
 
 function internalHeaders(env: IntegrationEnv, correlationId: string): Headers {

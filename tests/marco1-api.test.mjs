@@ -265,6 +265,52 @@ test("Marco 1: autenticação, RBAC, campanha, missões, posts e auditoria", asy
       assert.equal(created.data.post.status, "pending_review");
       assert.equal(created.data.post.source, "discord");
       assert.match(created.data.post.body, /Escrito por \*\*Aster\*\*/);
+
+      const approved = await transitionPost(
+        mf,
+        created.data.post,
+        "approved",
+        identities.owner.token,
+      );
+      const published = await transitionPost(
+        mf,
+        approved,
+        "published",
+        identities.owner.token,
+      );
+      const publicationPath = "/api/internal/integration/discord/publications";
+      const publication = {
+        postId: published.id,
+        campaignId: published.campaignId,
+        guildId: "123456789012345678",
+        forumChannelId: "323456789012345678",
+        forumTagId: "423456789012345678",
+        threadId: "523456789012345678",
+        starterMessageId: "623456789012345678",
+        publishedAt: "2026-08-22T21:00:00.000Z",
+      };
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const recorded = await api(mf, publicationPath, {
+          method: "POST",
+          body: publication,
+          headers: {
+            authorization:
+              "Bearer test-integration-token-with-at-least-32-bytes",
+          },
+        });
+        assert.equal(recorded.status, 200, JSON.stringify(recorded.data));
+      }
+      const audit = await api(mf, `/api/campaigns/${defaultCampaignId}/audit`, {
+        token: identities.owner.token,
+      });
+      assert.equal(
+        audit.data.data.filter(
+          (entry) =>
+            entry.action === "discord.post.published" &&
+            entry.entityId === publication.threadId,
+        ).length,
+        1,
+      );
     });
 
     await t.test("arquiva, restaura e restringe a exclusão permanente de posts", async () => {
@@ -354,6 +400,7 @@ test("Marco 1: autenticação, RBAC, campanha, missões, posts e auditoria", asy
         "post.created",
         "post.approved",
         "post.published",
+        "discord.post.published",
         "post.deleted_permanently",
       ]) {
         assert.equal(actions.has(action), true, `ação ausente: ${action}`);

@@ -24,12 +24,17 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "db:migrate:local": "wrangler d1 migrations apply ordem-da-ultima-luz --local",
     "db:migrate:remote": "wrangler d1 migrations apply ordem-da-ultima-luz --remote",
+    "db:migrate:integration:local": "wrangler d1 migrations apply ordem-integration-db --local --config services/integration/wrangler.jsonc",
+    "db:migrate:integration:remote": "wrangler d1 migrations apply ordem-integration-db --remote --config services/integration/wrangler.jsonc",
     "typecheck": "tsc --noEmit",
     "test": "npm run typecheck && npm run build:cloudflare && npm run bundle:worker && npm run bundle:integration && npm run test:unit && node --test tests/rendered-html.test.mjs tests/marco1-api.test.mjs",
     "test:unit": "vitest run",
     "discord:register": "node --env-file-if-exists=.env.local scripts/register-discord-commands.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "db:generate:integration": "drizzle-kit generate --config drizzle-integration.config.ts",
+    "db:migrate:integration-data": "node scripts/migrate-integration-data.mjs",
+    "db:migrate:integration-data:apply": "node scripts/migrate-integration-data.mjs --apply"
   },
   "dependencies": {
     "@hono/zod-openapi": "^1.6.1",

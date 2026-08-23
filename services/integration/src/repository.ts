@@ -22,6 +22,17 @@ type DiscordPostTargetRow = Readonly<{
   discord_user_id: string;
 }>;
 
+type DiscordPostLinkRow = Readonly<{
+  post_id: string;
+  campaign_id: string;
+  guild_id: string;
+  forum_channel_id: string;
+  forum_tag_id: string | null;
+  thread_id: string;
+  starter_message_id: string | null;
+  published_at: string;
+}>;
+
 export type DiscordPostTarget = Readonly<{
   campaignId: string;
   guildId: string;
@@ -30,7 +41,18 @@ export type DiscordPostTarget = Readonly<{
   discordUserId: string;
 }>;
 
-export type NewDiscordPostTarget = Omit<DiscordPostTarget, "discordUserId">;
+export type NewDiscordPostTarget = DiscordPostTarget;
+
+export type DiscordPostLink = Readonly<{
+  postId: string;
+  campaignId: string;
+  guildId: string;
+  forumChannelId: string;
+  forumTagId: string | null;
+  threadId: string;
+  starterMessageId: string | null;
+  publishedAt: string;
+}>;
 
 export type InboxClaim =
   | Readonly<{ status: "claimed" }>
@@ -42,14 +64,14 @@ export async function claimDiscordInteraction(
   env: IntegrationEnv,
   interactionId: string,
 ): Promise<InboxClaim> {
-  await env.DB.prepare(
+  await env.INTEGRATION_DB.prepare(
     `INSERT OR IGNORE INTO integration_inbox_events (
       id, source, external_event_id, status, attempts
     ) VALUES (?, 'discord', ?, 'processing', 0)`,
   )
     .bind(crypto.randomUUID(), interactionId)
     .run();
-  const claim = await env.DB.prepare(
+  const claim = await env.INTEGRATION_DB.prepare(
     `UPDATE integration_inbox_events
      SET status = 'processing', attempts = attempts + 1, last_error = NULL,
          updated_at = CURRENT_TIMESTAMP
@@ -61,7 +83,7 @@ export async function claimDiscordInteraction(
     .run();
   if ((claim.meta.changes ?? 0) > 0) return { status: "claimed" };
 
-  const row = await env.DB.prepare(
+  const row = await env.INTEGRATION_DB.prepare(
     `SELECT status, result_entity_id, attempts
      FROM integration_inbox_events
      WHERE source = 'discord' AND external_event_id = ?`,
@@ -81,18 +103,18 @@ export async function completeDiscordInteraction(
   postId: string,
   target: NewDiscordPostTarget,
 ): Promise<void> {
-  await env.DB.batch([
-    env.DB.prepare(
+  await env.INTEGRATION_DB.batch([
+    env.INTEGRATION_DB.prepare(
       `UPDATE integration_inbox_events
        SET status = 'succeeded', result_entity_id = ?, last_error = NULL,
            updated_at = CURRENT_TIMESTAMP
        WHERE source = 'discord' AND external_event_id = ?`,
     ).bind(postId, interactionId),
-    env.DB.prepare(
+    env.INTEGRATION_DB.prepare(
       `INSERT OR IGNORE INTO discord_post_targets (
         id, post_id, interaction_id, campaign_id, guild_id, forum_channel_id,
-        forum_tag_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        forum_tag_id, discord_user_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       crypto.randomUUID(),
       postId,
@@ -101,6 +123,7 @@ export async function completeDiscordInteraction(
       target.guildId,
       target.forumChannelId,
       target.forumTagId,
+      target.discordUserId,
     ),
   ]);
 }
@@ -110,7 +133,7 @@ export async function failDiscordInteraction(
   interactionId: string,
   error: unknown,
 ): Promise<void> {
-  await env.DB.prepare(
+  await env.INTEGRATION_DB.prepare(
     `UPDATE integration_inbox_events
      SET status = 'failed', last_error = ?, updated_at = CURRENT_TIMESTAMP
      WHERE source = 'discord' AND external_event_id = ?`,
@@ -119,29 +142,40 @@ export async function failDiscordInteraction(
     .run();
 }
 
-export async function hasDiscordPostLink(
+export async function getDiscordPostLink(
   env: IntegrationEnv,
   postId: string,
-): Promise<boolean> {
-  const row = await env.DB.prepare(
-    "SELECT 1 AS linked FROM discord_post_links WHERE post_id = ?",
+): Promise<DiscordPostLink | null> {
+  const row = await env.INTEGRATION_DB.prepare(
+    `SELECT post_id, campaign_id, guild_id, forum_channel_id, forum_tag_id,
+            thread_id, starter_message_id, published_at
+     FROM discord_post_links WHERE post_id = ?`,
   )
     .bind(postId)
-    .first<{ linked: number }>();
-  return Boolean(row?.linked);
+    .first<DiscordPostLinkRow>();
+  return row
+    ? {
+        postId: row.post_id,
+        campaignId: row.campaign_id,
+        guildId: row.guild_id,
+        forumChannelId: row.forum_channel_id,
+        forumTagId: row.forum_tag_id,
+        threadId: row.thread_id,
+        starterMessageId: row.starter_message_id,
+        publishedAt: row.published_at,
+      }
+    : null;
 }
 
 export async function getDiscordPostTarget(
   env: IntegrationEnv,
   postId: string,
 ): Promise<DiscordPostTarget> {
-  const row = await env.DB.prepare(
-    `SELECT t.campaign_id, t.guild_id, t.forum_channel_id, t.forum_tag_id,
-            u.discord_user_id
-     FROM discord_post_targets t
-     JOIN posts p ON p.id = t.post_id
-     JOIN iam_users u ON u.id = p.author_user_id
-     WHERE t.post_id = ?`,
+  const row = await env.INTEGRATION_DB.prepare(
+    `SELECT campaign_id, guild_id, forum_channel_id, forum_tag_id,
+            discord_user_id
+     FROM discord_post_targets
+     WHERE post_id = ?`,
   )
     .bind(postId)
     .first<DiscordPostTargetRow>();
@@ -160,14 +194,14 @@ export async function beginDiscordDelivery(
   postId: string,
 ): Promise<"deliver" | "succeeded"> {
   const key = deliveryKey(postId);
-  await env.DB.prepare(
+  await env.INTEGRATION_DB.prepare(
     `INSERT OR IGNORE INTO integration_deliveries (
       id, destination, idempotency_key, status
     ) VALUES (?, 'discord', ?, 'pending')`,
   )
     .bind(crypto.randomUUID(), key)
     .run();
-  const row = await env.DB.prepare(
+  const row = await env.INTEGRATION_DB.prepare(
     `SELECT status, external_id
      FROM integration_deliveries
      WHERE destination = 'discord' AND idempotency_key = ?`,
@@ -175,7 +209,7 @@ export async function beginDiscordDelivery(
     .bind(key)
     .first<DeliveryRow>();
   if (row?.status === "succeeded") return "succeeded";
-  await env.DB.prepare(
+  await env.INTEGRATION_DB.prepare(
     `UPDATE integration_deliveries
      SET status = 'pending', attempts = attempts + 1, last_error = NULL,
          updated_at = CURRENT_TIMESTAMP
@@ -191,20 +225,20 @@ export async function completeDiscordPublication(
   post: Post,
   thread: DiscordThread,
   target: DiscordPostTarget,
-  correlationId: string,
+  publishedAt: string,
 ): Promise<void> {
-  await env.DB.batch([
-    env.DB.prepare(
+  await env.INTEGRATION_DB.batch([
+    env.INTEGRATION_DB.prepare(
       `UPDATE integration_deliveries
        SET status = 'succeeded', external_id = ?, last_error = NULL,
            updated_at = CURRENT_TIMESTAMP
        WHERE destination = 'discord' AND idempotency_key = ?`,
     ).bind(thread.id, deliveryKey(post.id)),
-    env.DB.prepare(
+    env.INTEGRATION_DB.prepare(
       `INSERT OR IGNORE INTO discord_post_links (
         id, post_id, campaign_id, guild_id, forum_channel_id, thread_id,
-        starter_message_id, published_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        starter_message_id, published_at, forum_tag_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       crypto.randomUUID(),
       post.id,
@@ -213,25 +247,8 @@ export async function completeDiscordPublication(
       target.forumChannelId,
       thread.id,
       thread.messageId,
-      new Date().toISOString(),
-    ),
-    env.DB.prepare(
-      `INSERT INTO audit_log (
-        id, actor_user_id, campaign_id, action, entity_type, entity_id,
-        correlation_id, details_json
-      ) VALUES (?, NULL, ?, 'discord.post.published', 'discord_thread', ?, ?, ?)`,
-    ).bind(
-      crypto.randomUUID(),
-      post.campaignId,
-      thread.id,
-      correlationId,
-      JSON.stringify({
-        postId: post.id,
-        guildId: target.guildId,
-        forumChannelId: target.forumChannelId,
-        forumTagId: target.forumTagId,
-        starterMessageId: thread.messageId,
-      }),
+      publishedAt,
+      target.forumTagId,
     ),
   ]);
 }
@@ -241,7 +258,7 @@ export async function failDiscordDelivery(
   postId: string,
   error: unknown,
 ): Promise<void> {
-  await env.DB.prepare(
+  await env.INTEGRATION_DB.prepare(
     `UPDATE integration_deliveries
      SET status = 'failed', last_error = ?, updated_at = CURRENT_TIMESTAMP
      WHERE destination = 'discord' AND idempotency_key = ?`,
@@ -254,7 +271,7 @@ export async function getDiscordDeliveryAttempts(
   env: IntegrationEnv,
   postId: string,
 ): Promise<number> {
-  const row = await env.DB.prepare(
+  const row = await env.INTEGRATION_DB.prepare(
     `SELECT attempts
      FROM integration_deliveries
      WHERE destination = 'discord' AND idempotency_key = ?`,
