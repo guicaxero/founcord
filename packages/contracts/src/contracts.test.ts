@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  CreateCampaignSessionSchema,
   CreateMissionSchema,
   FoundryCharacterSyncRequestSchema,
+  FoundryChatBatchRequestSchema,
   FoundryCommandCreateRequestSchema,
   FoundryPairingCreateRequestSchema,
   FoundryUserCodeSchema,
@@ -96,5 +98,47 @@ describe("contratos públicos", () => {
     expect(FoundryUserCodeSchema.parse("lume-7k4p-9q2m")).toBe(
       "LUME-7K4P-9Q2M",
     );
+  });
+
+  it("mantém o registro de sessão separado do conteúdo bruto", () => {
+    const session = CreateCampaignSessionSchema.parse({
+      campaignId: "11111111-1111-4111-8111-111111111111",
+      title: "Sessão 12 — O moinho abandonado",
+      worldId: "22222222-2222-4222-8222-222222222222",
+    });
+    expect(session.startNow).toBe(true);
+    expect(session.notes).toBe("");
+    expect(() =>
+      CreateCampaignSessionSchema.parse({
+        ...session,
+        rawFoundryMessages: [{ content: "não pertence ao portal" }],
+      }),
+    ).toThrow();
+  });
+
+  it("aceita apenas lotes públicos e sanitizados do chat do Foundry", () => {
+    const batch = FoundryChatBatchRequestSchema.parse({
+      batchId: "99999999-9999-4999-8999-999999999999",
+      capturedAt: "2026-08-24T20:00:00.000Z",
+      messages: [
+        {
+          messageId: "chat-001",
+          createdAt: "2026-08-24T19:59:59.000Z",
+          authorUserId: "user-001",
+          authorName: "Mestre",
+          speakerActorId: null,
+          speakerName: null,
+          content: "A porta de ferro cede com um estrondo.",
+          kind: "message",
+        },
+      ],
+    });
+    expect(batch.messages).toHaveLength(1);
+    expect(() =>
+      FoundryChatBatchRequestSchema.parse({
+        ...batch,
+        messages: [{ ...batch.messages[0], whisperUserIds: ["user-002"] }],
+      }),
+    ).toThrow();
   });
 });

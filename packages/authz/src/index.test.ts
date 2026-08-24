@@ -120,4 +120,50 @@ describe("principalFromRoleAssignments", () => {
       }),
     ).toBe(false);
   });
+
+  it("separa leitura e gestão de sessões por papel", () => {
+    const manager = principalFromRoleAssignments("manager", [
+      {
+        roleName: "campaign_manager",
+        scope: { kind: "campaign", campaignId: "campaign-a" },
+      },
+    ]);
+    const editor = principalFromRoleAssignments("editor", [
+      {
+        roleName: "editor",
+        scope: { kind: "campaign", campaignId: "campaign-a" },
+      },
+    ]);
+    const player = principalFromRoleAssignments("player", [
+      {
+        roleName: "player",
+        scope: { kind: "campaign", campaignId: "campaign-a" },
+      },
+    ]);
+
+    expect(
+      hasPermission(manager, "session:manage", {
+        kind: "campaign",
+        campaignId: "campaign-a",
+      }),
+    ).toBe(true);
+    expect(
+      hasPermission(editor, "session:read", {
+        kind: "campaign",
+        campaignId: "campaign-a",
+      }),
+    ).toBe(true);
+    expect(
+      hasPermission(editor, "session:manage", {
+        kind: "campaign",
+        campaignId: "campaign-a",
+      }),
+    ).toBe(false);
+    expect(
+      hasPermission(player, "session:read", {
+        kind: "campaign",
+        campaignId: "campaign-a",
+      }),
+    ).toBe(false);
+  });
 });

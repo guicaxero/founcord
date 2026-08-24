@@ -2,7 +2,13 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z, type ZodType } from "zod";
 import {
+  FoundryCaptureSessionListResponseSchema,
+  FoundryCaptureSessionSchema,
+  FoundryCaptureSessionStartRequestSchema,
+  FoundryCaptureTranscriptSchema,
   FoundryCharacterSyncRequestSchema,
+  FoundryChatBatchRequestSchema,
+  FoundryChatBatchResponseSchema,
   FoundryCommandCreateRequestSchema,
   FoundryCommandPollRequestSchema,
   FoundryCommandResultRequestSchema,
@@ -28,6 +34,7 @@ import {
 import { syncCharactersWithPortal } from "./portal-client";
 import {
   authorizeFoundryPairing,
+  cancelFoundryCaptureSession,
   cancelFoundryPairing,
   claimFoundrySync,
   completeFoundryCommand,
@@ -35,12 +42,18 @@ import {
   createFoundryPairing,
   enqueueFoundryCommand,
   failFoundrySync,
+  getFoundryCaptureTranscript,
+  endFoundryCaptureSession,
+  listFoundryCaptureSessions,
   listFoundryWorlds,
   pollFoundryPairing,
   pollFoundryCommands,
   previewFoundryPairing,
   recordHeartbeat,
+  recordFoundryChatBatch,
+  purgeExpiredFoundryChatEvents,
   revokeFoundryWorld,
+  startFoundryCaptureSession,
 } from "./repository";
 import type { FoundryEnv } from "./types";
 
@@ -74,7 +87,7 @@ foundryApp.get("/health", async (context) => {
 foundryApp.get("/openapi.json", (context) =>
   context.json({
     openapi: "3.1.0",
-    info: { title: "Ordem Foundry Bridge API", version: "0.2.0" },
+    info: { title: "Ordem Foundry Bridge API", version: "0.3.0" },
     paths: {
       "/health": { get: { responses: { 200: { description: "Healthy" } } } },
       "/v1/pairings": {
@@ -88,6 +101,9 @@ foundryApp.get("/openapi.json", (context) =>
       },
       "/v1/worlds/{worldId}/characters/sync": {
         post: { responses: { 200: { description: "Projection synchronized" } } },
+      },
+      "/v1/worlds/{worldId}/chat/batches": {
+        post: { responses: { 200: { description: "Public chat batch accepted" } } },
       },
       "/v1/worlds/{worldId}/commands/poll": {
         post: { responses: { 200: { description: "Leased commands" } } },
@@ -264,6 +280,17 @@ foundryApp.post("/v1/worlds/:worldId/characters/sync", async (context) => {
   }
 });
 
+foundryApp.post("/v1/worlds/:worldId/chat/batches", async (context) => {
+  const worldId = parseUuid(context.req.param("worldId"));
+  await authenticateWorld(context.req.raw, context.env, worldId);
+  const input = await parseJson(context.req.raw, FoundryChatBatchRequestSchema);
+  return context.json(
+    FoundryChatBatchResponseSchema.parse(
+      await recordFoundryChatBatch(context.env, worldId, input),
+    ),
+  );
+});
+
 foundryApp.post("/v1/worlds/:worldId/commands/poll", async (context) => {
   const worldId = parseUuid(context.req.param("worldId"));
   await authenticateWorld(context.req.raw, context.env, worldId);
@@ -328,6 +355,101 @@ foundryApp.get("/internal/foundry/campaigns/:campaignId/worlds", async (context)
   const worlds = await listFoundryWorlds(context.env, campaignId);
   return context.json({ worlds: worlds.map((world) => FoundryWorldStatusSchema.parse(world)) });
 });
+
+foundryApp.get(
+  "/internal/foundry/campaigns/:campaignId/capture-sessions",
+  async (context) => {
+    await assertStaticBearer(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN);
+    const campaignId = parseUuid(context.req.param("campaignId"));
+    return context.json(
+      FoundryCaptureSessionListResponseSchema.parse({
+        data: await listFoundryCaptureSessions(context.env, campaignId),
+      }),
+    );
+  },
+);
+
+foundryApp.post(
+  "/internal/foundry/campaigns/:campaignId/worlds/:worldId/capture-sessions",
+  async (context) => {
+    await assertStaticBearer(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN);
+    const campaignId = parseUuid(context.req.param("campaignId"));
+    const worldId = parseUuid(context.req.param("worldId"));
+    const input = await parseJson(context.req.raw, FoundryCaptureSessionStartRequestSchema);
+    if (input.campaignId !== campaignId || input.worldId !== worldId) {
+      throw new FoundryBridgeError(400, "capture_scope_mismatch", "Escopo da sessão inválido.");
+    }
+    return context.json(
+      FoundryCaptureSessionSchema.parse(
+        await startFoundryCaptureSession(context.env, input),
+      ),
+      201,
+    );
+  },
+);
+
+foundryApp.post(
+  "/internal/foundry/campaigns/:campaignId/worlds/:worldId/capture-sessions/:sessionId/end",
+  async (context) => {
+    await assertStaticBearer(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN);
+    const campaignId = parseUuid(context.req.param("campaignId"));
+    const worldId = parseUuid(context.req.param("worldId"));
+    const sessionId = parseUuid(context.req.param("sessionId"));
+    return context.json(
+      FoundryCaptureSessionSchema.parse(
+        await endFoundryCaptureSession(
+          context.env,
+          campaignId,
+          worldId,
+          sessionId,
+        ),
+      ),
+    );
+  },
+);
+
+foundryApp.delete(
+  "/internal/foundry/campaigns/:campaignId/worlds/:worldId/capture-sessions/:sessionId",
+  async (context) => {
+    await assertStaticBearer(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN);
+    const campaignId = parseUuid(context.req.param("campaignId"));
+    const worldId = parseUuid(context.req.param("worldId"));
+    const sessionId = parseUuid(context.req.param("sessionId"));
+    return context.json(
+      FoundryCaptureSessionSchema.parse(
+        await cancelFoundryCaptureSession(
+          context.env,
+          campaignId,
+          worldId,
+          sessionId,
+        ),
+      ),
+    );
+  },
+);
+
+foundryApp.get(
+  "/internal/foundry/campaigns/:campaignId/worlds/:worldId/capture-sessions/:sessionId/transcript",
+  async (context) => {
+    await assertStaticBearer(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN);
+    const campaignId = parseUuid(context.req.param("campaignId"));
+    const worldId = parseUuid(context.req.param("worldId"));
+    const sessionId = parseUuid(context.req.param("sessionId"));
+    const result = await getFoundryCaptureTranscript(
+      context.env,
+      campaignId,
+      worldId,
+      sessionId,
+    );
+    return context.json(
+      FoundryCaptureTranscriptSchema.parse({
+        ...result.session,
+        transcript: result.transcript,
+        truncated: result.truncated,
+      }),
+    );
+  },
+);
 
 foundryApp.delete("/internal/foundry/campaigns/:campaignId/worlds/:worldId", async (context) => {
   await assertStaticBearer(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN);
@@ -421,4 +543,13 @@ function normalizeUserCode(value: string): string {
 }
 
 export { foundryApp };
-export default foundryApp;
+export default {
+  fetch: foundryApp.fetch,
+  scheduled(_controller, env, context) {
+    context.waitUntil(
+      purgeExpiredFoundryChatEvents(env).then((deleted) => {
+        console.log(JSON.stringify({ event: "foundry_chat_retention", deleted }));
+      }),
+    );
+  },
+} satisfies ExportedHandler<FoundryEnv>;

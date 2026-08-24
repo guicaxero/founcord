@@ -1,6 +1,7 @@
 export * from "./audit";
 export * from "./automations";
 export * from "./campaigns";
+export * from "./campaign-sessions";
 export * from "./common";
 export * from "./events";
 export * from "./foundry";

@@ -131,5 +131,10 @@ validada e materializada exclusivamente como post `pending_review`. Queue,
 leases, idempotência, cota diária e retenção de 30 dias protegem o fluxo e o
 plano gratuito.
 
+O corte 4.1 acrescenta um registro de sessões no portal e captura sanitizada do
+chat público pelo módulo Foundry `v0.3.0`. Iniciar e encerrar a captura são
+operações separadas da geração: a pessoa revisa as fontes antes de criar um
+rascunho, e o Discord permanece explicitamente como referência não importada.
+
 Consulte [o runbook do Marco 4](docs/MARCO_4_AUTOMATIONS.md) para segurança,
 custos, recursos, secrets, migrations, deploy e rollback.

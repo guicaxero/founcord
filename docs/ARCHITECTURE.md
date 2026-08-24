@@ -66,10 +66,11 @@ IA, cota e falhas de inferência.
 | Dado | Fonte de verdade |
 | --- | --- |
 | Ficha mecânica do personagem | Foundry VTT |
-| Missões, inscrições e posts | Campaign Service |
+| Missões, inscrições, sessões e posts | Campaign Service |
 | Usuários, sessões e permissões | Identity Service |
 | Mensagens e tópicos publicados | Discord, referenciados pelo Integration Service |
 | Jobs e fontes temporárias de automação | Automation Service |
+| Eventos públicos temporários de sessão Foundry | Foundry Bridge / Integration D1 |
 | Rascunho editorial gerado | Campaign Service, após callback interno |
 
 O portal guarda apenas uma projeção sanitizada da ficha necessária para a

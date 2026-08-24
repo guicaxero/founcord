@@ -8,7 +8,11 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import { roleNames } from "@vigilia/authz";
-import { missionStatuses, postStatuses } from "@vigilia/contracts";
+import {
+  campaignSessionStatuses,
+  missionStatuses,
+  postStatuses,
+} from "@vigilia/contracts";
 
 const timestamps = {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -176,6 +180,55 @@ export const missionSignups = sqliteTable(
   (table) => [
     primaryKey({ columns: [table.missionId, table.userId] }),
     index("idx_mission_signups_user_id").on(table.userId),
+  ],
+);
+
+export const campaignSessions = sqliteTable(
+  "campaign_sessions",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    missionId: text("mission_id").references(() => missions.id, {
+      onDelete: "set null",
+    }),
+    masterUserId: text("master_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    title: text("title").notNull(),
+    status: text("status", { enum: campaignSessionStatuses })
+      .notNull()
+      .default("prepared"),
+    worldId: text("world_id"),
+    worldTitle: text("world_title"),
+    discordReference: text("discord_reference"),
+    notes: text("notes").notNull().default(""),
+    capturedMessageCount: integer("captured_message_count").notNull().default(0),
+    lastCapturedAt: text("last_captured_at"),
+    transcriptTruncated: integer("transcript_truncated", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    automationJobId: text("automation_job_id"),
+    captureError: text("capture_error"),
+    startedAt: text("started_at"),
+    endedAt: text("ended_at"),
+    version: integer("version").notNull().default(1),
+    ...timestamps,
+  },
+  (table) => [
+    index("idx_campaign_sessions_campaign_created").on(
+      table.campaignId,
+      table.createdAt,
+    ),
+    index("idx_campaign_sessions_campaign_status").on(
+      table.campaignId,
+      table.status,
+    ),
+    index("idx_campaign_sessions_world_status").on(table.worldId, table.status),
+    uniqueIndex("uq_campaign_sessions_active_world")
+      .on(table.worldId)
+      .where(sql`${table.worldId} IS NOT NULL AND ${table.status} IN ('starting', 'active')`),
   ],
 );
 

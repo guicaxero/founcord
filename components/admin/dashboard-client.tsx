@@ -19,8 +19,9 @@ import { FoundryPanel } from "./foundry-panel";
 import { MembersPanel } from "./members-panel";
 import { MissionsPanel } from "./missions-panel";
 import { PostsPanel } from "./posts-panel";
+import { SessionsPanel } from "./sessions-panel";
 
-type Tab = "missions" | "posts" | "automations" | "foundry" | "members" | "audit" | "campaigns";
+type Tab = "missions" | "posts" | "sessions" | "automations" | "foundry" | "members" | "audit" | "campaigns";
 
 type TabDefinition = Readonly<{
   id: Tab;
@@ -31,6 +32,13 @@ type TabDefinition = Readonly<{
 }>;
 
 const tabDefinitions: readonly TabDefinition[] = [
+  {
+    id: "sessions",
+    label: "Sessões",
+    eyebrow: "Registros da mesa",
+    description: "Capture registros do Foundry, associe fontes e prepare rascunhos para revisão.",
+    permissions: ["session:read", "session:manage"],
+  },
   {
     id: "automations",
     label: "Automações",
@@ -197,13 +205,14 @@ export function DashboardClient() {
           ) : null}
         </div>
 
-        <nav className="admin-navigation" aria-label="Áreas de gestão">
+        <div className="admin-navigation" aria-label="Áreas de gestão" role="tablist">
           <span className="admin-nav-label">Gestão</span>
           {availableTabs.map((definition) => (
             <button
               key={definition.id}
               type="button"
               role="tab"
+              id={`admin-tab-${definition.id}`}
               aria-selected={activeTab === definition.id}
               aria-controls="admin-active-panel"
               className={activeTab === definition.id ? "is-active" : ""}
@@ -213,7 +222,7 @@ export function DashboardClient() {
               <small>{definition.eyebrow}</small>
             </button>
           ))}
-        </nav>
+        </div>
 
         <div className="admin-user-card">
           <span className="admin-user-avatar" aria-hidden="true">
@@ -259,9 +268,21 @@ export function DashboardClient() {
             ) : null}
           </section>
         ) : (
-          <section className="admin-workspace" id="admin-active-panel" role="tabpanel">
+          <section
+            className="admin-workspace"
+            id="admin-active-panel"
+            role="tabpanel"
+            aria-labelledby={`admin-tab-${activeTab}`}
+          >
             {activeTab === "missions" ? <MissionsPanel campaignId={campaignId} me={me.data} /> : null}
             {activeTab === "posts" ? <PostsPanel campaignId={campaignId} me={me.data} /> : null}
+            {activeTab === "sessions" ? (
+              <SessionsPanel
+                campaignId={campaignId}
+                me={me.data}
+                onOpenReview={() => setTab("posts")}
+              />
+            ) : null}
             {activeTab === "automations" ? (
               <AutomationsPanel
                 campaignId={campaignId}
