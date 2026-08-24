@@ -125,12 +125,17 @@ https://github.com/guicaxero/founcord-module-foundryVTT/releases/latest/download
 ```
 
 As releases são empacotadas no repositório público
-`guicaxero/founcord-module-foundryVTT`; nenhum secret faz parte do artefato.
-Durante o desenvolvimento, copie `foundry-module/ordem-foundry-bridge` para
-`Data/modules/`. Depois de ativar o módulo no mundo, confira a URL e o ID da
-campanha nas configurações. O primeiro acesso mostra apenas um aviso informativo
-de que o mundo ainda não está conectado; isso não representa falha na ativação.
-Como mestre, execute:
+[`guicaxero/founcord-module-foundryVTT`](https://github.com/guicaxero/founcord-module-foundryVTT);
+nenhum secret faz parte do artefato. Esse repositório público é a única fonte do
+código, do manifesto e das releases do módulo. O monorepo `founcord` mantém o
+Worker, os contratos e esta documentação, mas não contém uma cópia do cliente
+Foundry.
+
+Durante o desenvolvimento do módulo, trabalhe diretamente no repositório
+público e instale-o em `Data/modules/ordem-foundry-bridge`. Depois de ativá-lo
+no mundo, confira a URL e o ID da campanha nas configurações. O primeiro acesso
+mostra apenas um aviso informativo de que o mundo ainda não está conectado; isso
+não representa falha na ativação. Como mestre, execute:
 
 ```js
 await game.modules
