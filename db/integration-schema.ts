@@ -155,6 +155,49 @@ export const foundryEnrollmentTokens = sqliteTable(
   (table) => [index("idx_foundry_enrollment_world").on(table.worldId)],
 );
 
+export const foundryPairingSessions = sqliteTable(
+  "foundry_pairing_sessions",
+  {
+    id: text("id").primaryKey(),
+    deviceCodeHash: text("device_code_hash").notNull(),
+    userCodeHash: text("user_code_hash").notNull(),
+    requestKeyHash: text("request_key_hash"),
+    worldInstanceId: text("world_instance_id").notNull(),
+    foundryWorldId: text("foundry_world_id").notNull(),
+    worldTitle: text("world_title").notNull(),
+    systemId: text("system_id", { enum: ["demonlord"] }).notNull(),
+    foundryVersion: text("foundry_version").notNull(),
+    systemVersion: text("system_version").notNull(),
+    moduleVersion: text("module_version").notNull(),
+    status: text("status", {
+      enum: ["pending", "authorized", "cancelled", "expired"],
+    })
+      .notNull()
+      .default("pending"),
+    campaignId: text("campaign_id"),
+    campaignName: text("campaign_name"),
+    authorizedByUserId: text("authorized_by_user_id"),
+    worldId: text("world_id").references(() => foundryWorlds.id, {
+      onDelete: "set null",
+    }),
+    expiresAt: text("expires_at").notNull(),
+    authorizedAt: text("authorized_at"),
+    cancelledAt: text("cancelled_at"),
+    consumedAt: text("consumed_at"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("uq_foundry_pairing_device_code").on(table.deviceCodeHash),
+    uniqueIndex("uq_foundry_pairing_user_code").on(table.userCodeHash),
+    index("idx_foundry_pairing_world_status").on(
+      table.worldInstanceId,
+      table.status,
+    ),
+    index("idx_foundry_pairing_status_expiry").on(table.status, table.expiresAt),
+    index("idx_foundry_pairing_request_created").on(table.requestKeyHash, table.createdAt),
+  ],
+);
+
 export const foundryCommands = sqliteTable(
   "foundry_commands",
   {

@@ -114,7 +114,7 @@ migração idempotente, ordem do corte e rollback.
 ## Marco 3 — Foundry VTT
 
 O primeiro corte vertical do Marco 3 adiciona um Worker próprio para Foundry,
-registro de mundo com token de bootstrap de uso único, credencial rotacionável,
+pareamento por código temporário, troca one-shot por credencial operacional,
 heartbeat, estado online/offline, sincronização sanitizada de personagens e uma
 fila de comandos com lease e idempotência. O módulo suporta exclusivamente o
 sistema `demonlord` e inicia somente conexões HTTPS de saída.

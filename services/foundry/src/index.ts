@@ -8,8 +8,13 @@ import {
   FoundryCommandResultRequestSchema,
   FoundryHeartbeatRequestSchema,
   FoundryHeartbeatResponseSchema,
-  FoundryWorldRegistrationRequestSchema,
-  FoundryWorldRegistrationResponseSchema,
+  FoundryPairingApprovalRequestSchema,
+  FoundryPairingApprovalResponseSchema,
+  FoundryPairingCreateRequestSchema,
+  FoundryPairingCreateResponseSchema,
+  FoundryPairingPollResponseSchema,
+  FoundryPairingPreviewSchema,
+  FoundryUserCodeSchema,
   FoundryWorldStatusSchema,
 } from "@vigilia/contracts";
 import {
@@ -22,23 +27,26 @@ import {
 } from "./auth";
 import { syncCharactersWithPortal } from "./portal-client";
 import {
+  authorizeFoundryPairing,
+  cancelFoundryPairing,
   claimFoundrySync,
-  claimFoundryEnrollment,
   completeFoundryCommand,
-  completeFoundryEnrollment,
   completeFoundrySync,
+  createFoundryPairing,
   enqueueFoundryCommand,
   failFoundrySync,
   listFoundryWorlds,
+  pollFoundryPairing,
   pollFoundryCommands,
+  previewFoundryPairing,
   recordHeartbeat,
-  registerFoundryWorld,
   revokeFoundryWorld,
 } from "./repository";
 import type { FoundryEnv } from "./types";
 
 const HEARTBEAT_SECONDS = 30;
 const POLL_SECONDS = 5;
+const PAIRING_TTL_SECONDS = 10 * 60;
 const uuid = z.string().uuid();
 
 const foundryApp = new Hono<{ Bindings: FoundryEnv }>();
@@ -47,7 +55,7 @@ foundryApp.use(
   "/v1/*",
   cors({
     origin: "*",
-    allowMethods: ["POST", "OPTIONS"],
+    allowMethods: ["POST", "DELETE", "OPTIONS"],
     allowHeaders: [
       "Authorization",
       "Content-Type",
@@ -66,11 +74,14 @@ foundryApp.get("/health", async (context) => {
 foundryApp.get("/openapi.json", (context) =>
   context.json({
     openapi: "3.1.0",
-    info: { title: "Ordem Foundry Bridge API", version: "0.1.0" },
+    info: { title: "Ordem Foundry Bridge API", version: "0.2.0" },
     paths: {
       "/health": { get: { responses: { 200: { description: "Healthy" } } } },
-      "/v1/worlds/register": {
-        post: { responses: { 201: { description: "World registered" } } },
+      "/v1/pairings": {
+        post: { responses: { 201: { description: "Pairing started" } } },
+      },
+      "/v1/pairings/{pairingId}/poll": {
+        post: { responses: { 200: { description: "Pairing status" } } },
       },
       "/v1/worlds/{worldId}/heartbeat": {
         post: { responses: { 200: { description: "Heartbeat accepted" } } },
@@ -88,34 +99,99 @@ foundryApp.get("/openapi.json", (context) =>
   }),
 );
 
-foundryApp.post("/v1/worlds/register", async (context) => {
-  await assertStaticBearer(context.req.raw, context.env.FOUNDRY_ENROLLMENT_TOKEN);
-  const input = await parseJson(context.req.raw, FoundryWorldRegistrationRequestSchema);
-  const enrollmentTokenHash = await hashToken(bearerToken(context.req.raw));
-  if (!(await claimFoundryEnrollment(context.env, enrollmentTokenHash))) {
-    throw new FoundryBridgeError(
-      409,
-      "enrollment_token_used",
-      "Este token de registro já foi utilizado. Solicite um novo token.",
-    );
-  }
-  const accessToken = generateAccessToken();
-  const worldId = await registerFoundryWorld(
+foundryApp.post("/v1/pairings", async (context) => {
+  const input = await parseJson(context.req.raw, FoundryPairingCreateRequestSchema);
+  const deviceCode = generateAccessToken();
+  const userCode = generateUserCode();
+  const expiresAt = new Date(Date.now() + PAIRING_TTL_SECONDS * 1_000).toISOString();
+  const pairingId = await createFoundryPairing(
     context.env,
     input,
-    await hashToken(accessToken),
-    accessToken.slice(0, 8),
+    await hashToken(deviceCode),
+    await hashToken(normalizeUserCode(userCode)),
+    await hashToken(
+      `pairing-request:${context.req.header("CF-Connecting-IP") ?? "local-development"}`,
+    ),
+    expiresAt,
   );
-  await completeFoundryEnrollment(context.env, enrollmentTokenHash, worldId);
+  const verificationUri = new URL(
+    "/foundry/connect",
+    context.env.PORTAL_URL ?? "https://ordem-da-ultima-luz.ordem-da-ultima-luz.workers.dev",
+  );
+  const verificationUriComplete = new URL(verificationUri);
+  verificationUriComplete.searchParams.set("code", userCode);
   return context.json(
-    FoundryWorldRegistrationResponseSchema.parse({
-      worldId,
-      accessToken,
-      heartbeatIntervalSeconds: HEARTBEAT_SECONDS,
+    FoundryPairingCreateResponseSchema.parse({
+      pairingId,
+      deviceCode,
+      userCode,
+      verificationUri: verificationUri.toString(),
+      verificationUriComplete: verificationUriComplete.toString(),
+      expiresAt,
       pollIntervalSeconds: POLL_SECONDS,
     }),
     201,
   );
+});
+
+foundryApp.post("/v1/pairings/:pairingId/poll", async (context) => {
+  const pairingId = parseUuid(context.req.param("pairingId"));
+  const deviceCode = bearerToken(context.req.raw);
+  if (deviceCode.length < 43) {
+    throw new FoundryBridgeError(401, "invalid_pairing_device", "Solicitação não autorizada.");
+  }
+  const accessToken = generateAccessToken();
+  const pairing = await pollFoundryPairing(
+    context.env,
+    pairingId,
+    await hashToken(deviceCode),
+    await hashToken(accessToken),
+    accessToken.slice(0, 8),
+  );
+  if (!pairing) {
+    throw new FoundryBridgeError(401, "invalid_pairing_device", "Solicitação não autorizada.");
+  }
+  if (pairing.status === "expired") {
+    throw new FoundryBridgeError(409, "pairing_expired", "Este código expirou.");
+  }
+  if (pairing.status === "cancelled") {
+    throw new FoundryBridgeError(409, "pairing_cancelled", "Esta solicitação foi cancelada.");
+  }
+  if (pairing.status === "authorized") {
+    if (!pairing.worldId || !pairing.campaignId || !pairing.campaignName) {
+      throw new FoundryBridgeError(503, "pairing_finalizing", "A conexão está sendo finalizada.");
+    }
+    return context.json(
+      FoundryPairingPollResponseSchema.parse({
+        status: "authorized",
+        worldId: pairing.worldId,
+        campaignId: pairing.campaignId,
+        campaignName: pairing.campaignName,
+        accessToken,
+        heartbeatIntervalSeconds: HEARTBEAT_SECONDS,
+        pollIntervalSeconds: POLL_SECONDS,
+      }),
+    );
+  }
+  return context.json(
+    FoundryPairingPollResponseSchema.parse({
+      status: "pending",
+      expiresAt: pairing.expiresAt,
+      pollIntervalSeconds: POLL_SECONDS,
+    }),
+  );
+});
+
+foundryApp.delete("/v1/pairings/:pairingId", async (context) => {
+  const pairingId = parseUuid(context.req.param("pairingId"));
+  const deviceCode = bearerToken(context.req.raw);
+  if (
+    deviceCode.length < 43 ||
+    !(await cancelFoundryPairing(context.env, pairingId, await hashToken(deviceCode)))
+  ) {
+    throw new FoundryBridgeError(409, "pairing_unavailable", "Esta solicitação não está mais disponível.");
+  }
+  return context.body(null, 204);
 });
 
 foundryApp.post("/v1/worlds/:worldId/heartbeat", async (context) => {
@@ -130,6 +206,15 @@ foundryApp.post("/v1/worlds/:worldId/heartbeat", async (context) => {
       nextHeartbeatSeconds: HEARTBEAT_SECONDS,
     }),
   );
+});
+
+foundryApp.post("/v1/worlds/:worldId/revoke", async (context) => {
+  const worldId = parseUuid(context.req.param("worldId"));
+  await authenticateWorld(context.req.raw, context.env, worldId);
+  if (!(await revokeFoundryWorld(context.env, worldId))) {
+    throw new FoundryBridgeError(404, "world_not_found", "Mundo não encontrado.");
+  }
+  return context.json({ worldId, revoked: true });
 });
 
 foundryApp.post("/v1/worlds/:worldId/characters/sync", async (context) => {
@@ -203,41 +288,82 @@ foundryApp.post(
   },
 );
 
-foundryApp.get("/internal/foundry/worlds", async (context) => {
+foundryApp.post("/internal/foundry/pairings/preview", async (context) => {
   await assertStaticBearer(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN);
-  const worlds = await listFoundryWorlds(context.env);
+  const input = await parseJson(
+    context.req.raw,
+    z.object({ userCode: FoundryUserCodeSchema }).strict(),
+  );
+  const normalizedCode = normalizeUserCode(input.userCode);
+  const pairing = await previewFoundryPairing(
+    context.env,
+    await hashToken(normalizedCode),
+    input.userCode,
+  );
+  if (!pairing) {
+    throw new FoundryBridgeError(404, "pairing_not_found", "Solicitação não encontrada.");
+  }
+  return context.json(FoundryPairingPreviewSchema.parse(pairing));
+});
+
+foundryApp.post("/internal/foundry/pairings/:pairingId/approve", async (context) => {
+  await assertStaticBearer(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN);
+  const pairingId = parseUuid(context.req.param("pairingId"));
+  const input = await parseJson(context.req.raw, FoundryPairingApprovalRequestSchema);
+  const result = await authorizeFoundryPairing(context.env, pairingId, input);
+  return context.json(
+    FoundryPairingApprovalResponseSchema.parse({
+      pairingId,
+      worldId: result.worldId,
+      campaignId: input.campaignId,
+      campaignName: input.campaignName,
+      status: "authorized",
+    }),
+  );
+});
+
+foundryApp.get("/internal/foundry/campaigns/:campaignId/worlds", async (context) => {
+  await assertStaticBearer(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN);
+  const campaignId = parseUuid(context.req.param("campaignId"));
+  const worlds = await listFoundryWorlds(context.env, campaignId);
   return context.json({ worlds: worlds.map((world) => FoundryWorldStatusSchema.parse(world)) });
 });
 
-foundryApp.delete("/internal/foundry/worlds/:worldId", async (context) => {
+foundryApp.delete("/internal/foundry/campaigns/:campaignId/worlds/:worldId", async (context) => {
   await assertStaticBearer(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN);
+  const campaignId = parseUuid(context.req.param("campaignId"));
   const worldId = parseUuid(context.req.param("worldId"));
-  if (!(await revokeFoundryWorld(context.env, worldId))) {
+  if (!(await revokeFoundryWorld(context.env, worldId, campaignId))) {
     throw new FoundryBridgeError(404, "world_not_found", "Mundo não encontrado.");
   }
   return context.json({ worldId, revoked: true });
 });
 
-foundryApp.post("/internal/foundry/worlds/:worldId/commands", async (context) => {
-  await assertStaticBearer(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN);
-  const worldId = parseUuid(context.req.param("worldId"));
-  const idempotencyKey = context.req.header("idempotency-key") ?? "";
-  if (!/^[A-Za-z0-9:._-]{8,128}$/u.test(idempotencyKey)) {
-    throw new FoundryBridgeError(
-      400,
-      "invalid_idempotency_key",
-      "Idempotency-Key é obrigatório.",
+foundryApp.post(
+  "/internal/foundry/campaigns/:campaignId/worlds/:worldId/commands",
+  async (context) => {
+    await assertStaticBearer(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN);
+    const campaignId = parseUuid(context.req.param("campaignId"));
+    const worldId = parseUuid(context.req.param("worldId"));
+    const idempotencyKey = context.req.header("idempotency-key") ?? "";
+    if (!/^[A-Za-z0-9:._-]{8,128}$/u.test(idempotencyKey)) {
+      throw new FoundryBridgeError(
+        400,
+        "invalid_idempotency_key",
+        "Idempotency-Key é obrigatório.",
+      );
+    }
+    const input = await parseJson(context.req.raw, FoundryCommandCreateRequestSchema);
+    const result = await enqueueFoundryCommand(
+      context.env,
+      worldId,
+      idempotencyKey,
+      input,
+      campaignId,
     );
-  }
-  const input = await parseJson(context.req.raw, FoundryCommandCreateRequestSchema);
-  const result = await enqueueFoundryCommand(
-    context.env,
-    worldId,
-    idempotencyKey,
-    input,
-  );
-  return context.json(result, result.duplicate ? 200 : 201);
-});
+    return context.json(result, result.duplicate ? 200 : 201);
+  },
+);
 
 foundryApp.onError((error, context) => {
   if (error instanceof FoundryBridgeError) {
@@ -281,6 +407,17 @@ function parseUuid(value: string): string {
 function requestCorrelationId(request: Request): string {
   const candidate = request.headers.get("x-correlation-id");
   return candidate && uuid.safeParse(candidate).success ? candidate : crypto.randomUUID();
+}
+
+function generateUserCode(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  const value = Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
+  return `LUME-${value.slice(0, 4)}-${value.slice(4)}`;
+}
+
+function normalizeUserCode(value: string): string {
+  return value.trim().toUpperCase();
 }
 
 export { foundryApp };

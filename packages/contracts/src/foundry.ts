@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CampaignSchema } from "./campaigns";
 
 const foundryIdentifier = z
   .string()
@@ -9,9 +10,8 @@ const foundryIdentifier = z
 const version = z.string().min(1).max(32);
 const isoDate = z.string().datetime({ offset: true });
 
-export const FoundryWorldRegistrationRequestSchema = z
+export const FoundryWorldIdentitySchema = z
   .object({
-    campaignId: z.string().uuid(),
     worldInstanceId: z.string().uuid(),
     foundryWorldId: foundryIdentifier,
     worldTitle: z.string().trim().min(1).max(120),
@@ -22,12 +22,69 @@ export const FoundryWorldRegistrationRequestSchema = z
   })
   .strict();
 
-export const FoundryWorldRegistrationResponseSchema = z
+export const FoundryPairingCreateRequestSchema = FoundryWorldIdentitySchema;
+
+export const FoundryUserCodeSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^LUME-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
+
+export const FoundryPairingCreateResponseSchema = z
   .object({
-    worldId: z.string().uuid(),
-    accessToken: z.string().min(43).max(128),
-    heartbeatIntervalSeconds: z.number().int().min(15).max(300),
+    pairingId: z.string().uuid(),
+    deviceCode: z.string().min(43).max(128),
+    userCode: FoundryUserCodeSchema,
+    verificationUri: z.string().url(),
+    verificationUriComplete: z.string().url(),
+    expiresAt: isoDate,
     pollIntervalSeconds: z.number().int().min(2).max(60),
+  })
+  .strict();
+
+export const FoundryPairingPollResponseSchema = z.discriminatedUnion("status", [
+  z
+    .object({
+      status: z.literal("pending"),
+      expiresAt: isoDate,
+      pollIntervalSeconds: z.number().int().min(2).max(60),
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal("authorized"),
+      worldId: z.string().uuid(),
+      campaignId: z.string().uuid(),
+      campaignName: z.string().trim().min(1).max(100),
+      accessToken: z.string().min(43).max(128),
+      heartbeatIntervalSeconds: z.number().int().min(15).max(300),
+      pollIntervalSeconds: z.number().int().min(2).max(60),
+    })
+    .strict(),
+]);
+
+export const FoundryPairingPreviewSchema = FoundryWorldIdentitySchema.extend({
+  pairingId: z.string().uuid(),
+  userCode: FoundryUserCodeSchema,
+  status: z.enum(["pending", "authorized", "cancelled", "expired"]),
+  expiresAt: isoDate,
+}).strict();
+
+export const FoundryPairingApprovalRequestSchema = z
+  .object({
+    campaignId: z.string().uuid(),
+    campaignName: z.string().trim().min(3).max(100),
+    authorizedByUserId: z.string().uuid(),
+  })
+  .strict();
+
+export const FoundryPairingApprovalResponseSchema = z
+  .object({
+    pairingId: z.string().uuid(),
+    worldId: z.string().uuid(),
+    campaignId: z.string().uuid(),
+    campaignName: z.string().trim().min(3).max(100),
+    status: z.literal("authorized"),
   })
   .strict();
 
@@ -195,14 +252,37 @@ export const FoundryWorldStatusSchema = z
     lastSeenAt: isoDate.nullable(),
     activeUsers: z.number().int().nonnegative(),
     actorCount: z.number().int().nonnegative(),
+    registeredAt: isoDate,
   })
   .strict();
 
-export type FoundryWorldRegistrationRequest = z.infer<
-  typeof FoundryWorldRegistrationRequestSchema
+export const FoundryWorldListResponseSchema = z
+  .object({ data: z.array(FoundryWorldStatusSchema) })
+  .strict();
+
+export const FoundryPortalPairingViewSchema = z
+  .object({
+    pairing: FoundryPairingPreviewSchema,
+    eligibleCampaigns: z.array(CampaignSchema),
+  })
+  .strict();
+
+export type FoundryWorldIdentity = z.infer<typeof FoundryWorldIdentitySchema>;
+export type FoundryPairingCreateRequest = z.infer<
+  typeof FoundryPairingCreateRequestSchema
 >;
-export type FoundryWorldRegistrationResponse = z.infer<
-  typeof FoundryWorldRegistrationResponseSchema
+export type FoundryPairingCreateResponse = z.infer<
+  typeof FoundryPairingCreateResponseSchema
+>;
+export type FoundryPairingPollResponse = z.infer<
+  typeof FoundryPairingPollResponseSchema
+>;
+export type FoundryPairingPreview = z.infer<typeof FoundryPairingPreviewSchema>;
+export type FoundryPairingApprovalRequest = z.infer<
+  typeof FoundryPairingApprovalRequestSchema
+>;
+export type FoundryPairingApprovalResponse = z.infer<
+  typeof FoundryPairingApprovalResponseSchema
 >;
 export type FoundryHeartbeatRequest = z.infer<typeof FoundryHeartbeatRequestSchema>;
 export type FoundryCharacterProjection = z.infer<
@@ -223,3 +303,9 @@ export type FoundryCommandResultRequest = z.infer<
   typeof FoundryCommandResultRequestSchema
 >;
 export type FoundryWorldStatus = z.infer<typeof FoundryWorldStatusSchema>;
+export type FoundryWorldListResponse = z.infer<
+  typeof FoundryWorldListResponseSchema
+>;
+export type FoundryPortalPairingView = z.infer<
+  typeof FoundryPortalPairingViewSchema
+>;

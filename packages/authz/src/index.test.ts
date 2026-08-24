@@ -58,4 +58,66 @@ describe("principalFromRoleAssignments", () => {
       }),
     ).not.toContain("mission:create");
   });
+
+  it("limita a gestão de mundos ao owner, gerente e mestre da campanha", () => {
+    const owner = principalFromRoleAssignments("owner", [
+      { roleName: "owner", scope: { kind: "global" } },
+    ]);
+    const administrator = principalFromRoleAssignments("administrator", [
+      { roleName: "administrator", scope: { kind: "global" } },
+    ]);
+    const manager = principalFromRoleAssignments("manager", [
+      {
+        roleName: "campaign_manager",
+        scope: { kind: "campaign", campaignId: "campaign-a" },
+      },
+    ]);
+    const gm = principalFromRoleAssignments("gm", [
+      { roleName: "gm", scope: { kind: "campaign", campaignId: "campaign-a" } },
+    ]);
+    const player = principalFromRoleAssignments("player", [
+      {
+        roleName: "player",
+        scope: { kind: "campaign", campaignId: "campaign-a" },
+      },
+    ]);
+    const commonUser = principalFromRoleAssignments("common", []);
+
+    expect(
+      hasPermission(owner, "foundry:world:manage", {
+        kind: "campaign",
+        campaignId: "campaign-b",
+      }),
+    ).toBe(true);
+    expect(
+      hasPermission(administrator, "foundry:world:manage", {
+        kind: "campaign",
+        campaignId: "campaign-a",
+      }),
+    ).toBe(false);
+    expect(
+      hasPermission(manager, "foundry:world:manage", {
+        kind: "campaign",
+        campaignId: "campaign-a",
+      }),
+    ).toBe(true);
+    expect(
+      hasPermission(gm, "foundry:world:manage", {
+        kind: "campaign",
+        campaignId: "campaign-b",
+      }),
+    ).toBe(false);
+    expect(
+      hasPermission(player, "foundry:world:manage", {
+        kind: "campaign",
+        campaignId: "campaign-a",
+      }),
+    ).toBe(false);
+    expect(
+      hasPermission(commonUser, "foundry:world:manage", {
+        kind: "campaign",
+        campaignId: "campaign-a",
+      }),
+    ).toBe(false);
+  });
 });

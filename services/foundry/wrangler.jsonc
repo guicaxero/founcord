@@ -18,6 +18,9 @@
       "service": "ordem-da-ultima-luz"
     }
   ],
+  "vars": {
+    "PORTAL_URL": "https://ordem-da-ultima-luz.ordem-da-ultima-luz.workers.dev"
+  },
   "observability": {
     "enabled": true
   }

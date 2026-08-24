@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { Permission } from "@vigilia/authz";
 import type {
   Campaign,
   CampaignListResponse,
@@ -13,21 +14,29 @@ import { apiFetch, errorMessage } from "@/lib/api-client";
 import { hasCapability } from "@/lib/capabilities";
 import { queryKeys } from "@/lib/query-keys";
 import { AuditPanel } from "./audit-panel";
+import { FoundryPanel } from "./foundry-panel";
 import { MembersPanel } from "./members-panel";
 import { MissionsPanel } from "./missions-panel";
 import { PostsPanel } from "./posts-panel";
 
-type Tab = "missions" | "posts" | "members" | "audit" | "campaigns";
+type Tab = "missions" | "posts" | "foundry" | "members" | "audit" | "campaigns";
 
 type TabDefinition = Readonly<{
   id: Tab;
   label: string;
   eyebrow: string;
   description: string;
-  permissions: readonly string[];
+  permissions: readonly Permission[];
 }>;
 
 const tabDefinitions: readonly TabDefinition[] = [
+  {
+    id: "foundry",
+    label: "Mundos do Foundry",
+    eyebrow: "Integrações",
+    description: "Conecte mundos de Shadow of the Demon Lord e acompanhe presença, personagens e versões.",
+    permissions: ["foundry:world:manage"],
+  },
   {
     id: "missions",
     label: "Missões",
@@ -116,12 +125,38 @@ export function DashboardClient() {
     );
   }
 
-  const campaignId = selectedCampaign || campaigns.data?.data[0]?.id || "";
-  const campaign = campaigns.data?.data.find((item) => item.id === campaignId);
+  if (campaigns.isLoading) {
+    return <DashboardState eyebrow="Aguarde" title="Carregando suas campanhas" text="Estamos aplicando seus acessos em cada campanha." loading />;
+  }
+
+  if (campaigns.isError) {
+    return (
+      <DashboardState
+        eyebrow="Campanhas indisponíveis"
+        title="Não foi possível carregar seu espaço de gestão"
+        text={errorMessage(campaigns.error)}
+      >
+        <button className="admin-primary" type="button" onClick={() => campaigns.refetch()}>
+          Tentar novamente
+        </button>
+        <Link className="secondary-action" href="/">Voltar ao portal</Link>
+      </DashboardState>
+    );
+  }
+
   const activeTab = availableTabs.some((definition) => definition.id === tab)
     ? tab
     : availableTabs[0]!.id;
   const activeDefinition = availableTabs.find((definition) => definition.id === activeTab)!;
+  const eligibleCampaigns = (campaigns.data?.data ?? []).filter((candidate) =>
+    activeDefinition.permissions.some((permission) =>
+      hasCapability(me.data, permission, candidate.id),
+    ),
+  );
+  const campaignId = eligibleCampaigns.some((candidate) => candidate.id === selectedCampaign)
+    ? selectedCampaign
+    : eligibleCampaigns[0]?.id ?? "";
+  const campaign = eligibleCampaigns.find((item) => item.id === campaignId);
   const globalRole = me.data.assignments.find(
     (assignment) => assignment.scopeKind === "global",
   )?.roleName;
@@ -142,7 +177,7 @@ export function DashboardClient() {
             onChange={(event) => setSelectedCampaign(event.target.value)}
             disabled={campaigns.isLoading}
           >
-            {campaigns.data?.data.map((item) => (
+            {eligibleCampaigns.map((item) => (
               <option value={item.id} key={item.id}>{item.name}</option>
             ))}
           </select>
@@ -219,6 +254,9 @@ export function DashboardClient() {
           <section className="admin-workspace" id="admin-active-panel" role="tabpanel">
             {activeTab === "missions" ? <MissionsPanel campaignId={campaignId} me={me.data} /> : null}
             {activeTab === "posts" ? <PostsPanel campaignId={campaignId} me={me.data} /> : null}
+            {activeTab === "foundry" && campaign ? (
+              <FoundryPanel key={campaignId} campaignId={campaignId} campaignName={campaign.name} />
+            ) : null}
             {activeTab === "members" ? <MembersPanel campaignId={campaignId} me={me.data} /> : null}
             {activeTab === "audit" ? <AuditPanel campaignId={campaignId} /> : null}
             {activeTab === "campaigns" ? (

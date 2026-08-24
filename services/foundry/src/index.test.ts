@@ -3,9 +3,11 @@ import type { FoundryCommand } from "@vigilia/contracts";
 import type { FoundryEnv } from "./types";
 
 const repository = vi.hoisted(() => ({
-  registerFoundryWorld: vi.fn(),
-  claimFoundryEnrollment: vi.fn(),
-  completeFoundryEnrollment: vi.fn(),
+  createFoundryPairing: vi.fn(),
+  previewFoundryPairing: vi.fn(),
+  authorizeFoundryPairing: vi.fn(),
+  pollFoundryPairing: vi.fn(),
+  cancelFoundryPairing: vi.fn(),
   findWorldByTokenHash: vi.fn(),
   recordHeartbeat: vi.fn(),
   listFoundryWorlds: vi.fn(),
@@ -30,8 +32,8 @@ import { foundryApp } from "./index";
 const worldId = "22222222-2222-4222-8222-222222222222";
 const campaignId = "11111111-1111-4111-8111-111111111111";
 const accessToken = "a".repeat(43);
-const enrollmentToken = "e".repeat(64);
 const serviceToken = "s".repeat(64);
+const pairingId = "77777777-7777-4777-8777-777777777777";
 
 describe("Foundry Bridge Worker", () => {
   let env: FoundryEnv;
@@ -43,12 +45,43 @@ describe("Foundry Bridge Worker", () => {
         prepare: vi.fn(() => ({ first: vi.fn(async () => ({ healthy: 1 })) })),
       } as unknown as D1Database,
       PORTAL: { fetch: vi.fn() } as unknown as Fetcher,
-      FOUNDRY_ENROLLMENT_TOKEN: enrollmentToken,
       INTEGRATION_SERVICE_TOKEN: serviceToken,
+      PORTAL_URL: "https://portal.example",
     };
-    repository.registerFoundryWorld.mockResolvedValue(worldId);
-    repository.claimFoundryEnrollment.mockResolvedValue(true);
-    repository.completeFoundryEnrollment.mockResolvedValue(undefined);
+    repository.createFoundryPairing.mockResolvedValue(pairingId);
+    repository.previewFoundryPairing.mockResolvedValue({
+      pairingId,
+      userCode: "LUME-7K4P-9Q2M",
+      worldInstanceId: "33333333-3333-4333-8333-333333333333",
+      foundryWorldId: "ordem-da-ultima-luz",
+      worldTitle: "Ordem da Última Luz",
+      systemId: "demonlord",
+      foundryVersion: "14.320",
+      systemVersion: "6.1.4",
+      moduleVersion: "0.2.0",
+      status: "pending",
+      expiresAt: "2026-08-24T15:10:00.000Z",
+    });
+    repository.authorizeFoundryPairing.mockResolvedValue({
+      worldId,
+      pairing: {
+        pairingId,
+        status: "authorized",
+        expiresAt: "2026-08-24T15:10:00.000Z",
+        worldId,
+        campaignId,
+        campaignName: "Ordem da Última Luz",
+      },
+    });
+    repository.pollFoundryPairing.mockResolvedValue({
+      pairingId,
+      status: "pending",
+      expiresAt: "2026-08-24T15:10:00.000Z",
+      worldId: null,
+      campaignId: null,
+      campaignName: null,
+    });
+    repository.cancelFoundryPairing.mockResolvedValue(true);
     repository.findWorldByTokenHash.mockResolvedValue({
       id: worldId,
       campaignId,
@@ -80,30 +113,58 @@ describe("Foundry Bridge Worker", () => {
     expect(await response.json()).toEqual({ service: "foundry-bridge", status: "ok" });
   });
 
-  it("protege e registra somente mundos demonlord", async () => {
-    const unauthorized = await request("/v1/worlds/register", {
+  it("cria pareamento somente para mundos demonlord", async () => {
+    const invalidSystem = await request("/v1/pairings", {
       method: "POST",
-      body: JSON.stringify(registrationBody()),
-    });
-    expect(unauthorized.status).toBe(401);
-
-    const invalidSystem = await request("/v1/worlds/register", {
-      method: "POST",
-      headers: bearer(enrollmentToken),
       body: JSON.stringify({ ...registrationBody(), systemId: "dnd5e" }),
     });
     expect(invalidSystem.status).toBe(400);
 
-    const registered = await request("/v1/worlds/register", {
+    const registered = await request("/v1/pairings", {
       method: "POST",
-      headers: bearer(enrollmentToken),
       body: JSON.stringify(registrationBody()),
     });
-    const body = (await registered.json()) as { worldId: string; accessToken: string };
+    const body = (await registered.json()) as {
+      pairingId: string;
+      deviceCode: string;
+      userCode: string;
+    };
     expect(registered.status).toBe(201);
-    expect(body.worldId).toBe(worldId);
-    expect(body.accessToken).toHaveLength(43);
-    expect(repository.registerFoundryWorld).toHaveBeenCalledOnce();
+    expect(body.pairingId).toBe(pairingId);
+    expect(body.deviceCode).toHaveLength(43);
+    expect(body.userCode).toMatch(/^LUME-/u);
+    expect(repository.createFoundryPairing).toHaveBeenCalledOnce();
+  });
+
+  it("mantém a autorização no portal separada da posse do Foundry", async () => {
+    const unauthenticatedPoll = await request(`/v1/pairings/${pairingId}/poll`, {
+      method: "POST",
+    });
+    expect(unauthenticatedPoll.status).toBe(401);
+
+    const pending = await request(`/v1/pairings/${pairingId}/poll`, {
+      method: "POST",
+      headers: bearer(accessToken),
+    });
+    expect(await pending.json()).toMatchObject({ status: "pending" });
+
+    const unauthorizedPreview = await request("/internal/foundry/pairings/preview", {
+      method: "POST",
+      body: JSON.stringify({ userCode: "LUME-7K4P-9Q2M" }),
+    });
+    expect(unauthorizedPreview.status).toBe(401);
+
+    const approved = await request(`/internal/foundry/pairings/${pairingId}/approve`, {
+      method: "POST",
+      headers: bearer(serviceToken),
+      body: JSON.stringify({
+        campaignId,
+        campaignName: "Ordem da Última Luz",
+        authorizedByUserId: "88888888-8888-4888-8888-888888888888",
+      }),
+    });
+    expect(approved.status).toBe(200);
+    expect(repository.authorizeFoundryPairing).toHaveBeenCalledOnce();
   });
 
   it("autentica heartbeat e atualiza a presença", async () => {
@@ -146,14 +207,14 @@ describe("Foundry Bridge Worker", () => {
   });
 
   it("enfileira comandos internos com idempotência obrigatória", async () => {
-    const missingKey = await request(`/internal/foundry/worlds/${worldId}/commands`, {
+    const missingKey = await request(`/internal/foundry/campaigns/${campaignId}/worlds/${worldId}/commands`, {
       method: "POST",
       headers: bearer(serviceToken),
       body: JSON.stringify({ command: { type: "actor.sync.request", payload: {} } }),
     });
     expect(missingKey.status).toBe(400);
 
-    const response = await request(`/internal/foundry/worlds/${worldId}/commands`, {
+    const response = await request(`/internal/foundry/campaigns/${campaignId}/worlds/${worldId}/commands`, {
       method: "POST",
       headers: {
         ...bearer(serviceToken),
@@ -167,6 +228,7 @@ describe("Foundry Bridge Worker", () => {
       worldId,
       "mission:42:sync",
       expect.objectContaining({ command: { type: "actor.sync.request", payload: {} } }),
+      campaignId,
     );
   });
 
@@ -215,14 +277,13 @@ describe("Foundry Bridge Worker", () => {
 
 function registrationBody() {
   return {
-    campaignId,
     worldInstanceId: "33333333-3333-4333-8333-333333333333",
     foundryWorldId: "ordem-da-ultima-luz",
     worldTitle: "Ordem da Última Luz",
     systemId: "demonlord",
     foundryVersion: "14.320",
     systemVersion: "6.1.4",
-    moduleVersion: "0.1.0",
+    moduleVersion: "0.2.0",
   };
 }
 
