@@ -2,9 +2,34 @@
 
 ## Frontend e experiência do usuário
 
-Antes de criar, alterar ou revisar qualquer tela, componente visual, fluxo de navegação, formulário ou texto de interface, leia integralmente [`PADRAO_DE_UI_UX.md`](./PADRAO_DE_UI_UX.md).
+Antes de criar, alterar ou revisar qualquer tela, componente visual, fluxo de navegação, formulário ou texto de interface, leia integralmente:
 
-Esse documento é a fonte de verdade para decisões de UI/UX do projeto. Nenhuma alteração de frontend deve ser considerada concluída sem revisar hierarquia, clareza, acessibilidade, responsividade, estados, feedback e consistência conforme o padrão.
+1. [`PADRAO_DE_UI_UX.md`](./PADRAO_DE_UI_UX.md);
+2. [`.agents/AGENTE_ESPECIALISTA_UI_UX.md`](./.agents/AGENTE_ESPECIALISTA_UI_UX.md);
+3. [`.agents/AGENTE_ESPECIALISTA_FRONTEND.md`](./.agents/AGENTE_ESPECIALISTA_FRONTEND.md).
+
+`PADRAO_DE_UI_UX.md` continua sendo a fonte de verdade para decisões visuais e de experiência do produto; os perfis em `.agents/` definem como especificar, implementar e revisar essas decisões. Nenhuma alteração de frontend deve ser considerada concluída sem revisar hierarquia, clareza, acessibilidade, responsividade, estados, feedback e consistência conforme o padrão.
+
+### Pipeline obrigatório de interface
+
+Toda mudança que altere experiência, apresentação ou comportamento de interface deve passar pelas fases abaixo, nesta ordem:
+
+1. **Especificação de UI/UX:** o especialista de UI/UX define usuário, objetivo, hierarquia, fluxo, conteúdo, estados, responsividade, acessibilidade e critérios de aceitação antes da implementação.
+2. **Contrato e implementação Front-end:** o especialista de Front-end inspeciona o produto existente, registra o contrato técnico aplicável, implementa e valida comportamento, tipos, acessibilidade e responsividade.
+3. **Validação renderizada:** o resultado deve ser executado e inspecionado em larguras estreita, intermediária e ampla, incluindo estados relevantes e operação por teclado.
+4. **Revisão final de UI/UX:** o especialista de UI/UX compara a experiência renderizada com a especificação e classifica achados por impacto.
+5. **Correção e conclusão:** achados críticos e altos bloqueiam a conclusão; achados médios ou baixos precisam ser corrigidos ou registrados explicitamente como pendência aceita.
+
+Quando execução com agentes especializados estiver disponível, use agentes separados para UI/UX e Front-end conforme os perfis em `.agents/`. Quando não estiver, o agente principal deve executar e registrar distintamente todas as fases; a indisponibilidade de delegação não permite omitir nenhuma delas.
+
+Mudanças exclusivamente de backend, infraestrutura, banco, contratos sem interface ou documentação técnica não exigem esse pipeline. Se uma mudança de backend afetar mensagens, estados, permissões ou comportamento percebido na interface, o pipeline volta a ser obrigatório.
+
+### Hierarquia das instruções
+
+- Este `AGENTS.md` define escopo, produto e processo obrigatório.
+- `PADRAO_DE_UI_UX.md` define o padrão visual e de experiência da Ordem da Última Luz.
+- Os perfis em `.agents/` definem responsabilidades, entregáveis e critérios de revisão dos especialistas.
+- Em caso de conflito, preserve as regras de produto e o padrão do repositório e registre a decisão; nenhum especialista deve alterar silenciosamente a intenção relevante do outro.
 
 ## Regras de produto
 
