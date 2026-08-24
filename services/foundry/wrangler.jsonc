@@ -21,6 +21,9 @@
   "vars": {
     "PORTAL_URL": "https://ordem-da-ultima-luz.ordem-da-ultima-luz.workers.dev"
   },
+  "triggers": {
+    "crons": ["17 4 * * *"]
+  },
   "observability": {
     "enabled": true
   }

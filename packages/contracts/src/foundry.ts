@@ -157,6 +157,70 @@ export const FoundryCharacterSyncResponseSchema = z
   })
   .strict();
 
+export const FoundryChatEntrySchema = z
+  .object({
+    messageId: foundryIdentifier,
+    createdAt: isoDate,
+    authorUserId: foundryIdentifier.nullable(),
+    authorName: z.string().trim().min(1).max(120),
+    speakerActorId: foundryIdentifier.nullable(),
+    speakerName: z.string().trim().min(1).max(120).nullable(),
+    content: z.string().trim().min(1).max(4_000),
+    kind: z.enum(["message", "roll"]),
+  })
+  .strict();
+
+export const FoundryChatBatchRequestSchema = z
+  .object({
+    batchId: z.string().uuid(),
+    capturedAt: isoDate,
+    messages: z.array(FoundryChatEntrySchema).min(1).max(50),
+  })
+  .strict();
+
+export const FoundryChatBatchResponseSchema = z
+  .object({
+    batchId: z.string().uuid(),
+    captureSessionId: z.string().uuid().nullable(),
+    accepted: z.number().int().nonnegative(),
+    ignored: z.number().int().nonnegative(),
+    duplicate: z.boolean(),
+  })
+  .strict();
+
+export const FoundryCaptureSessionStartRequestSchema = z
+  .object({
+    sessionId: z.string().uuid(),
+    campaignId: z.string().uuid(),
+    worldId: z.string().uuid(),
+    startedAt: isoDate,
+  })
+  .strict();
+
+export const FoundryCaptureSessionSchema = z
+  .object({
+    sessionId: z.string().uuid(),
+    campaignId: z.string().uuid(),
+    worldId: z.string().uuid(),
+    worldTitle: z.string().trim().min(1).max(120),
+    worldStatus: z.enum(["online", "offline", "revoked"]),
+    status: z.enum(["active", "ended", "cancelled"]),
+    startedAt: isoDate,
+    endedAt: isoDate.nullable(),
+    messageCount: z.number().int().nonnegative(),
+    lastMessageAt: isoDate.nullable(),
+  })
+  .strict();
+
+export const FoundryCaptureSessionListResponseSchema = z
+  .object({ data: z.array(FoundryCaptureSessionSchema) })
+  .strict();
+
+export const FoundryCaptureTranscriptSchema = FoundryCaptureSessionSchema.extend({
+  transcript: z.string().max(40_000),
+  truncated: z.boolean(),
+}).strict();
+
 export const FoundryCommandTypeSchema = z.enum([
   "actor.sync.request",
   "chat.message.create",
@@ -293,6 +357,25 @@ export type FoundryCharacterSyncRequest = z.infer<
 >;
 export type FoundryCharacterSyncCallback = z.infer<
   typeof FoundryCharacterSyncCallbackSchema
+>;
+export type FoundryChatEntry = z.infer<typeof FoundryChatEntrySchema>;
+export type FoundryChatBatchRequest = z.infer<
+  typeof FoundryChatBatchRequestSchema
+>;
+export type FoundryChatBatchResponse = z.infer<
+  typeof FoundryChatBatchResponseSchema
+>;
+export type FoundryCaptureSessionStartRequest = z.infer<
+  typeof FoundryCaptureSessionStartRequestSchema
+>;
+export type FoundryCaptureSession = z.infer<
+  typeof FoundryCaptureSessionSchema
+>;
+export type FoundryCaptureSessionListResponse = z.infer<
+  typeof FoundryCaptureSessionListResponseSchema
+>;
+export type FoundryCaptureTranscript = z.infer<
+  typeof FoundryCaptureTranscriptSchema
 >;
 export type FoundryCommandInput = z.infer<typeof FoundryCommandInputSchema>;
 export type FoundryCommandCreateRequest = z.infer<

@@ -15,6 +15,8 @@ export const permissions = [
   "post:publish",
   "post:review",
   "role:assign",
+  "session:manage",
+  "session:read",
 ] as const;
 
 export type Permission = (typeof permissions)[number];
@@ -64,6 +66,8 @@ export const rolePermissions = {
     "post:publish",
     "post:review",
     "role:assign",
+    "session:manage",
+    "session:read",
   ],
   campaign_manager: [
     "audit:read",
@@ -80,6 +84,8 @@ export const rolePermissions = {
     "post:create",
     "post:publish",
     "post:review",
+    "session:manage",
+    "session:read",
   ],
   gm: [
     "automation:read",
@@ -88,8 +94,16 @@ export const rolePermissions = {
     "mission:create",
     "mission:edit",
     "post:create",
+    "session:manage",
+    "session:read",
   ],
-  editor: ["automation:read", "mission:edit", "post:create", "post:review"],
+  editor: [
+    "automation:read",
+    "mission:edit",
+    "post:create",
+    "post:review",
+    "session:read",
+  ],
   moderator: ["mission:review", "post:publish", "post:review"],
   player: [],
   automation: ["post:create"],

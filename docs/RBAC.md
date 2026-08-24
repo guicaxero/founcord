@@ -20,6 +20,8 @@ as campanhas; uma concessão de campanha nunca vaza para outra.
 | Conectar mundo Foundry | ✓ |  | ✓ | ✓ |  |  |  |  |
 | Iniciar automação | ✓ | ✓ | ✓ | ✓ |  |  |  |  |
 | Consultar automações | ✓ | ✓ | ✓ | ✓ | ✓ |  |  |  |
+| Gerenciar sessões | ✓ | ✓ | ✓ | ✓ |  |  |  |  |
+| Consultar sessões | ✓ | ✓ | ✓ | ✓ | ✓ |  |  |  |
 
 Regras como “editar somente a própria missão” são ABAC e complementam a matriz.
 O papel `automation` não recebe nenhuma permissão de publicação.
@@ -34,3 +36,9 @@ sincronizar e revogar mundos. Uma concessão global de `owner` cobre qualquer
 campanha. `campaign_manager` e `gm` recebem essa permissão apenas no escopo da
 própria campanha. `administrator` global não a recebe por padrão: a exceção
 global é intencionalmente exclusiva do proprietário.
+
+`session:manage` permite registrar, iniciar, editar notas, encerrar e solicitar
+um rascunho da sessão. Associar ou iniciar um mundo exige também
+`foundry:world:manage`; por isso um `administrator` pode conduzir sessões apenas
+com notas manuais, enquanto owner, gestor e mestre podem usar Foundry.
+`session:read` permite acompanhar fontes e histórico, sem operar a captura.

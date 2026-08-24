@@ -9,6 +9,10 @@ export const queryKeys = {
   audit: (campaignId: string) => ["campaigns", campaignId, "audit"] as const,
   automations: (campaignId: string) =>
     ["campaigns", campaignId, "automations"] as const,
+  campaignSessions: (campaignId: string) =>
+    ["campaigns", campaignId, "sessions"] as const,
+  campaignSessionOptions: (campaignId: string) =>
+    ["campaigns", campaignId, "sessions", "options"] as const,
   foundryWorlds: (campaignId: string) =>
     ["campaigns", campaignId, "foundry", "worlds"] as const,
 } as const;

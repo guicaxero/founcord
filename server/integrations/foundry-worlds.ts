@@ -1,10 +1,15 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { hasPermission, requirePermission } from "@vigilia/authz";
 import {
+  FoundryCaptureSessionListResponseSchema,
+  FoundryCaptureSessionSchema,
+  FoundryCaptureTranscriptSchema,
   FoundryPairingApprovalResponseSchema,
   FoundryPairingPreviewSchema,
   FoundryPortalPairingViewSchema,
   FoundryWorldListResponseSchema,
+  type FoundryCaptureSession,
+  type FoundryCaptureTranscript,
   type FoundryPairingApprovalResponse,
   type FoundryPortalPairingView,
   type FoundryWorldListResponse,
@@ -182,6 +187,77 @@ export async function requestFoundryCharacterSync(
     }),
   ]);
   return result as Readonly<{ commandId: string; duplicate: boolean }>;
+}
+
+export async function listFoundryCaptureStates(
+  campaignId: string,
+  correlationId: string,
+): Promise<FoundryCaptureSession[]> {
+  return FoundryCaptureSessionListResponseSchema.parse(
+    await foundryRequest(
+      `/internal/foundry/campaigns/${encodeURIComponent(campaignId)}/capture-sessions`,
+      { method: "GET", correlationId },
+    ),
+  ).data;
+}
+
+export async function startFoundryCapture(
+  input: Readonly<{
+    sessionId: string;
+    campaignId: string;
+    worldId: string;
+    startedAt: string;
+  }>,
+  correlationId: string,
+): Promise<FoundryCaptureSession> {
+  return FoundryCaptureSessionSchema.parse(
+    await foundryRequest(
+      `/internal/foundry/campaigns/${encodeURIComponent(input.campaignId)}/worlds/${encodeURIComponent(input.worldId)}/capture-sessions`,
+      { method: "POST", correlationId, body: input },
+    ),
+  );
+}
+
+export async function endFoundryCapture(
+  campaignId: string,
+  worldId: string,
+  sessionId: string,
+  correlationId: string,
+): Promise<FoundryCaptureSession> {
+  return FoundryCaptureSessionSchema.parse(
+    await foundryRequest(
+      `/internal/foundry/campaigns/${encodeURIComponent(campaignId)}/worlds/${encodeURIComponent(worldId)}/capture-sessions/${encodeURIComponent(sessionId)}/end`,
+      { method: "POST", correlationId, body: {} },
+    ),
+  );
+}
+
+export async function cancelFoundryCapture(
+  campaignId: string,
+  worldId: string,
+  sessionId: string,
+  correlationId: string,
+): Promise<FoundryCaptureSession> {
+  return FoundryCaptureSessionSchema.parse(
+    await foundryRequest(
+      `/internal/foundry/campaigns/${encodeURIComponent(campaignId)}/worlds/${encodeURIComponent(worldId)}/capture-sessions/${encodeURIComponent(sessionId)}`,
+      { method: "DELETE", correlationId },
+    ),
+  );
+}
+
+export async function getFoundryCaptureTranscript(
+  campaignId: string,
+  worldId: string,
+  sessionId: string,
+  correlationId: string,
+): Promise<FoundryCaptureTranscript> {
+  return FoundryCaptureTranscriptSchema.parse(
+    await foundryRequest(
+      `/internal/foundry/campaigns/${encodeURIComponent(campaignId)}/worlds/${encodeURIComponent(worldId)}/capture-sessions/${encodeURIComponent(sessionId)}/transcript`,
+      { method: "GET", correlationId },
+    ),
+  );
 }
 
 async function getCampaignIdentity(campaignId: string): Promise<CampaignIdentityRow> {

@@ -17,9 +17,51 @@ editorial revisável. Este corte entrega:
 - criação obrigatória de post `pending_review` no portal;
 - retenção limitada do registro bruto e auditoria no domínio da campanha.
 
-Discord e Foundry ainda não enviam transcrições automaticamente neste corte. A
-interface aceita texto colado e já versiona `discord_transcript` e
-`foundry_chat` no contrato para conectores futuros.
+O corte 4.1 acrescenta sessões reais e captura automática do chat público do
+Foundry. O Discord continua somente como referência associada: suas mensagens
+não são importadas nesta versão. Texto colado permanece disponível para
+automações editoriais avulsas.
+
+## Marco 4.1 — Sessões e fontes reais
+
+O portal possui uma área separada de **Sessões**, com o ciclo:
+
+```text
+preparar -> iniciar captura -> acompanhar fontes -> encerrar
+         -> revisar fontes -> solicitar rascunho -> revisão humana
+```
+
+Encerrar uma captura nunca inicia a IA. A pessoa autorizada confere os
+contadores, as notas do mestre e a ausência explícita do Discord antes de usar
+**Gerar rascunho para revisão**.
+
+### Fluxo Foundry
+
+```text
+Portal D1                  Foundry Bridge / Integration D1       Módulo
+campaign_sessions  --->   foundry_capture_sessions       <---  chat público
+                               |
+                               +-- foundry_chat_events
+                                       |
+Portal solicita texto <--- transcript sanitizado e limitado
+        |
+        +-- Automation Worker -> post pending_review
+```
+
+- o Portal D1 guarda sessão, missão relacionada, notas, responsável e vínculo
+  do job editorial;
+- o Integration D1 guarda eventos temporários e idempotentes do Foundry;
+- o módulo envia apenas texto simples de mensagens públicas pelo HTTPS de saída;
+- sussurros, rolagens cegas, mensagens privadas e HTML não entram no contrato;
+- mensagens fora de uma captura ativa e mensagens anteriores ao início são
+  descartadas;
+- eventos brutos de capturas encerradas são removidos após 90 dias;
+- o Automation D1 recebe somente a fonte composta e limitada que foi confirmada
+  na etapa de preparação do rascunho.
+
+O módulo mantém no máximo 500 projeções públicas em uma configuração do mundo
+para tolerar indisponibilidade. O Bridge deduplica pelo par mundo/mensagem; um
+reenvio não cria eventos nem altera o contador duas vezes.
 
 ## Topologia
 
@@ -164,6 +206,7 @@ Não reutilize `INTEGRATION_SERVICE_TOKEN`.
 
 ```bash
 npm run db:migrate:local
+npm run db:migrate:integration:local
 npm run db:migrate:automation:local
 ```
 
@@ -171,17 +214,21 @@ npm run db:migrate:automation:local
 
 Depois do merge na `main`:
 
-1. confirme D1 Time Travel/backup do banco do portal;
-2. aplique a migration do portal;
-3. aplique a migration inicial do Automation D1;
-4. cadastre o secret nos dois Workers;
-5. publique o Portal com callback e RBAC;
-6. publique o Automation Worker;
-7. valide `/health`;
-8. crie um resumo curto pela interface e confira o post em revisão.
+1. confirme D1 Time Travel/backup do banco do portal e do Integration D1;
+2. aplique a migration do Integration D1;
+3. aplique a migration do portal;
+4. publique o Foundry Bridge;
+5. publique o Portal com a área de sessões e RBAC;
+6. publique o Automation Worker quando houver mudança nele;
+7. valide `/health` dos Workers;
+8. publique a release `v0.3.0` do módulo depois do merge do repositório próprio;
+9. inicie uma sessão, envie chat público, encerre e gere um rascunho de teste;
+10. confirme que o post nasceu em revisão e que um sussurro não foi capturado.
 
 ```bash
 npm run db:migrate:remote
+npm run db:migrate:integration:remote
+npm run deploy:foundry
 npm run db:migrate:automation:remote
 npm run deploy
 npm run deploy:automation

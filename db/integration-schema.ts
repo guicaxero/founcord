@@ -259,3 +259,63 @@ export const foundryActorLinks = sqliteTable(
     index("idx_foundry_actor_links_sync").on(table.worldId, table.lastSyncId),
   ],
 );
+
+export const foundryCaptureSessions = sqliteTable(
+  "foundry_capture_sessions",
+  {
+    id: text("id").primaryKey(),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => foundryWorlds.id, { onDelete: "cascade" }),
+    campaignId: text("campaign_id").notNull(),
+    status: text("status", { enum: ["active", "ended", "cancelled"] })
+      .notNull()
+      .default("active"),
+    startedAt: text("started_at").notNull(),
+    endedAt: text("ended_at"),
+    messageCount: integer("message_count").notNull().default(0),
+    lastMessageAt: text("last_message_at"),
+    ...timestamps,
+  },
+  (table) => [
+    index("idx_foundry_capture_campaign_created").on(
+      table.campaignId,
+      table.createdAt,
+    ),
+    index("idx_foundry_capture_world_status").on(table.worldId, table.status),
+    uniqueIndex("uq_foundry_capture_active_world")
+      .on(table.worldId)
+      .where(sql`${table.status} = 'active'`),
+  ],
+);
+
+export const foundryChatEvents = sqliteTable(
+  "foundry_chat_events",
+  {
+    id: text("id").primaryKey(),
+    captureSessionId: text("capture_session_id")
+      .notNull()
+      .references(() => foundryCaptureSessions.id, { onDelete: "cascade" }),
+    worldId: text("world_id")
+      .notNull()
+      .references(() => foundryWorlds.id, { onDelete: "cascade" }),
+    messageId: text("message_id").notNull(),
+    sourceCreatedAt: text("source_created_at").notNull(),
+    authorUserId: text("author_user_id"),
+    authorName: text("author_name").notNull(),
+    speakerActorId: text("speaker_actor_id"),
+    speakerName: text("speaker_name"),
+    messageKind: text("message_kind", { enum: ["message", "roll"] }).notNull(),
+    content: text("content").notNull(),
+    receivedAt: text("received_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("uq_foundry_chat_world_message").on(table.worldId, table.messageId),
+    index("idx_foundry_chat_capture_created").on(
+      table.captureSessionId,
+      table.sourceCreatedAt,
+    ),
+    index("idx_foundry_chat_retention").on(table.receivedAt),
+  ],
+);

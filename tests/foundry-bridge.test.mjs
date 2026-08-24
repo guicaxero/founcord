@@ -12,7 +12,7 @@ const otherCampaignId = "99999999-9999-4999-8999-999999999999";
 const serviceToken = "test-integration-token-with-at-least-32-bytes";
 const staleSyncId = "66666666-6666-4666-8666-666666666666";
 
-test("Marco 3: pareamento, escopo de campanha, presença e fila Foundry", async () => {
+test("Marcos 3 e 4.1: conexão, comandos e captura pública do Foundry", async () => {
   const serverRoot = join(root, ".wrangler", "foundry-test-bundle");
   const portalCalls = [];
   const mf = new Miniflare(
@@ -288,6 +288,84 @@ test("Marco 3: pareamento, escopo de campanha, presença e fila Foundry", async 
     assert.equal(duplicateSync.data.duplicate, true);
     assert.equal(portalCalls.length, 2);
 
+    const captureSessionId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const chatPath = `/v1/worlds/${worldId}/chat/batches`;
+    const outsideCapture = await api(mf, chatPath, {
+      method: "POST",
+      token: accessToken,
+      body: chatBatch("99999999-9999-4999-8999-999999999991", "chat-outside"),
+    });
+    assert.equal(outsideCapture.status, 200, JSON.stringify(outsideCapture.data));
+    assert.equal(outsideCapture.data.captureSessionId, null);
+    assert.equal(outsideCapture.data.ignored, 1);
+
+    const capturePath = `/internal/foundry/campaigns/${campaignId}/worlds/${worldId}/capture-sessions`;
+    const captureStartedAt = new Date(Date.now() - 1_000).toISOString();
+    const captureStarted = await api(mf, capturePath, {
+      method: "POST",
+      token: serviceToken,
+      body: { sessionId: captureSessionId, campaignId, worldId, startedAt: captureStartedAt },
+    });
+    assert.equal(captureStarted.status, 201, JSON.stringify(captureStarted.data));
+    assert.equal(captureStarted.data.status, "active");
+
+    const batchId = "99999999-9999-4999-8999-999999999992";
+    const capturedBatch = chatBatch(batchId, "chat-public");
+    capturedBatch.messages.unshift({
+      ...capturedBatch.messages[0],
+      messageId: "chat-too-old",
+      createdAt: "2020-01-01T00:00:00.000Z",
+    });
+    const captured = await api(mf, chatPath, {
+      method: "POST",
+      token: accessToken,
+      body: capturedBatch,
+    });
+    assert.equal(captured.status, 200, JSON.stringify(captured.data));
+    assert.equal(captured.data.captureSessionId, captureSessionId);
+    assert.equal(captured.data.accepted, 1);
+    assert.equal(captured.data.ignored, 1);
+
+    const duplicateChat = await api(mf, chatPath, {
+      method: "POST",
+      token: accessToken,
+      body: capturedBatch,
+    });
+    assert.equal(duplicateChat.data.accepted, 0);
+    assert.equal(duplicateChat.data.duplicate, true);
+
+    const captures = await api(
+      mf,
+      `/internal/foundry/campaigns/${campaignId}/capture-sessions`,
+      { token: serviceToken },
+    );
+    assert.equal(captures.status, 200);
+    assert.equal(captures.data.data[0].messageCount, 1);
+
+    const captureEnded = await api(mf, `${capturePath}/${captureSessionId}/end`, {
+      method: "POST",
+      token: serviceToken,
+      body: {},
+    });
+    assert.equal(captureEnded.status, 200);
+    assert.equal(captureEnded.data.status, "ended");
+
+    const transcript = await api(
+      mf,
+      `${capturePath}/${captureSessionId}/transcript`,
+      { token: serviceToken },
+    );
+    assert.equal(transcript.status, 200, JSON.stringify(transcript.data));
+    assert.match(transcript.data.transcript, /A porta de ferro cede/u);
+    assert.equal(transcript.data.truncated, false);
+
+    const afterCapture = await api(mf, chatPath, {
+      method: "POST",
+      token: accessToken,
+      body: chatBatch("99999999-9999-4999-8999-999999999993", "chat-after"),
+    });
+    assert.equal(afterCapture.data.captureSessionId, null);
+
     const crossCampaignRevoke = await api(
       mf,
       `/internal/foundry/campaigns/${otherCampaignId}/worlds/${worldId}`,
@@ -382,7 +460,26 @@ function registrationBody() {
     systemId: "demonlord",
     foundryVersion: "14.320",
     systemVersion: "6.1.4",
-    moduleVersion: "0.2.0",
+    moduleVersion: "0.3.0",
+  };
+}
+
+function chatBatch(batchId, messageId) {
+  return {
+    batchId,
+    capturedAt: new Date().toISOString(),
+    messages: [
+      {
+        messageId,
+        createdAt: new Date().toISOString(),
+        authorUserId: "foundry-user-1",
+        authorName: "Mestre",
+        speakerActorId: null,
+        speakerName: "Aster",
+        content: "A porta de ferro cede com um estrondo.",
+        kind: "message",
+      },
+    ],
   };
 }
 

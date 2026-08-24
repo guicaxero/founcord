@@ -18,6 +18,12 @@ const repository = vi.hoisted(() => ({
   claimFoundrySync: vi.fn(),
   completeFoundrySync: vi.fn(),
   failFoundrySync: vi.fn(),
+  startFoundryCaptureSession: vi.fn(),
+  listFoundryCaptureSessions: vi.fn(),
+  endFoundryCaptureSession: vi.fn(),
+  cancelFoundryCaptureSession: vi.fn(),
+  recordFoundryChatBatch: vi.fn(),
+  getFoundryCaptureTranscript: vi.fn(),
 }));
 
 const portal = vi.hoisted(() => ({
@@ -99,6 +105,30 @@ describe("Foundry Bridge Worker", () => {
     });
     repository.listFoundryWorlds.mockResolvedValue([]);
     repository.revokeFoundryWorld.mockResolvedValue(true);
+    repository.startFoundryCaptureSession.mockResolvedValue(captureSession());
+    repository.listFoundryCaptureSessions.mockResolvedValue([captureSession()]);
+    repository.endFoundryCaptureSession.mockResolvedValue({
+      ...captureSession(),
+      status: "ended",
+      endedAt: "2026-08-24T20:30:00.000Z",
+    });
+    repository.cancelFoundryCaptureSession.mockResolvedValue({
+      ...captureSession(),
+      status: "cancelled",
+      endedAt: "2026-08-24T20:30:00.000Z",
+    });
+    repository.recordFoundryChatBatch.mockResolvedValue({
+      batchId: "99999999-9999-4999-8999-999999999999",
+      captureSessionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      accepted: 1,
+      ignored: 0,
+      duplicate: false,
+    });
+    repository.getFoundryCaptureTranscript.mockResolvedValue({
+      session: { ...captureSession(), status: "ended" },
+      transcript: "[2026-08-24T20:00:00.000Z] Mestre: A porta cede.",
+      truncated: false,
+    });
     portal.syncCharactersWithPortal.mockResolvedValue({
       syncId: "55555555-5555-4555-8555-555555555555",
       accepted: 1,
@@ -266,6 +296,53 @@ describe("Foundry Bridge Worker", () => {
     expect(repository.completeFoundryCommand).toHaveBeenCalledOnce();
   });
 
+  it("recebe lotes de chat somente de um mundo autenticado", async () => {
+    const body = chatBatch();
+    const unauthorized = await request(`/v1/worlds/${worldId}/chat/batches`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    expect(unauthorized.status).toBe(401);
+
+    const response = await request(`/v1/worlds/${worldId}/chat/batches`, {
+      method: "POST",
+      headers: bearer(accessToken),
+      body: JSON.stringify(body),
+    });
+    expect(response.status).toBe(200);
+    expect(repository.recordFoundryChatBatch).toHaveBeenCalledWith(env, worldId, body);
+  });
+
+  it("controla o ciclo da captura somente pela API interna", async () => {
+    const sessionId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const path = `/internal/foundry/campaigns/${campaignId}/worlds/${worldId}/capture-sessions`;
+    const unauthorized = await request(path, {
+      method: "POST",
+      body: JSON.stringify({ sessionId, campaignId, worldId, startedAt: "2026-08-24T20:00:00.000Z" }),
+    });
+    expect(unauthorized.status).toBe(401);
+
+    const created = await request(path, {
+      method: "POST",
+      headers: bearer(serviceToken),
+      body: JSON.stringify({ sessionId, campaignId, worldId, startedAt: "2026-08-24T20:00:00.000Z" }),
+    });
+    expect(created.status).toBe(201);
+
+    const ended = await request(`${path}/${sessionId}/end`, {
+      method: "POST",
+      headers: bearer(serviceToken),
+      body: "{}",
+    });
+    expect(ended.status).toBe(200);
+
+    const transcript = await request(`${path}/${sessionId}/transcript`, {
+      headers: bearer(serviceToken),
+    });
+    expect(transcript.status).toBe(200);
+    expect(await transcript.json()).toMatchObject({ truncated: false });
+  });
+
   function request(path: string, init?: RequestInit) {
     return foundryApp.fetch(
       new Request(`https://foundry.example${path}`, init),
@@ -308,6 +385,40 @@ function characterSync() {
           corruption: 0,
         },
         sourceUpdatedAt: "2026-08-23T01:59:00.000Z",
+      },
+    ],
+  };
+}
+
+function captureSession() {
+  return {
+    sessionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    campaignId,
+    worldId,
+    worldTitle: "Ordem da Última Luz",
+    worldStatus: "online" as const,
+    status: "active" as const,
+    startedAt: "2026-08-24T20:00:00.000Z",
+    endedAt: null,
+    messageCount: 1,
+    lastMessageAt: "2026-08-24T20:00:00.000Z",
+  };
+}
+
+function chatBatch() {
+  return {
+    batchId: "99999999-9999-4999-8999-999999999999",
+    capturedAt: "2026-08-24T20:00:00.000Z",
+    messages: [
+      {
+        messageId: "chat-001",
+        createdAt: "2026-08-24T20:00:00.000Z",
+        authorUserId: "user-001",
+        authorName: "Mestre",
+        speakerActorId: null,
+        speakerName: null,
+        content: "A porta de ferro cede.",
+        kind: "message" as const,
       },
     ],
   };

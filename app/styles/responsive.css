@@ -49,6 +49,16 @@
     grid-template-columns: 1fr;
   }
 
+  .session-sources,
+  .draft-source-inventory {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .session-source-card:last-child,
+  .draft-source-inventory article:last-child {
+    grid-column: 1 / -1;
+  }
+
   .automation-editor {
     position: static;
   }
@@ -271,7 +281,12 @@
   }
 
   .foundry-world-grid,
-  .pairing-layout {
+  .pairing-layout,
+  .sessions-history-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .active-session-card > header {
     grid-template-columns: 1fr;
   }
 
@@ -531,14 +546,18 @@
 
   .foundry-overview,
   .automation-overview,
+  .sessions-overview,
   .foundry-list-heading,
   .automation-list-heading,
+  .sessions-history-heading,
+  .prepare-draft-heading,
   .pairing-card-heading {
     align-items: flex-start;
     flex-direction: column;
   }
 
   .foundry-overview .admin-primary,
+  .sessions-overview .admin-primary,
   .foundry-list-heading .secondary-action,
   .foundry-world-card > footer .secondary-action,
   .foundry-world-card > footer .danger-secondary {
@@ -547,10 +566,41 @@
 
   .foundry-metrics,
   .automation-metrics,
+  .session-sources,
+  .session-primary-meta,
+  .draft-source-inventory,
+  .session-end-summary,
   .foundry-world-stats,
   .foundry-technical-details dl,
   .pairing-world-details {
     grid-template-columns: 1fr;
+  }
+
+  .session-source-card:last-child,
+  .draft-source-inventory article:last-child {
+    grid-column: auto;
+  }
+
+  .active-session-actions,
+  .session-draft-actions,
+  .session-editorial-actions,
+  .sessions-form-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .active-session-actions button,
+  .session-draft-actions button,
+  .session-editorial-actions button,
+  .sessions-form-actions button,
+  .session-history-card > footer button,
+  .sessions-filters {
+    width: 100%;
+  }
+
+  .sessions-filters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .foundry-metrics article + article,
