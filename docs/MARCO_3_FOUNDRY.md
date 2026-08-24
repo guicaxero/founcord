@@ -128,7 +128,9 @@ As releases são empacotadas no repositório público
 `guicaxero/founcord-module-foundryVTT`; nenhum secret faz parte do artefato.
 Durante o desenvolvimento, copie `foundry-module/ordem-foundry-bridge` para
 `Data/modules/`. Depois de ativar o módulo no mundo, confira a URL e o ID da
-campanha nas configurações. Como mestre, execute:
+campanha nas configurações. O primeiro acesso mostra apenas um aviso informativo
+de que o mundo ainda não está conectado; isso não representa falha na ativação.
+Como mestre, execute:
 
 ```js
 await game.modules
