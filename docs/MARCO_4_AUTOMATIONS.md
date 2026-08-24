@@ -101,9 +101,15 @@ Referências oficiais:
 - [Workers AI pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/)
 - [Queues JavaScript APIs](https://developers.cloudflare.com/queues/configuration/javascript-apis/)
 
-O modelo padrão é `@cf/meta/llama-3.1-8b-instruct`. A troca usa a variável
-`AUTOMATION_MODEL` e não exige mudança de contrato. Alguns modelos podem exigir
-faturamento; mantenha um modelo disponível no Workers Free.
+O modelo padrão é `@cf/meta/llama-3.1-8b-instruct-fast`. A variante sem o
+sufixo `-fast` foi descontinuada pela Cloudflare em 30 de maio de 2026, enquanto
+a variante rápida permanece ativa. A troca usa a variável `AUTOMATION_MODEL` e
+não exige mudança de contrato. Alguns modelos podem exigir faturamento;
+mantenha um modelo disponível no Workers Free.
+
+Referência de compatibilidade:
+
+- [Descontinuações de modelos em maio de 2026](https://developers.cloudflare.com/changelog/post/2026-05-08-planned-model-deprecations/)
 
 ## Por que TypeScript, não Python, neste corte
 

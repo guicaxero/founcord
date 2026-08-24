@@ -6,7 +6,7 @@ import {
 import type { ClaimedAutomationJob } from "./repository";
 import type { AutomationEnv } from "./types";
 
-export const DEFAULT_AUTOMATION_MODEL = "@cf/meta/llama-3.1-8b-instruct";
+export const DEFAULT_AUTOMATION_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 
 export async function generateAutomationDraft(
   env: AutomationEnv,
