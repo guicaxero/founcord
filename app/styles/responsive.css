@@ -45,6 +45,14 @@
     grid-template-columns: 1fr;
   }
 
+  .automation-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .automation-editor {
+    position: static;
+  }
+
   .admin-editor,
   .permission-note {
     position: static;
@@ -522,7 +530,9 @@
   }
 
   .foundry-overview,
+  .automation-overview,
   .foundry-list-heading,
+  .automation-list-heading,
   .pairing-card-heading {
     align-items: flex-start;
     flex-direction: column;
@@ -536,6 +546,7 @@
   }
 
   .foundry-metrics,
+  .automation-metrics,
   .foundry-world-stats,
   .foundry-technical-details dl,
   .pairing-world-details {
@@ -543,6 +554,7 @@
   }
 
   .foundry-metrics article + article,
+  .automation-metrics article + article,
   .foundry-world-stats div + div {
     border-top: 1px solid var(--ink-200);
     border-left: 0;
@@ -560,5 +572,24 @@
   .pairing-code {
     max-width: 100%;
     overflow-x: auto;
+  }
+
+  .automation-quota {
+    width: 100%;
+    justify-items: start;
+    text-align: left;
+  }
+
+  .automation-job > header {
+    flex-direction: column;
+  }
+
+  .automation-job-body dl {
+    grid-template-columns: 1fr;
+  }
+
+  .automation-job > footer,
+  .automation-job > footer button {
+    width: 100%;
   }
 }

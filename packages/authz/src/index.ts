@@ -1,5 +1,7 @@
 export const permissions = [
   "audit:read",
+  "automation:read",
+  "automation:run",
   "campaign:manage",
   "foundry:world:manage",
   "integration:manage",
@@ -48,6 +50,8 @@ export const rolePermissions = {
   owner: permissions,
   administrator: [
     "audit:read",
+    "automation:read",
+    "automation:run",
     "campaign:manage",
     "integration:manage",
     "member:manage",
@@ -63,6 +67,8 @@ export const rolePermissions = {
   ],
   campaign_manager: [
     "audit:read",
+    "automation:read",
+    "automation:run",
     "campaign:manage",
     "foundry:world:manage",
     "integration:manage",
@@ -75,8 +81,15 @@ export const rolePermissions = {
     "post:publish",
     "post:review",
   ],
-  gm: ["foundry:world:manage", "mission:create", "mission:edit", "post:create"],
-  editor: ["mission:edit", "post:create", "post:review"],
+  gm: [
+    "automation:read",
+    "automation:run",
+    "foundry:world:manage",
+    "mission:create",
+    "mission:edit",
+    "post:create",
+  ],
+  editor: ["automation:read", "mission:edit", "post:create", "post:review"],
   moderator: ["mission:review", "post:publish", "post:review"],
   player: [],
   automation: ["post:create"],

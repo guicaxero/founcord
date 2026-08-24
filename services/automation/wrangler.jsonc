@@ -1,0 +1,51 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ordem-automation",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "AUTOMATION_DB",
+      "database_name": "ordem-automation-db",
+      "database_id": "fc080895-ad7f-4676-bf04-33b0c0af5fc9",
+      "migrations_dir": "../../drizzle-automation"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  },
+  "services": [
+    {
+      "binding": "PORTAL",
+      "service": "ordem-da-ultima-luz"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "AUTOMATION_JOBS",
+        "queue": "ordem-automation-jobs"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "ordem-automation-jobs",
+        "max_batch_size": 1,
+        "max_batch_timeout": 2,
+        "max_retries": 3,
+        "dead_letter_queue": "ordem-automation-jobs-dlq"
+      }
+    ]
+  },
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+  "vars": {
+    "AUTOMATION_MODEL": "@cf/meta/llama-3.1-8b-instruct",
+    "AUTOMATION_DAILY_JOB_LIMIT": "3"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

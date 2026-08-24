@@ -7,6 +7,8 @@ export const queryKeys = {
     ["campaigns", campaignId, "posts", scope] as const,
   members: (campaignId: string) => ["campaigns", campaignId, "members"] as const,
   audit: (campaignId: string) => ["campaigns", campaignId, "audit"] as const,
+  automations: (campaignId: string) =>
+    ["campaigns", campaignId, "automations"] as const,
   foundryWorlds: (campaignId: string) =>
     ["campaigns", campaignId, "foundry", "worlds"] as const,
 } as const;

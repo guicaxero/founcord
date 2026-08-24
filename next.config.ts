@@ -12,7 +12,7 @@ export default async function configureNext(phase: string): Promise<NextConfig> 
     process.env.MINIFLARE_REGISTRY_PATH ??= ".wrangler/registry";
 
     const { initOpenNextCloudflareForDev } = await import("@opennextjs/cloudflare");
-    initOpenNextCloudflareForDev();
+    await initOpenNextCloudflareForDev();
   }
 
   return nextConfig;

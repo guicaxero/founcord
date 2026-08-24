@@ -14,12 +14,13 @@ import { apiFetch, errorMessage } from "@/lib/api-client";
 import { hasCapability } from "@/lib/capabilities";
 import { queryKeys } from "@/lib/query-keys";
 import { AuditPanel } from "./audit-panel";
+import { AutomationsPanel } from "./automations-panel";
 import { FoundryPanel } from "./foundry-panel";
 import { MembersPanel } from "./members-panel";
 import { MissionsPanel } from "./missions-panel";
 import { PostsPanel } from "./posts-panel";
 
-type Tab = "missions" | "posts" | "foundry" | "members" | "audit" | "campaigns";
+type Tab = "missions" | "posts" | "automations" | "foundry" | "members" | "audit" | "campaigns";
 
 type TabDefinition = Readonly<{
   id: Tab;
@@ -30,6 +31,13 @@ type TabDefinition = Readonly<{
 }>;
 
 const tabDefinitions: readonly TabDefinition[] = [
+  {
+    id: "automations",
+    label: "Automações",
+    eyebrow: "Assistência editorial",
+    description: "Transforme registros de sessão em resumos e rascunhos que sempre passam por revisão humana.",
+    permissions: ["automation:read", "automation:run"],
+  },
   {
     id: "foundry",
     label: "Mundos do Foundry",
@@ -254,6 +262,13 @@ export function DashboardClient() {
           <section className="admin-workspace" id="admin-active-panel" role="tabpanel">
             {activeTab === "missions" ? <MissionsPanel campaignId={campaignId} me={me.data} /> : null}
             {activeTab === "posts" ? <PostsPanel campaignId={campaignId} me={me.data} /> : null}
+            {activeTab === "automations" ? (
+              <AutomationsPanel
+                campaignId={campaignId}
+                me={me.data}
+                onOpenReview={() => setTab("posts")}
+              />
+            ) : null}
             {activeTab === "foundry" && campaign ? (
               <FoundryPanel key={campaignId} campaignId={campaignId} campaignName={campaign.name} />
             ) : null}
