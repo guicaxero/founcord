@@ -8,11 +8,37 @@ export async function assertIntegrationServiceRequest(
   const { env } = getCloudflareContext();
   const expected =
     env.INTEGRATION_SERVICE_TOKEN ?? process.env.INTEGRATION_SERVICE_TOKEN;
+  await assertServiceToken(request, expected, {
+    configurationCode: "integration_not_configured",
+    configurationMessage: "A integração interna ainda não está configurada.",
+  });
+}
+
+export async function assertAutomationServiceRequest(
+  request: Request,
+): Promise<void> {
+  const { env } = getCloudflareContext();
+  const expected =
+    env.AUTOMATION_SERVICE_TOKEN ?? process.env.AUTOMATION_SERVICE_TOKEN;
+  await assertServiceToken(request, expected, {
+    configurationCode: "automation_not_configured",
+    configurationMessage: "O serviço de automações ainda não está configurado.",
+  });
+}
+
+async function assertServiceToken(
+  request: Request,
+  expected: string | undefined,
+  configuration: Readonly<{
+    configurationCode: string;
+    configurationMessage: string;
+  }>,
+): Promise<void> {
   if (!expected || expected.length < 32) {
     throw new HttpError(
       503,
-      "integration_not_configured",
-      "A integração interna ainda não está configurada.",
+      configuration.configurationCode,
+      configuration.configurationMessage,
     );
   }
 

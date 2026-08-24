@@ -215,6 +215,30 @@ export const posts = sqliteTable(
   ],
 );
 
+export const automationDraftLinks = sqliteTable(
+  "automation_draft_links",
+  {
+    jobId: text("job_id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    postId: text("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    requestedByUserId: text("requested_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("uq_automation_draft_links_post_id").on(table.postId),
+    index("idx_automation_draft_links_campaign").on(
+      table.campaignId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const foundryCharacterProjections = sqliteTable(
   "foundry_character_projections",
   {

@@ -71,6 +71,13 @@
       "when": 1787451491520,
       "tag": "0009_jittery_blade",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1787592653923,
+      "tag": "0010_strange_gorgon",
+      "breakpoints": true
     }
   ]
 }

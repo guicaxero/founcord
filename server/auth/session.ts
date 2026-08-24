@@ -101,6 +101,22 @@ export async function getSessionForDiscordUser(
   return hydrateAuthenticatedSession(row, `discord:${discordUserId}`);
 }
 
+export async function getSessionForUserId(
+  userId: string,
+): Promise<AuthenticatedSession | null> {
+  const row = await getD1()
+    .prepare(
+      `SELECT
+        u.id AS user_id, u.discord_user_id, u.display_name, u.avatar_url
+       FROM iam_users u
+       WHERE u.id = ?`,
+    )
+    .bind(userId)
+    .first<UserIdentityRow>();
+  if (!row) return null;
+  return hydrateAuthenticatedSession(row, `internal:${userId}`);
+}
+
 async function hydrateAuthenticatedSession(
   row: UserIdentityRow,
   sessionId: string,

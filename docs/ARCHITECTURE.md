@@ -15,7 +15,8 @@ Discord -> Discord Integration Worker -> Integration D1
                                       -> Portal por Service Binding
                                       -> Queue -> fórum Discord
 Foundry -> Foundry Bridge Worker -> Integration D1 -> Portal por Service Binding
-Automação Python -> Automation Worker -> rascunhos editoriais
+Portal -> Automation Worker -> Automation D1 -> Queue -> Workers AI
+                                              -> Portal -> rascunhos editoriais
 ```
 
 O Next é responsável pela experiência web, composição de respostas e sessão.
@@ -45,13 +46,20 @@ transação.
 É dono das conexões Discord/Foundry, jobs, tentativas, idempotência e IDs
 externos. Não é dono da ficha nem da missão.
 
+### Automation
+
+É dono de fontes temporárias, jobs, leases, tentativas, cota e resultado bruto
+das gerações. Não recebe sessão, papéis ou acesso ao banco do portal. Todo
+resultado volta por callback idempotente e nasce como `pending_review`.
+
 No Marco 2, Discord recebeu uma unidade de implantação independente porque tem
 superfície pública assinada, segredos, limites e perfil de falha diferentes do
 portal. No Marco 2.5, essa fronteira passou a possuir também um D1 independente.
 A comunicação síncrona usa Service Binding e a publicação externa usa Queue.
 No Marco 3, o Foundry recebeu um Bridge Worker próprio: sua autenticação,
-presença, polling e perfil de falha são diferentes do Discord. Automações só
-recebem Worker próprio quando forem implementadas.
+presença, polling e perfil de falha são diferentes do Discord. No Marco 4,
+automações receberam Worker, Queue e D1 próprios para isolar conteúdo enviado à
+IA, cota e falhas de inferência.
 
 ## Fontes de verdade
 
@@ -61,6 +69,8 @@ recebem Worker próprio quando forem implementadas.
 | Missões, inscrições e posts | Campaign Service |
 | Usuários, sessões e permissões | Identity Service |
 | Mensagens e tópicos publicados | Discord, referenciados pelo Integration Service |
+| Jobs e fontes temporárias de automação | Automation Service |
+| Rascunho editorial gerado | Campaign Service, após callback interno |
 
 O portal guarda apenas uma projeção sanitizada da ficha necessária para a
 campanha. Assim, comandos editoriais continuam funcionando quando o Foundry
@@ -77,12 +87,14 @@ está offline.
 
 ## Persistência
 
-Produção utiliza dois D1 físicos. O portal mantém Identity e Campaign juntos;
-integrações externas possuem banco próprio e não acessam o binding do portal:
+Produção utiliza três D1 físicos. O portal mantém Identity e Campaign juntos;
+integrações externas e automações possuem bancos próprios e não acessam o
+binding do portal:
 
 ```text
 ordem-da-ultima-luz <- Identity, Campaign, auditoria e outbox
 ordem-integration-db <- inbox, deliveries, Discord e Foundry
+ordem-automation-db <- jobs, leases, fontes temporárias e cota
 ```
 
 Uma separação futura de `identity-db` e `campaign-db` só acontecerá quando esses
@@ -136,6 +148,8 @@ explícita.
 - Integration Workers não recebem binding para o banco do portal.
 - Filas usam entrega pelo menos uma vez; consumidores devem ser idempotentes.
 - Automações e IA produzem rascunhos, nunca conteúdo publicado diretamente.
+- Fontes concluídas são descartadas após 30 dias e jobs cancelados apagam o
+  texto imediatamente.
 
 Um novo Worker é criado quando o domínio exige ao menos um destes limites:
 segurança própria, escala independente, isolamento de falhas ou ciclo de release

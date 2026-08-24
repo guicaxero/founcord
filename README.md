@@ -26,6 +26,7 @@ services/identity/      autenticação, sessões e autorização
 services/campaign/      missões, inscrições, posts e campanha
 services/integration/   integração HTTP e Queue do Discord
 services/foundry/       Bridge HTTPS, presença, sync e comandos Foundry
+services/automation/    jobs editoriais, Queue, cota e Workers AI
 docs/                   arquitetura, ADRs e matriz de acesso
 ```
 
@@ -121,3 +122,14 @@ sistema `demonlord` e inicia somente conexões HTTPS de saída.
 
 Consulte [o runbook do Marco 3](docs/MARCO_3_FOUNDRY.md) para segurança,
 contratos, migrations, instalação do módulo e validação.
+
+## Marco 4 — Automações editoriais
+
+O portal cria jobs autorizados em um Worker e D1 independentes. Workers AI
+produz resumos, crônicas ou extrações a partir de texto fornecido; a saída é
+validada e materializada exclusivamente como post `pending_review`. Queue,
+leases, idempotência, cota diária e retenção de 30 dias protegem o fluxo e o
+plano gratuito.
+
+Consulte [o runbook do Marco 4](docs/MARCO_4_AUTOMATIONS.md) para segurança,
+custos, recursos, secrets, migrations, deploy e rollback.
