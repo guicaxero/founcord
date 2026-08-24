@@ -16,6 +16,33 @@ describe("automation generator output", () => {
     });
   });
 
+  it("accepts a structured JSON Mode response from Workers AI", () => {
+    expect(
+      parseGeneratedDraft({
+        response: {
+          title: "As cinco verdades de Rûl",
+          body: "## Resumo\n\nA fé, a magia, o avanço da civilização, os monstros e a crise imperial moldam o mundo conhecido.",
+        },
+      }),
+    ).toEqual({
+      title: "As cinco verdades de Rûl",
+      body: "## Resumo\n\nA fé, a magia, o avanço da civilização, os monstros e a crise imperial moldam o mundo conhecido.",
+    });
+  });
+
+  it("accepts the nested envelope used by the Workers AI REST API", () => {
+    expect(
+      parseGeneratedDraft({
+        result: {
+          response: {
+            title: "Registro da vigília",
+            body: "## Resumo\n\nA patrulha preservou o registro recebido e o encaminhou para revisão antes de qualquer publicação.",
+          },
+        },
+      }).title,
+    ).toBe("Registro da vigília");
+  });
+
   it("removes a markdown fence without accepting prose outside the JSON", () => {
     const result = parseGeneratedDraft({
       response:
