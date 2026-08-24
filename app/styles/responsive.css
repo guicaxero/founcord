@@ -261,6 +261,19 @@
     border-top: 1px solid var(--ink-200);
     border-left: 0;
   }
+
+  .foundry-world-grid,
+  .pairing-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .pairing-authorization-card {
+    position: static;
+  }
+
+  .foundry-instruction-body ol {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
@@ -506,5 +519,46 @@
 
   .dashboard-state-actions a {
     width: 100%;
+  }
+
+  .foundry-overview,
+  .foundry-list-heading,
+  .pairing-card-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .foundry-overview .admin-primary,
+  .foundry-list-heading .secondary-action,
+  .foundry-world-card > footer .secondary-action,
+  .foundry-world-card > footer .danger-secondary {
+    width: 100%;
+  }
+
+  .foundry-metrics,
+  .foundry-world-stats,
+  .foundry-technical-details dl,
+  .pairing-world-details {
+    grid-template-columns: 1fr;
+  }
+
+  .foundry-metrics article + article,
+  .foundry-world-stats div + div {
+    border-top: 1px solid var(--ink-200);
+    border-left: 0;
+  }
+
+  .pairing-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pairing-header > span {
+    margin-left: 50px;
+  }
+
+  .pairing-code {
+    max-width: 100%;
+    overflow-x: auto;
   }
 }

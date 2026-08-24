@@ -1,0 +1,2 @@
+ALTER TABLE `foundry_pairing_sessions` ADD `request_key_hash` text;--> statement-breakpoint
+CREATE INDEX `idx_foundry_pairing_request_created` ON `foundry_pairing_sessions` (`request_key_hash`,`created_at`);

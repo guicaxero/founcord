@@ -8,14 +8,14 @@ portal sem expor a máquina do mestre à internet:
 - Worker independente `ordem-foundry-bridge`;
 - módulo Foundry compatível com as versões 13 e 14;
 - sistema obrigatório `demonlord`;
-- registro seguro e revogável de mundos;
+- pareamento guiado, seguro e revogável de mundos;
 - heartbeat e estado online/offline derivado;
 - sincronização integral de uma projeção sanitizada dos personagens;
 - fila de comandos idempotente com lease, retry e expiração.
 
-Não fazem parte deste corte a tela administrativa de mundos, associação visual
-entre usuário Discord e ator ou comandos de alteração de ficha. Esses fluxos
-serão adicionados sobre os contratos já versionados.
+Também fazem parte deste corte a autorização dedicada no portal e a tela de
+gestão dos mundos da campanha. Associação visual entre usuário Discord e ator e
+comandos de alteração de ficha continuam fora deste escopo.
 
 ## Topologia
 
@@ -33,7 +33,8 @@ ou acesso remoto ao computador do mestre.
 ### Integration D1
 
 - `foundry_worlds`: metadados, hash da credencial e último heartbeat;
-- `foundry_enrollment_tokens`: hashes de bootstrap já utilizados;
+- `foundry_pairing_sessions`: solicitações temporárias, código humano e estado
+  da autorização;
 - `foundry_commands`: fila, leases, tentativas e resultados;
 - `foundry_actor_links`: IDs externos e último sync observado;
 - `integration_inbox_events`: deduplicação dos snapshots recebidos.
@@ -48,18 +49,27 @@ A ficha mecânica continua tendo o Foundry como fonte de verdade. O portal não
 recebe descrições, notas do mestre, inventário, itens, imagens ou conteúdo de
 livros.
 
-## Segurança do registro
+## Segurança do pareamento
 
-1. `FOUNDRY_ENROLLMENT_TOKEN` existe somente como secret do Bridge Worker.
-2. O mestre o informa diretamente à API local do módulo; ele não é salvo.
-3. O Bridge grava apenas o SHA-256 do bootstrap e aceita esse hash uma vez.
-4. O Bridge devolve uma credencial operacional aleatória de 256 bits.
-5. O servidor guarda apenas o hash dessa credencial.
-6. Reconfigurar o secret Cloudflare permite registrar ou rotacionar outro mundo.
-7. Um administrador pode revogar o mundo pela API interna.
+1. O módulo inicia uma solicitação com a identidade sanitizada do mundo, sem
+   informar campanha ou papel.
+2. O Bridge devolve um `deviceCode` aleatório de 256 bits e um código humano
+   `LUME-XXXX-XXXX`, ambos válidos por dez minutos.
+3. O banco guarda somente o SHA-256 dos códigos; o valor bruto não é recuperável.
+4. No portal, a sessão Discord vê apenas campanhas em que possui
+   `foundry:world:manage`.
+5. `owner` pode autorizar qualquer campanha. `campaign_manager` e `gm` podem
+   autorizar somente a própria campanha. Jogador e usuário comum recebem 403.
+6. Depois da autorização, o Foundry troca o `deviceCode` uma única vez por uma
+   credencial operacional aleatória diferente. Uma segunda troca é recusada e o
+   código temporário nunca autentica heartbeat, sincronização ou comandos.
+7. O servidor armazena somente o hash da credencial operacional. Ela é vinculada
+   ao mundo e pode ser revogada no portal ou no Foundry.
+8. A criação pública aplica limite por origem, limite global e remove sessões
+   antigas automaticamente para conter abuso do armazenamento D1.
 
-Não envie os secrets em chat, issue, commit ou screenshot. Use `wrangler secret
-put` diretamente no terminal.
+O ID da campanha nunca é aceito do cliente Foundry. A autorização é revalidada
+no backend, independentemente dos controles visuais do portal.
 
 ## Presença
 
@@ -100,10 +110,9 @@ npm run db:migrate:remote
 
 ## Secrets e deploy
 
-Cadastre secrets sem colocá-los em arquivos versionados:
+Cadastre o secret de comunicação interna sem colocá-lo em arquivos versionados:
 
 ```bash
-npx wrangler secret put FOUNDRY_ENROLLMENT_TOKEN --config services/foundry/wrangler.jsonc
 npx wrangler secret put INTEGRATION_SERVICE_TOKEN --config services/foundry/wrangler.jsonc
 ```
 
@@ -132,20 +141,10 @@ Worker, os contratos e esta documentação, mas não contém uma cópia do clien
 Foundry.
 
 Durante o desenvolvimento do módulo, trabalhe diretamente no repositório
-público e instale-o em `Data/modules/ordem-foundry-bridge`. Depois de ativá-lo
-no mundo, confira a URL e o ID da campanha nas configurações. O primeiro acesso
-mostra apenas um aviso informativo de que o mundo ainda não está conectado; isso
-não representa falha na ativação. Como mestre, execute:
-
-```js
-await game.modules
-  .get("ordem-foundry-bridge")
-  .api.registerWorld("TOKEN_DE_BOOTSTRAP")
-```
-
-Depois do registro, rotacione `FOUNDRY_ENROLLMENT_TOKEN` antes de cadastrar
-outro mundo. O módulo mantém somente o token operacional no armazenamento local
-do navegador do mestre.
+público e instale-o em `Data/modules/ordem-foundry-bridge`. Depois de ativá-lo,
+um mestre abre **Configurações → Configurar módulos → Ordem da Última Luz →
+Gerenciar conexão**, gera o código e autoriza no portal. O módulo mantém somente
+a credencial operacional no armazenamento local do navegador do mestre.
 
 ## Verificação
 
@@ -158,9 +157,9 @@ npm run test:unit
 node --test tests/foundry-bridge.test.mjs
 ```
 
-O teste ponta a ponta usa Miniflare e D1 reais: registra, envia heartbeat,
-deduplica comando, executa lease/ack, sincroniza ator, deduplica o snapshot e
-revoga o mundo.
+O teste ponta a ponta usa Miniflare e D1 reais: cria e autoriza o pareamento,
+envia heartbeat, deduplica comando, executa lease/ack, sincroniza ator, deduplica
+o snapshot e revoga o mundo.
 
 ## Rollback
 

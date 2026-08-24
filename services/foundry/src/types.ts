@@ -1,8 +1,8 @@
 export type FoundryEnv = Readonly<{
   INTEGRATION_DB: D1Database;
   PORTAL: Fetcher;
-  FOUNDRY_ENROLLMENT_TOKEN: string;
   INTEGRATION_SERVICE_TOKEN: string;
+  PORTAL_URL?: string;
 }>;
 
 export type AuthenticatedWorld = Readonly<{

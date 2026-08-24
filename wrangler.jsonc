@@ -19,7 +19,8 @@
   "vars": {
     "DISCORD_CLIENT_ID": "1540460545558323250",
     "DISCORD_REDIRECT_URI": "https://ordem-da-ultima-luz.ordem-da-ultima-luz.workers.dev/api/auth/discord/callback",
-    "SITE_URL": "https://ordem-da-ultima-luz.ordem-da-ultima-luz.workers.dev"
+    "SITE_URL": "https://ordem-da-ultima-luz.ordem-da-ultima-luz.workers.dev",
+    "FOUNDRY_BRIDGE_URL": "https://ordem-foundry-bridge.ordem-da-ultima-luz.workers.dev"
   },
   "queues": {
     "producers": [

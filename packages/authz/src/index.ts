@@ -1,6 +1,7 @@
 export const permissions = [
   "audit:read",
   "campaign:manage",
+  "foundry:world:manage",
   "integration:manage",
   "member:manage",
   "mission:create",
@@ -45,10 +46,25 @@ export type Principal = Readonly<{
 
 export const rolePermissions = {
   owner: permissions,
-  administrator: permissions,
+  administrator: [
+    "audit:read",
+    "campaign:manage",
+    "integration:manage",
+    "member:manage",
+    "mission:create",
+    "mission:edit",
+    "mission:publish",
+    "mission:review",
+    "post:create",
+    "post:delete",
+    "post:publish",
+    "post:review",
+    "role:assign",
+  ],
   campaign_manager: [
     "audit:read",
     "campaign:manage",
+    "foundry:world:manage",
     "integration:manage",
     "member:manage",
     "mission:create",
@@ -59,7 +75,7 @@ export const rolePermissions = {
     "post:publish",
     "post:review",
   ],
-  gm: ["mission:create", "mission:edit", "post:create"],
+  gm: ["foundry:world:manage", "mission:create", "mission:edit", "post:create"],
   editor: ["mission:edit", "post:create", "post:review"],
   moderator: ["mission:review", "post:publish", "post:review"],
   player: [],

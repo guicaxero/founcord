@@ -8,11 +8,11 @@ import { convertV4MiniflareOptions, Miniflare } from "miniflare";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const origin = "http://localhost:8788";
 const campaignId = "11111111-1111-4111-8111-111111111111";
-const enrollmentToken = "test-foundry-enrollment-token-with-at-least-32-bytes";
+const otherCampaignId = "99999999-9999-4999-8999-999999999999";
 const serviceToken = "test-integration-token-with-at-least-32-bytes";
 const staleSyncId = "66666666-6666-4666-8666-666666666666";
 
-test("Marco 3: registro, presença, sincronização e fila Foundry", async () => {
+test("Marco 3: pareamento, escopo de campanha, presença e fila Foundry", async () => {
   const serverRoot = join(root, ".wrangler", "foundry-test-bundle");
   const portalCalls = [];
   const mf = new Miniflare(
@@ -23,8 +23,8 @@ test("Marco 3: registro, presença, sincronização e fila Foundry", async () =>
       compatibilityFlags: ["nodejs_compat", "global_fetch_strictly_public"],
       d1Databases: ["INTEGRATION_DB"],
       bindings: {
-        FOUNDRY_ENROLLMENT_TOKEN: enrollmentToken,
         INTEGRATION_SERVICE_TOKEN: serviceToken,
+        PORTAL_URL: "https://portal.example.test",
       },
       serviceBindings: {
         PORTAL: async (request) => {
@@ -49,29 +49,111 @@ test("Marco 3: registro, presença, sincronização e fila Foundry", async () =>
     const health = await mf.dispatchFetch(`${origin}/health`);
     assert.equal(health.status, 200);
 
-    const unauthorized = await api(mf, "/v1/worlds/register", {
+    const invalidSystem = await api(mf, "/v1/pairings", {
       method: "POST",
-      body: registrationBody(),
+      body: { ...registrationBody(), systemId: "dnd5e" },
     });
-    assert.equal(unauthorized.status, 401);
+    assert.equal(invalidSystem.status, 400);
 
-    const registration = await api(mf, "/v1/worlds/register", {
+    const registration = await api(mf, "/v1/pairings", {
       method: "POST",
-      token: enrollmentToken,
       body: registrationBody(),
     });
     assert.equal(registration.status, 201, JSON.stringify(registration.data));
-    assert.match(registration.data.worldId, /^[0-9a-f-]{36}$/u);
-    assert.equal(registration.data.accessToken.length, 43);
-    const { worldId, accessToken } = registration.data;
+    assert.match(registration.data.pairingId, /^[0-9a-f-]{36}$/u);
+    assert.match(registration.data.userCode, /^LUME-/u);
+    assert.equal(registration.data.deviceCode.length, 43);
+    assert.equal(
+      registration.data.verificationUriComplete,
+      `https://portal.example.test/foundry/connect?code=${registration.data.userCode}`,
+    );
+    const { pairingId, deviceCode, userCode } = registration.data;
 
-    const reusedEnrollment = await api(mf, "/v1/worlds/register", {
+    const unauthenticatedPoll = await api(mf, `/v1/pairings/${pairingId}/poll`, {
       method: "POST",
-      token: enrollmentToken,
-      body: registrationBody(),
     });
-    assert.equal(reusedEnrollment.status, 409);
-    assert.equal(reusedEnrollment.data.error, "enrollment_token_used");
+    assert.equal(unauthenticatedPoll.status, 401);
+
+    const pending = await api(mf, `/v1/pairings/${pairingId}/poll`, {
+      method: "POST",
+      token: deviceCode,
+    });
+    assert.equal(pending.status, 200);
+    assert.equal(pending.data.status, "pending");
+
+    const preview = await api(mf, "/internal/foundry/pairings/preview", {
+      method: "POST",
+      token: serviceToken,
+      body: { userCode },
+    });
+    assert.equal(preview.status, 200, JSON.stringify(preview.data));
+    assert.equal(preview.data.worldTitle, "Ordem da Última Luz");
+    assert.equal(preview.data.status, "pending");
+
+    const approvalBody = {
+      campaignId,
+      campaignName: "Ordem da Última Luz",
+      authorizedByUserId: "88888888-8888-4888-8888-888888888888",
+    };
+    const approved = await api(
+      mf,
+      `/internal/foundry/pairings/${pairingId}/approve`,
+      { method: "POST", token: serviceToken, body: approvalBody },
+    );
+    assert.equal(approved.status, 200, JSON.stringify(approved.data));
+    const worldId = approved.data.worldId;
+
+    const reusedForAnotherCampaign = await api(
+      mf,
+      `/internal/foundry/pairings/${pairingId}/approve`,
+      {
+        method: "POST",
+        token: serviceToken,
+        body: { ...approvalBody, campaignId: otherCampaignId },
+      },
+    );
+    assert.equal(reusedForAnotherCampaign.status, 409);
+
+    const authorized = await api(mf, `/v1/pairings/${pairingId}/poll`, {
+      method: "POST",
+      token: deviceCode,
+    });
+    assert.equal(authorized.status, 200, JSON.stringify(authorized.data));
+    assert.equal(authorized.data.status, "authorized");
+    assert.equal(authorized.data.worldId, worldId);
+    assert.equal(authorized.data.campaignName, "Ordem da Última Luz");
+    assert.equal(authorized.data.accessToken.length, 43);
+    assert.notEqual(authorized.data.accessToken, deviceCode);
+    const accessToken = authorized.data.accessToken;
+
+    const consumedPoll = await api(mf, `/v1/pairings/${pairingId}/poll`, {
+      method: "POST",
+      token: deviceCode,
+    });
+    assert.equal(consumedPoll.status, 409);
+    assert.equal(consumedPoll.data.error, "pairing_consumed");
+
+    const pairingRow = await db
+      .prepare(
+        "SELECT device_code_hash, user_code_hash, status FROM foundry_pairing_sessions WHERE id = ?",
+      )
+      .bind(pairingId)
+      .first();
+    assert.equal(pairingRow.status, "authorized");
+    assert.notEqual(pairingRow.device_code_hash, deviceCode);
+    assert.notEqual(pairingRow.user_code_hash, userCode);
+
+    const heartbeatWithDeviceCode = await api(mf, `/v1/worlds/${worldId}/heartbeat`, {
+      method: "POST",
+      token: deviceCode,
+      body: {
+        observedAt: "2099-01-01T00:00:00.000Z",
+        activeUsers: 1,
+        actorCount: 0,
+      },
+    });
+    assert.equal(heartbeatWithDeviceCode.status, 401);
+    assert.equal(heartbeatWithDeviceCode.data.error, "invalid_world_token");
 
     const heartbeat = await api(mf, `/v1/worlds/${worldId}/heartbeat`, {
       method: "POST",
@@ -84,14 +166,33 @@ test("Marco 3: registro, presença, sincronização e fila Foundry", async () =>
     });
     assert.equal(heartbeat.status, 200, JSON.stringify(heartbeat.data));
 
-    const worlds = await api(mf, "/internal/foundry/worlds", {
+    const worlds = await api(mf, `/internal/foundry/campaigns/${campaignId}/worlds`, {
       token: serviceToken,
     });
     assert.equal(worlds.status, 200);
     assert.equal(worlds.data.worlds[0].status, "online");
     assert.notEqual(worlds.data.worlds[0].lastSeenAt, "2099-01-01T00:00:00.000Z");
 
-    const commandPath = `/internal/foundry/worlds/${worldId}/commands`;
+    const otherCampaignWorlds = await api(
+      mf,
+      `/internal/foundry/campaigns/${otherCampaignId}/worlds`,
+      { token: serviceToken },
+    );
+    assert.deepEqual(otherCampaignWorlds.data.worlds, []);
+
+    const crossCampaignCommand = await api(
+      mf,
+      `/internal/foundry/campaigns/${otherCampaignId}/worlds/${worldId}/commands`,
+      {
+        method: "POST",
+        token: serviceToken,
+        headers: { "idempotency-key": "test:cross:campaign" },
+        body: { command: { type: "actor.sync.request", payload: {} } },
+      },
+    );
+    assert.equal(crossCampaignCommand.status, 404);
+
+    const commandPath = `/internal/foundry/campaigns/${campaignId}/worlds/${worldId}/commands`;
     const commandBody = {
       command: { type: "actor.sync.request", payload: {} },
     };
@@ -187,10 +288,46 @@ test("Marco 3: registro, presença, sincronização e fila Foundry", async () =>
     assert.equal(duplicateSync.data.duplicate, true);
     assert.equal(portalCalls.length, 2);
 
-    const revoked = await api(mf, `/internal/foundry/worlds/${worldId}`, {
+    const crossCampaignRevoke = await api(
+      mf,
+      `/internal/foundry/campaigns/${otherCampaignId}/worlds/${worldId}`,
+      { method: "DELETE", token: serviceToken },
+    );
+    assert.equal(crossCampaignRevoke.status, 404);
+
+    const stillAuthorized = await api(mf, `/v1/worlds/${worldId}/heartbeat`, {
+      method: "POST",
+      token: accessToken,
+      body: {
+        observedAt: new Date().toISOString(),
+        activeUsers: 1,
+        actorCount: 1,
+      },
+    });
+    assert.equal(stillAuthorized.status, 200);
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const additionalPairing = await api(mf, "/v1/pairings", {
+        method: "POST",
+        body: registrationBody(),
+      });
+      assert.equal(additionalPairing.status, 201);
+    }
+    const rateLimitedPairing = await api(mf, "/v1/pairings", {
+      method: "POST",
+      body: registrationBody(),
+    });
+    assert.equal(rateLimitedPairing.status, 429);
+    assert.equal(rateLimitedPairing.data.error, "pairing_rate_limited");
+
+    const revoked = await api(
+      mf,
+      `/internal/foundry/campaigns/${campaignId}/worlds/${worldId}`,
+      {
       method: "DELETE",
       token: serviceToken,
-    });
+      },
+    );
     assert.equal(revoked.status, 200);
     const afterRevoke = await api(mf, `/v1/worlds/${worldId}/heartbeat`, {
       method: "POST",
@@ -202,6 +339,7 @@ test("Marco 3: registro, presença, sincronização e fila Foundry", async () =>
       },
     });
     assert.equal(afterRevoke.status, 401);
+    assert.equal(afterRevoke.data.error, "world_revoked");
   } finally {
     await mf.dispose();
   }
@@ -238,14 +376,13 @@ async function api(mf, path, options = {}) {
 
 function registrationBody() {
   return {
-    campaignId,
     worldInstanceId: "33333333-3333-4333-8333-333333333333",
     foundryWorldId: "ordem-da-ultima-luz",
     worldTitle: "Ordem da Última Luz",
     systemId: "demonlord",
     foundryVersion: "14.320",
     systemVersion: "6.1.4",
-    moduleVersion: "0.1.0",
+    moduleVersion: "0.2.0",
   };
 }
 

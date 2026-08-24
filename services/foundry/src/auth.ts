@@ -1,5 +1,5 @@
 import type { FoundryEnv, AuthenticatedWorld } from "./types";
-import { findWorldByTokenHash } from "./repository";
+import { findWorldByTokenHash, getFoundryWorldCredentialState } from "./repository";
 
 export function bearerToken(request: Request): string {
   const authorization = request.headers.get("authorization") ?? "";
@@ -36,6 +36,9 @@ export async function authenticateWorld(
   }
   const world = await findWorldByTokenHash(env, worldId, await hashToken(token));
   if (!world) {
+    if ((await getFoundryWorldCredentialState(env, worldId)) === "revoked") {
+      throw new FoundryBridgeError(401, "world_revoked", "A conexão deste mundo foi revogada.");
+    }
     throw new FoundryBridgeError(401, "invalid_world_token", "Mundo não autorizado.");
   }
   return world;
@@ -65,7 +68,7 @@ function constantTimeEqual(left: string, right: string): boolean {
 
 export class FoundryBridgeError extends Error {
   constructor(
-    readonly status: 400 | 401 | 404 | 409 | 503,
+    readonly status: 400 | 401 | 404 | 409 | 429 | 503,
     readonly code: string,
     message: string,
   ) {
