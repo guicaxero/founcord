@@ -14,6 +14,12 @@ Esse documento é a fonte de verdade para decisões de UI/UX do projeto. Nenhuma
 - O papel global de proprietário nunca deve parecer removível por um controle de campanha.
 - Use conteúdo real da Ordem da Última Luz; não invente ambientação quando houver conteúdo oficial no repositório.
 
+## Limites entre repositórios
+
+- O código, o manifesto e as releases do módulo cliente do Foundry residem exclusivamente em `guicaxero/founcord-module-foundryVTT`.
+- Este monorepo mantém o portal, os Workers, os contratos compartilhados e a documentação da integração, mas não deve receber uma cópia do código do módulo.
+- Alterações que precisem dos dois lados devem usar PRs independentes e contratos versionados, sem duplicar arquivos entre os repositórios.
+
 ## Fluxo Git
 
 - Toda mudança deve chegar à `main` por Pull Request.

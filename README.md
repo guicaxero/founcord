@@ -26,9 +26,14 @@ services/identity/      autenticação, sessões e autorização
 services/campaign/      missões, inscrições, posts e campanha
 services/integration/   integração HTTP e Queue do Discord
 services/foundry/       Bridge HTTPS, presença, sync e comandos Foundry
-foundry-module/          módulo instalável para Foundry VTT 13–14
 docs/                   arquitetura, ADRs e matriz de acesso
 ```
+
+O módulo cliente do Foundry possui ciclo de vida e releases independentes no
+repositório público
+[`guicaxero/founcord-module-foundryVTT`](https://github.com/guicaxero/founcord-module-foundryVTT).
+Este monorepo mantém somente o portal, os serviços, os contratos e a
+documentação da integração.
 
 Os três serviços possuem entradas Hono independentes. Na primeira fase, o
 portal e o banco são implantados juntos para caber no plano gratuito; os
