@@ -42,7 +42,7 @@
     "crons": ["*/5 * * * *"]
   },
   "vars": {
-    "AUTOMATION_MODEL": "@cf/meta/llama-3.1-8b-instruct",
+    "AUTOMATION_MODEL": "@cf/meta/llama-3.1-8b-instruct-fast",
     "AUTOMATION_DAILY_JOB_LIMIT": "3"
   },
   "observability": {

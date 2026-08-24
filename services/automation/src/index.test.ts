@@ -63,7 +63,7 @@ describe("Automation Worker queue", () => {
       },
     });
     generator.generateAutomationDraft.mockResolvedValue({
-      model: "@cf/meta/llama-3.1-8b-instruct",
+      model: "@cf/meta/llama-3.1-8b-instruct-fast",
       draft: {
         title: "Resumo da patrulha",
         body: "## Resumo\n\nA patrulha alcançou o moinho e preservou os registros encontrados.",
@@ -90,7 +90,7 @@ describe("Automation Worker queue", () => {
       "lease-token",
       expect.any(Object),
       postId,
-      "@cf/meta/llama-3.1-8b-instruct",
+      "@cf/meta/llama-3.1-8b-instruct-fast",
     );
     expect(message.ack).toHaveBeenCalledOnce();
     expect(message.retry).not.toHaveBeenCalled();
