@@ -98,6 +98,7 @@ saldo antes de aceitar um novo registro.
 Referências oficiais:
 
 - [Workers AI bindings](https://developers.cloudflare.com/workers-ai/configuration/bindings/)
+- [Workers AI JSON Mode](https://developers.cloudflare.com/workers-ai/features/json-mode/)
 - [Workers AI pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/)
 - [Queues JavaScript APIs](https://developers.cloudflare.com/queues/configuration/javascript-apis/)
 
@@ -106,6 +107,10 @@ sufixo `-fast` foi descontinuada pela Cloudflare em 30 de maio de 2026, enquanto
 a variante rápida permanece ativa. A troca usa a variável `AUTOMATION_MODEL` e
 não exige mudança de contrato. Alguns modelos podem exigir faturamento;
 mantenha um modelo disponível no Workers Free.
+
+A geração usa JSON Mode com um schema explícito para `title` e `body`. O parser
+aceita tanto a resposta estruturada do binding quanto a resposta textual e o
+envelope da API REST, mantendo a validação final pelo contrato Zod.
 
 Referência de compatibilidade:
 

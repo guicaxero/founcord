@@ -8,6 +8,16 @@ import type { AutomationEnv } from "./types";
 
 export const DEFAULT_AUTOMATION_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 
+const AUTOMATION_DRAFT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    title: { type: "string", minLength: 3, maxLength: 140 },
+    body: { type: "string", minLength: 80, maxLength: 20_000 },
+  },
+  required: ["title", "body"],
+  additionalProperties: false,
+} as const;
+
 export async function generateAutomationDraft(
   env: AutomationEnv,
   job: ClaimedAutomationJob["row"],
@@ -25,6 +35,10 @@ export async function generateAutomationDraft(
         }),
       },
     ],
+    response_format: {
+      type: "json_schema",
+      json_schema: AUTOMATION_DRAFT_JSON_SCHEMA,
+    },
     max_tokens: 1_800,
     temperature: job.kind === "chronicle_draft" ? 0.45 : 0.2,
   });
@@ -75,6 +89,9 @@ function userPrompt(input: Readonly<{
 }
 
 export function parseGeneratedDraft(response: unknown): AutomationGeneratedDraft {
+  const structuredDraft = structuredDraftFrom(response);
+  if (structuredDraft) return structuredDraft;
+
   const text = responseText(response);
   const withoutFence = text
     .trim()
@@ -98,12 +115,45 @@ export function parseGeneratedDraft(response: unknown): AutomationGeneratedDraft
   return validated.data;
 }
 
-function responseText(response: unknown): string {
-  if (typeof response === "string") return response;
-  if (response && typeof response === "object") {
-    const record = response as Record<string, unknown>;
-    if (typeof record.response === "string") return record.response;
-    if (typeof record.result === "string") return record.result;
+function structuredDraftFrom(response: unknown): AutomationGeneratedDraft | null {
+  const candidates: unknown[] = [response];
+  for (let index = 0; index < candidates.length && index < 6; index += 1) {
+    const candidate = candidates[index];
+    const validated = AutomationGeneratedDraftSchema.safeParse(candidate);
+    if (validated.success) return validated.data;
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) continue;
+    const record = candidate as Record<string, unknown>;
+    if (record.response && typeof record.response === "object") {
+      candidates.push(record.response);
+    }
+    if (record.result && typeof record.result === "object") {
+      candidates.push(record.result);
+    }
   }
+  return null;
+}
+
+function responseText(response: unknown): string {
+  const text = nestedResponseText(response, 0);
+  if (text) return text;
   throw new Error("A IA não devolveu conteúdo textual.");
+}
+
+function nestedResponseText(value: unknown, depth: number): string | null {
+  if (depth > 4) return null;
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return null;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const nested = nestedResponseText(item, depth + 1);
+      if (nested) return nested;
+    }
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of ["response", "result", "output_text", "content", "choices"] as const) {
+    const nested = nestedResponseText(record[key], depth + 1);
+    if (nested) return nested;
+  }
+  return null;
 }
