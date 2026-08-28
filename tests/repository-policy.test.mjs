@@ -8,8 +8,11 @@ const deploymentPath = new URL(
   import.meta.url,
 );
 
+const readWorkflow = async (path) =>
+  (await readFile(path, "utf8")).replaceAll("\r\n", "\n");
+
 test("pull requests to main execute the repository quality gate", async () => {
-  const workflow = await readFile(ciPath, "utf8");
+  const workflow = await readWorkflow(ciPath);
 
   assert.match(workflow, /pull_request:\s*\n\s+branches:\s*\n\s+- main/u);
   assert.match(workflow, /permissions:\s*\n\s+contents: read/u);
@@ -18,7 +21,7 @@ test("pull requests to main execute the repository quality gate", async () => {
 });
 
 test("production only deploys main after validation and manual dispatch", async () => {
-  const workflow = await readFile(deploymentPath, "utf8");
+  const workflow = await readWorkflow(deploymentPath);
 
   assert.match(workflow, /workflow_dispatch:/u);
   assert.doesNotMatch(workflow, /push:/u);
@@ -30,7 +33,7 @@ test("production only deploys main after validation and manual dispatch", async 
 });
 
 test("production migration and deployment order preserves providers first", async () => {
-  const workflow = await readFile(deploymentPath, "utf8");
+  const workflow = await readWorkflow(deploymentPath);
   const orderedCommands = [
     "npm run db:migrate:remote",
     "npm run db:migrate:integration:remote",
