@@ -8,6 +8,7 @@ import type {
 } from "@vigilia/contracts";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
+import { FeedbackState } from "@/components/ui/feedback-state";
 
 const riskLabels = {
   unknown: "Desconhecida",
@@ -49,14 +50,28 @@ export function MissionBoard({
   });
 
   return (
-    <div className="mission-list" aria-live="polite">
+    <div className="mission-list">
       {missions.isError ? (
-        <div className="board-state">{errorMessage(missions.error)}</div>
+        <FeedbackState
+          title="Não foi possível consultar os chamados"
+          tone="error"
+          role="alert"
+          action={(
+            <button className="secondary-action" type="button" onClick={() => missions.refetch()}>
+              Tentar novamente
+            </button>
+          )}
+        >
+          {errorMessage(missions.error)}
+        </FeedbackState>
+      ) : missions.isFetching && missions.data.data.length === 0 ? (
+        <FeedbackState title="Consultando os chamados" role="status">
+          Estamos buscando as missões publicadas pela Ordem.
+        </FeedbackState>
       ) : missions.data.data.length === 0 ? (
-        <div className="board-state">
-          <strong>Nenhum chamado publicado.</strong>
-          <span>Novas missões aparecerão aqui quando forem anunciadas pela Ordem.</span>
-        </div>
+        <FeedbackState title="Nenhum chamado publicado">
+          Novas missões aparecerão aqui quando forem anunciadas pela Ordem.
+        </FeedbackState>
       ) : (
         missions.data.data.map((mission, index) => (
           <article className="mission-card" key={mission.id}>
@@ -102,7 +117,8 @@ export function MissionBoard({
           </article>
         ))
       )}
-      {signup.isError ? <p className="inline-error">{errorMessage(signup.error)}</p> : null}
+      {signup.isSuccess ? <p className="inline-success" role="status">Inscrição atualizada.</p> : null}
+      {signup.isError ? <p className="inline-error" role="alert">{errorMessage(signup.error)}</p> : null}
     </div>
   );
 }

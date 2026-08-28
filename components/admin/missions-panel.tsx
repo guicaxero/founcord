@@ -81,10 +81,13 @@ export function MissionsPanel({
       <div>
         <div className="admin-section-title">
           <div><span>QUADRO EDITORIAL</span><h2>Missões</h2></div>
-          <b>{missions.data?.data.length ?? 0} registros</b>
+          <div className="admin-section-actions">
+            <b>{missions.data?.data.length ?? 0} registros</b>
+            {canCreate ? <a className="admin-primary" href="#mission-editor">Nova missão</a> : null}
+          </div>
         </div>
-        {missions.isLoading ? <p>Consultando os chamados…</p> : null}
-        {missions.isError ? <p className="inline-error">{errorMessage(missions.error)}</p> : null}
+        {missions.isLoading ? <p role="status">Consultando os chamados…</p> : null}
+        {missions.isError ? <p className="inline-error" role="alert">{errorMessage(missions.error)}</p> : null}
         <div className="admin-list">
           {missions.data?.data.map((mission) => (
             <article key={mission.id}>
@@ -118,8 +121,8 @@ export function MissionsPanel({
             </article>
           ))}
         </div>
-        {transition.isError ? <p className="inline-error">{errorMessage(transition.error)}</p> : null}
-        {archive.isError ? <p className="inline-error">{errorMessage(archive.error)}</p> : null}
+        {transition.isError ? <p className="inline-error" role="alert">{errorMessage(transition.error)}</p> : null}
+        {archive.isError ? <p className="inline-error" role="alert">{errorMessage(archive.error)}</p> : null}
       </div>
 
       {canCreate || editing ? (
@@ -186,7 +189,7 @@ function MissionForm({
   }
 
   return (
-    <aside className="admin-editor">
+    <aside className="admin-editor" id="mission-editor">
       <div className="admin-section-title">
         <div><span>{mission ? "EDIÇÃO" : "NOVO CHAMADO"}</span><h2>{mission ? mission.title : "Criar missão"}</h2></div>
       </div>
@@ -202,7 +205,7 @@ function MissionForm({
           {mission ? <button type="button" onClick={onCancel}>Cancelar</button> : null}
         </div>
       </form>
-      {error ? <p className="inline-error">{error}</p> : null}
+      {error ? <p className="inline-error" role="alert">{error}</p> : null}
     </aside>
   );
 }

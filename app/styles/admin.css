@@ -10,6 +10,8 @@
   position: sticky;
   top: 0;
   height: 100vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   border-right: 1px solid #34352f;
@@ -48,7 +50,7 @@
 
 .admin-brand small {
   color: #a8a79d;
-  font-size: 0.55rem;
+  font-size: var(--text-xs);
   font-weight: 750;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -71,7 +73,7 @@
 .admin-campaign-picker label,
 .admin-nav-label {
   color: #929187;
-  font-size: 0.62rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -79,7 +81,7 @@
 
 .admin-campaign-picker select {
   width: 100%;
-  min-height: 42px;
+  min-height: var(--control-min-height);
   border: 1px solid #4e5048;
   border-radius: var(--radius-sm);
   background: #1d1e1a;
@@ -94,7 +96,7 @@
   gap: 0.55rem;
   margin-top: 0.25rem;
   color: #b8b7ac;
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
 }
 
 .admin-navigation {
@@ -141,9 +143,35 @@
 
 .admin-navigation button small {
   color: #8f8e84;
-  font-size: 0.62rem;
+  font-size: var(--text-xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.admin-mobile-navigation {
+  display: none;
+  gap: var(--space-2);
+  border-bottom: 1px solid #3b3c36;
+  padding: var(--space-4) 0;
+  color: #b8b7ac;
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-mobile-navigation select {
+  width: 100%;
+  min-height: var(--control-min-height);
+  border: 1px solid #55574e;
+  border-radius: var(--radius-sm);
+  background: #1d1e1a;
+  padding: 0.65rem 2rem 0.65rem 0.75rem;
+  color: var(--paper-50);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .admin-user-card {
@@ -178,7 +206,7 @@
 
 .admin-user-card small {
   color: #9a998e;
-  font-size: 0.65rem;
+  font-size: var(--text-xs);
 }
 
 .admin-main {
@@ -198,7 +226,7 @@
 }
 
 .admin-topbar .secondary-action {
-  min-height: 36px;
+  min-height: var(--control-min-height);
   background: var(--paper-50);
 }
 
@@ -207,7 +235,7 @@
   align-items: center;
   gap: 0.55rem;
   color: var(--ink-500);
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
 }
 
 .admin-breadcrumb strong {
@@ -254,7 +282,7 @@
 
 .access-summary > span {
   color: var(--ink-500);
-  font-size: 0.62rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -269,7 +297,7 @@
 .access-summary small {
   margin-top: 0.15rem;
   color: var(--ink-500);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
 }
 
 .admin-workspace,
@@ -329,7 +357,7 @@
 
 .admin-section-title span {
   color: var(--ember-600);
-  font-size: 0.65rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -354,7 +382,7 @@
 
 .admin-section-title b {
   color: var(--ink-500);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -406,12 +434,12 @@
 .form-actions button:not(.admin-primary),
 .danger-secondary,
 .role-remove {
-  min-height: 34px;
+  min-height: var(--control-min-height);
   border: 1px solid var(--ink-300);
   border-radius: var(--radius-sm);
   background: var(--paper-50);
   padding: 0.45rem 0.65rem;
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   font-weight: 750;
 }
 
@@ -433,8 +461,13 @@
 }
 
 .destructive-dialog {
+  position: fixed;
+  inset: 0;
   width: min(92vw, 540px);
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
   border: 0;
+  overflow: auto;
   padding: 0;
   background: transparent;
   color: var(--ink-950);
@@ -459,7 +492,7 @@
 
 .dialog-kicker {
   color: var(--danger-700);
-  font-size: 0.65rem;
+  font-size: var(--text-xs);
   font-weight: 850;
   letter-spacing: 0.14em;
 }
@@ -482,7 +515,7 @@
   display: grid;
   gap: 0.45rem;
   color: var(--ink-700);
-  font-size: 0.74rem;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
@@ -511,11 +544,11 @@
 }
 
 .dialog-actions button {
-  min-height: 42px;
+  min-height: var(--control-min-height);
   border: 1px solid var(--ink-300);
   border-radius: var(--radius-sm);
   padding: 0.65rem 0.9rem;
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   font-weight: 800;
 }
 
@@ -546,13 +579,13 @@
   flex-direction: column;
   gap: 0.4rem;
   color: var(--ink-700);
-  font-size: 0.72rem;
+  font-size: var(--text-sm);
   font-weight: 750;
 }
 
 .admin-form label > small {
   color: var(--ink-500);
-  font-size: 0.67rem;
+  font-size: var(--text-xs);
   font-weight: 500;
   line-height: 1.45;
 }
@@ -572,7 +605,7 @@
 .admin-form select,
 .role-grant-control select {
   width: 100%;
-  min-height: 42px;
+  min-height: var(--control-min-height);
   border: 1px solid var(--ink-300);
   border-radius: var(--radius-sm);
   background: #fffef9;
@@ -2451,4 +2484,97 @@
 
 .session-card-skeleton {
   min-height: 210px;
+}
+
+.admin-editor .admin-form {
+  grid-template-columns: 1fr;
+}
+
+.admin-editor .admin-form .full {
+  grid-column: 1;
+}
+
+.admin-section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.admin-section-actions .admin-primary {
+  min-width: max-content;
+}
+
+/* Fundação acessível: legibilidade e alvos de interação compartilhados. */
+.role-group > header p,
+.role-copy small,
+.member-identity p,
+.you-label,
+.protected-label,
+.permission-note,
+.protected-access-note strong,
+.protected-access-note span,
+.role-grant-control summary,
+.foundry-metrics span,
+.foundry-instruction-body li p,
+.foundry-world-card header p,
+.foundry-reconnect-note,
+.foundry-world-stats dt,
+.foundry-technical-details dt,
+.foundry-technical-details dd,
+.foundry-technical-details > summary,
+.foundry-world-card > footer,
+.foundry-command-card code,
+.pairing-header > span,
+.pairing-world-details dt,
+.pairing-data-note p,
+.pairing-account small,
+.pairing-fixed-campaign small,
+.pairing-fixed-campaign p,
+.pairing-form label,
+.pairing-code-entry form,
+.pairing-security-note,
+.automation-quota span,
+.automation-quota small,
+.automation-metrics span,
+.automation-editor .admin-section-title p,
+.automation-editor .admin-form label > small,
+.optional-field,
+.automation-status,
+.automation-job header p,
+.automation-job time,
+.automation-job-body dt,
+.automation-job-body dd,
+.inline-warning,
+.sessions-refresh-note,
+.sessions-options-note,
+.sessions-registration-summary strong,
+.sessions-registration-summary p,
+.session-status,
+.session-primary-meta dt,
+.session-primary-meta dd,
+.session-source-card dt,
+.session-source-card dd,
+.session-history-card dt,
+.session-end-summary dt,
+.session-end-summary dd,
+.source-kicker,
+.draft-source-inventory span,
+.session-editorial-state > span,
+.session-source-card > p,
+.session-source-action,
+.session-history-card header p,
+.draft-source-inventory small,
+.session-editorial-state p,
+.audit-panel time {
+  font-size: var(--text-xs);
+}
+
+.role-remove,
+.member-management summary,
+.foundry-technical-details > summary,
+.pairing-code,
+.sessions-filters button {
+  min-height: var(--control-min-height);
 }

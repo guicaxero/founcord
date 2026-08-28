@@ -26,14 +26,22 @@ const statusLabels: Readonly<Record<PostStatus, string>> = {
 export function PostsPanel({
   campaignId,
   me,
-}: Readonly<{ campaignId: string; me: CurrentUserResponse }>) {
+  initialPosts,
+}: Readonly<{
+  campaignId: string;
+  me: CurrentUserResponse;
+  initialPosts?: PostListResponse;
+}>) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Post | null>(null);
   const [deleting, setDeleting] = useState<Post | null>(null);
+  const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const posts = useQuery({
     queryKey: queryKeys.posts(campaignId, "editorial"),
     queryFn: () =>
       apiFetch<PostListResponse>(`/api/campaigns/${campaignId}/posts?scope=editorial`),
+    initialData: initialPosts,
+    enabled: initialPosts === undefined,
   });
   const save = useMutation({
     mutationFn: (payload: CreatePostInput | (UpdatePostInput & { id: string })) => {
@@ -75,10 +83,15 @@ export function PostsPanel({
         method: "DELETE",
       }),
     onSuccess: async () => {
-      setDeleting(null);
+      closeDeleteDialog();
       await invalidatePosts(queryClient, campaignId);
     },
   });
+
+  function closeDeleteDialog() {
+    setDeleting(null);
+    window.requestAnimationFrame(() => deleteTriggerRef.current?.focus());
+  }
 
   const canCreate = hasCapability(me, "post:create", campaignId);
   const canReview = hasCapability(me, "post:review", campaignId);
@@ -128,7 +141,16 @@ export function PostsPanel({
                   <button className="danger-link" type="button" onClick={() => archive.mutate(post)}>Arquivar</button>
                 ) : null}
                 {post.status === "archived" && canDelete ? (
-                  <button className="danger-link" type="button" onClick={() => setDeleting(post)}>Excluir permanentemente</button>
+                  <button
+                    className="danger-link"
+                    type="button"
+                    onClick={(event) => {
+                      deleteTriggerRef.current = event.currentTarget;
+                      setDeleting(post);
+                    }}
+                  >
+                    Excluir permanentemente
+                  </button>
                 ) : null}
               </div>
             </article>
@@ -155,7 +177,7 @@ export function PostsPanel({
           post={deleting}
           busy={destroy.isPending}
           error={destroy.isError ? errorMessage(destroy.error) : null}
-          onCancel={() => setDeleting(null)}
+          onCancel={closeDeleteDialog}
           onConfirm={() => destroy.mutate(deleting)}
         />
       ) : null}

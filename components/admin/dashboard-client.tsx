@@ -7,6 +7,7 @@ import type {
   CampaignListResponse,
   CreateCampaignInput,
   CurrentUserResponse,
+  PostListResponse,
 } from "@vigilia/contracts";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
@@ -90,17 +91,28 @@ const tabDefinitions: readonly TabDefinition[] = [
   },
 ];
 
-export function DashboardClient() {
+export function DashboardClient({
+  initialMe,
+  initialCampaigns,
+  initialEditorialPosts,
+}: Readonly<{
+  initialMe?: CurrentUserResponse;
+  initialCampaigns?: CampaignListResponse;
+  initialEditorialPosts?: PostListResponse;
+}> = {}) {
   const [tab, setTab] = useState<Tab>("missions");
   const [selectedCampaign, setSelectedCampaign] = useState("");
   const me = useQuery({
     queryKey: queryKeys.me,
     queryFn: () => apiFetch<CurrentUserResponse>("/api/me"),
+    initialData: initialMe,
+    enabled: initialMe === undefined,
   });
   const campaigns = useQuery({
     queryKey: queryKeys.campaigns,
     queryFn: () => apiFetch<CampaignListResponse>("/api/campaigns"),
-    enabled: me.data?.authenticated === true,
+    initialData: initialCampaigns,
+    enabled: me.data?.authenticated === true && initialCampaigns === undefined,
   });
 
   if (me.isLoading) {
@@ -178,7 +190,7 @@ export function DashboardClient() {
   )?.roleName;
 
   return (
-    <main className="admin-shell">
+    <main className="admin-shell" id="main-content">
       <aside className="admin-sidebar">
         <Link className="admin-brand" href="/">
           <span className="admin-brand-mark" aria-hidden="true">O</span>
@@ -205,15 +217,13 @@ export function DashboardClient() {
           ) : null}
         </div>
 
-        <div className="admin-navigation" aria-label="Áreas de gestão" role="tablist">
+        <nav className="admin-navigation" aria-label="Áreas de gestão">
           <span className="admin-nav-label">Gestão</span>
           {availableTabs.map((definition) => (
             <button
               key={definition.id}
               type="button"
-              role="tab"
-              id={`admin-tab-${definition.id}`}
-              aria-selected={activeTab === definition.id}
+              aria-current={activeTab === definition.id ? "page" : undefined}
               aria-controls="admin-active-panel"
               className={activeTab === definition.id ? "is-active" : ""}
               onClick={() => setTab(definition.id)}
@@ -222,7 +232,27 @@ export function DashboardClient() {
               <small>{definition.eyebrow}</small>
             </button>
           ))}
-        </div>
+        </nav>
+
+        <label className="admin-mobile-navigation" htmlFor="active-admin-area">
+          <span>Área do painel</span>
+          <select
+            id="active-admin-area"
+            value={activeTab}
+            onChange={(event) => {
+              const nextTab = availableTabs.find(
+                (definition) => definition.id === event.target.value,
+              );
+              if (nextTab) setTab(nextTab.id);
+            }}
+          >
+            {availableTabs.map((definition) => (
+              <option value={definition.id} key={definition.id}>
+                {definition.label}
+              </option>
+            ))}
+          </select>
+        </label>
 
         <div className="admin-user-card">
           <span className="admin-user-avatar" aria-hidden="true">
@@ -246,7 +276,7 @@ export function DashboardClient() {
         <div className="admin-page-heading">
           <div>
             <span className="admin-eyebrow">{activeDefinition.eyebrow}</span>
-            <h1>{activeDefinition.label}</h1>
+            <h1 id="admin-page-title">{activeDefinition.label}</h1>
             <p>{activeDefinition.description}</p>
           </div>
           {globalRole ? (
@@ -271,11 +301,18 @@ export function DashboardClient() {
           <section
             className="admin-workspace"
             id="admin-active-panel"
-            role="tabpanel"
-            aria-labelledby={`admin-tab-${activeTab}`}
+            aria-labelledby="admin-page-title"
           >
             {activeTab === "missions" ? <MissionsPanel campaignId={campaignId} me={me.data} /> : null}
-            {activeTab === "posts" ? <PostsPanel campaignId={campaignId} me={me.data} /> : null}
+            {activeTab === "posts" ? (
+              <PostsPanel
+                campaignId={campaignId}
+                me={me.data}
+                {...(initialEditorialPosts
+                  ? { initialPosts: initialEditorialPosts }
+                  : {})}
+              />
+            ) : null}
             {activeTab === "sessions" ? (
               <SessionsPanel
                 campaignId={campaignId}
@@ -322,7 +359,7 @@ function DashboardState({
   children?: React.ReactNode;
 }>) {
   return (
-    <main className="dashboard-state">
+    <main className="dashboard-state" id="main-content">
       <div className="dashboard-state-card">
         <span className="dashboard-state-mark" aria-hidden="true">O</span>
         <span className="admin-eyebrow">{eyebrow}</span>

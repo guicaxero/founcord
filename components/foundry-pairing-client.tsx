@@ -127,7 +127,7 @@ export function FoundryPairingClient({ initialCode }: Readonly<{ initialCode: st
 
   if (!isCompleteCode(activeCode)) {
     return (
-      <main className="pairing-shell">
+      <main className="pairing-shell" id="main-content">
         <PairingHeader />
         <section className="pairing-card pairing-code-entry" aria-labelledby="pairing-code-title">
           <span className="admin-eyebrow">Código de conexão</span>
@@ -213,7 +213,7 @@ export function FoundryPairingClient({ initialCode }: Readonly<{ initialCode: st
   }
 
   return (
-    <main className="pairing-shell">
+    <main className="pairing-shell" id="main-content">
       <PairingHeader />
       <div className="pairing-layout">
         <section className="pairing-card pairing-world-card" aria-labelledby="pairing-world-title">
@@ -304,7 +304,7 @@ function PairingState({
     headingRef.current?.focus();
   }, [title]);
   return (
-    <main className="dashboard-state pairing-state">
+    <main className="dashboard-state pairing-state" id="main-content">
       <div className="dashboard-state-card">
         <span className={`dashboard-state-mark${success ? " is-success" : ""}`} aria-hidden="true">{success ? "✓" : "O"}</span>
         <span className="admin-eyebrow">{eyebrow}</span>

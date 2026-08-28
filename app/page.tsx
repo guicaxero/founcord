@@ -2,13 +2,14 @@ import Link from "next/link";
 import { AccountMenu } from "@/components/account-menu";
 import { MissionBoard } from "@/components/mission-board";
 import { PublishedPosts } from "@/components/published-posts";
+import { ResponsiveNavigation } from "@/components/responsive-navigation";
 import { DEFAULT_CAMPAIGN_ID } from "@/server/constants";
 
 export const dynamic = "force-dynamic";
 
 export default function Home() {
   return (
-    <main className="site-shell">
+    <main className="site-shell" id="main-content">
       <aside className="brand-rail" aria-label="Identidade da campanha">
         <div className="sigil" aria-hidden="true">O</div>
         <span>WM</span>
@@ -20,11 +21,15 @@ export default function Home() {
           <a className="wordmark" href="#inicio" aria-label="Ir para o início">
             <span>Ordem da</span><strong>Última Luz</strong>
           </a>
-          <nav aria-label="Navegação principal">
-            <a className="nav-link is-active" href="#quadro">Missões</a>
-            <Link className="nav-link" href="/ordem">Código da Ordem</Link>
-            <a className="nav-link" href="#cronicas">Crônicas</a>
-          </nav>
+          <ResponsiveNavigation
+            label="Navegação principal"
+            menuLabel="Explorar portal"
+            items={[
+              { href: "#quadro", label: "Missões", current: true },
+              { href: "/ordem", label: "Código da Ordem" },
+              { href: "#cronicas", label: "Crônicas" },
+            ]}
+          />
           <AccountMenu />
         </header>
 
