@@ -17,25 +17,25 @@
   background: rgb(248 244 233 / 94%);
 }
 
-.order-topbar nav {
+.order-topbar > .responsive-navigation-wide {
   display: flex;
   align-items: center;
   gap: 1.5rem;
 }
 
-.order-topbar nav a {
+.order-topbar > .responsive-navigation-wide a {
   position: relative;
   min-height: 82px;
   display: inline-flex;
   align-items: center;
   color: var(--ink-600);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
-.order-topbar nav a:hover {
+.order-topbar > .responsive-navigation-wide a:hover {
   color: var(--ember-700);
 }
 
@@ -192,7 +192,7 @@
 
 .degree-card > span {
   color: #dc8068;
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -235,7 +235,7 @@
 .level-track span,
 .level-track small {
   color: #aead9f;
-  font-size: 0.62rem;
+  font-size: var(--text-xs);
   font-weight: 750;
   line-height: 1.4;
   text-transform: uppercase;
@@ -266,7 +266,7 @@
 .trail-note > span,
 .treasure-layout aside > span {
   color: var(--ember-600);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -305,7 +305,7 @@
 
 .protocol-grid span {
   color: var(--ember-700);
-  font-size: 0.67rem;
+  font-size: var(--text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -421,7 +421,7 @@
   padding: 1.6rem clamp(1.5rem, 8vw, 8rem);
   background: var(--soot);
   color: #adaca1;
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -429,4 +429,3 @@
 .order-footer strong {
   color: var(--paper-100);
 }
-

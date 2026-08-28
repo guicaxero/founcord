@@ -9,7 +9,10 @@ import { queryKeys } from "@/lib/query-keys";
 
 const managementPermissions = new Set([
   "audit:read",
+  "automation:read",
+  "automation:run",
   "campaign:manage",
+  "foundry:world:manage",
   "integration:manage",
   "member:manage",
   "mission:create",
@@ -21,6 +24,8 @@ const managementPermissions = new Set([
   "post:publish",
   "post:review",
   "role:assign",
+  "session:manage",
+  "session:read",
 ]);
 
 export function AccountMenu() {

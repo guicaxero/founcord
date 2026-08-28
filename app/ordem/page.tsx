@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ResponsiveNavigation } from "@/components/responsive-navigation";
 import {
   fiveTruths,
   levelProgression,
@@ -26,17 +27,21 @@ export const metadata: Metadata = {
 
 export default function OrderPage() {
   return (
-    <main className="order-page">
+    <main className="order-page" id="main-content">
       <header className="order-topbar">
         <Link className="wordmark" href="/">
           <span>Ordem da</span><strong>Última Luz</strong>
         </Link>
-        <nav aria-label="Navegação do Código">
-          <a href="#codigo">Código</a>
-          <a href="#progresso">Progressão</a>
-          <a href="#missoes">Missões</a>
-          <a href="#tesouros">Tesouros</a>
-        </nav>
+        <ResponsiveNavigation
+          label="Navegação do Código"
+          menuLabel="Neste documento"
+          items={[
+            { href: "#codigo", label: "Código", current: true },
+            { href: "#progresso", label: "Progressão" },
+            { href: "#missoes", label: "Missões" },
+            { href: "#tesouros", label: "Tesouros" },
+          ]}
+        />
         <Link className="text-action" href="/">Voltar ao portal</Link>
       </header>
 

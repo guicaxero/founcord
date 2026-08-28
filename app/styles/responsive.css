@@ -1,10 +1,6 @@
 @media (max-width: 1180px) {
   .topbar {
-    grid-template-columns: minmax(150px, 0.7fr) auto;
-  }
-
-  .topbar nav {
-    display: none;
+    grid-template-columns: minmax(150px, 1fr) auto auto;
   }
 
   .account-menu {
@@ -96,8 +92,18 @@
   }
 
   .topbar {
+    grid-template-columns: minmax(0, 1fr) auto auto;
     min-height: 74px;
     padding-inline: 1.25rem;
+  }
+
+  .topbar > .responsive-navigation-wide,
+  .order-topbar > .responsive-navigation-wide {
+    display: none;
+  }
+
+  .responsive-navigation-compact {
+    display: block;
   }
 
   .account-action {
@@ -106,7 +112,7 @@
 
   .account-action::after {
     content: "Painel";
-    font-size: 0.67rem;
+    font-size: var(--text-xs);
   }
 
   .hero {
@@ -161,11 +167,7 @@
   }
 
   .order-topbar {
-    grid-template-columns: 1fr auto;
-  }
-
-  .order-topbar nav {
-    display: none;
+    grid-template-columns: minmax(0, 1fr) auto auto;
   }
 
   .order-hero {
@@ -242,20 +244,11 @@
   }
 
   .admin-navigation {
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(150px, 1fr);
-    display: grid;
-    overflow-x: auto;
-    padding: 0.8rem 0 0;
-    scrollbar-width: thin;
-  }
-
-  .admin-nav-label {
     display: none;
   }
 
-  .admin-navigation button {
-    min-height: 52px;
+  .admin-mobile-navigation {
+    display: grid;
   }
 
   .admin-user-card {
@@ -301,7 +294,44 @@
 
 @media (max-width: 640px) {
   .topbar {
+    grid-template-areas:
+      "brand account"
+      "navigation navigation";
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 0.75rem;
+    padding-block: 0.75rem;
+  }
+
+  .topbar > .wordmark,
+  .order-topbar > .wordmark {
+    grid-area: brand;
+  }
+
+  .topbar > .responsive-navigation-compact,
+  .order-topbar > .responsive-navigation-compact {
+    grid-area: navigation;
+    width: 100%;
+  }
+
+  .topbar > .responsive-navigation-compact summary,
+  .order-topbar > .responsive-navigation-compact summary {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .topbar > .responsive-navigation-compact nav,
+  .order-topbar > .responsive-navigation-compact nav {
+    right: 0;
+    left: 0;
+    width: 100%;
+    transform: none;
+  }
+
+  .topbar > .login-button,
+  .topbar > .account-menu,
+  .topbar > .account-loading,
+  .order-topbar > .text-action {
+    grid-area: account;
   }
 
   .wordmark strong {
@@ -309,9 +339,9 @@
   }
 
   .login-button {
-    min-height: 38px;
+    min-height: var(--control-min-height);
     padding: 0.55rem 0.7rem;
-    font-size: 0.65rem;
+    font-size: var(--text-xs);
   }
 
   .account-menu {
@@ -327,7 +357,7 @@
   }
 
   .account-action {
-    min-height: 38px;
+    min-height: var(--control-min-height);
   }
 
   .hero h1 {
@@ -395,7 +425,13 @@
   }
 
   .order-topbar {
+    grid-template-areas:
+      "brand account"
+      "navigation navigation";
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.75rem;
     padding-inline: 1rem;
+    padding-block: 0.75rem;
   }
 
   .order-topbar > .text-action {
@@ -404,7 +440,7 @@
 
   .order-topbar > .text-action::after {
     content: "← Portal";
-    font-size: 0.7rem;
+    font-size: var(--text-xs);
   }
 
   .order-hero h1 {
@@ -440,10 +476,6 @@
     display: none;
   }
 
-  .admin-topbar .secondary-action {
-    min-height: 34px;
-  }
-
   .admin-page-heading {
     padding: 2.2rem 1rem 1.6rem;
   }
@@ -465,6 +497,11 @@
     align-items: flex-start;
     flex-direction: column;
     gap: 0.75rem;
+  }
+
+  .admin-section-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .admin-list article {

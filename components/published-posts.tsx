@@ -2,8 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import type { Post, PostListResponse } from "@vigilia/contracts";
-import { apiFetch } from "@/lib/api-client";
+import { apiFetch, errorMessage } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
+import { FeedbackState } from "@/components/ui/feedback-state";
 
 export function PublishedPosts({
   campaignId,
@@ -23,8 +24,27 @@ export function PublishedPosts({
         <div><p className="section-index">04 / CRÔNICAS</p><h2>Arquivo da Última Luz</h2></div>
       </div>
       <div className="publication-grid">
-        {posts.data.data.length === 0 ? (
-          <article><span>O arquivo aguarda</span><h3>Nenhuma crônica publicada</h3><p>Os registros aprovados pela Ordem aparecerão aqui.</p></article>
+        {posts.isError ? (
+          <FeedbackState
+            title="O arquivo não pôde ser consultado"
+            tone="error"
+            role="alert"
+            action={(
+              <button className="secondary-action" type="button" onClick={() => posts.refetch()}>
+                Tentar novamente
+              </button>
+            )}
+          >
+            {errorMessage(posts.error)}
+          </FeedbackState>
+        ) : posts.isFetching && posts.data.data.length === 0 ? (
+          <FeedbackState title="Consultando o arquivo" role="status">
+            Estamos buscando as crônicas publicadas pela Ordem.
+          </FeedbackState>
+        ) : posts.data.data.length === 0 ? (
+          <FeedbackState title="Nenhuma crônica publicada">
+            Os registros aprovados pela Ordem aparecerão aqui.
+          </FeedbackState>
         ) : (
           posts.data.data.slice(0, 6).map((post) => (
             <article key={post.id}>

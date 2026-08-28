@@ -69,6 +69,11 @@ test("renderiza a entrada protegida do painel", async () => {
   assert.match(html, /noindex/i);
 });
 
+test("não publica a prévia visual de desenvolvimento", async () => {
+  const response = await render("/dev/ui-foundation");
+  assert.equal(response.status, 404);
+});
+
 test("não mantém artefatos do starter na superfície final", async () => {
   const [page, layout, packageJson, migration] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -84,4 +89,44 @@ test("não mantém artefatos do starter na superfície final", async () => {
   assert.match(migration, /Ordem da Última Luz/);
   assert.match(migration, /A Chama que Permaneceu/);
   assert.match(migration, /DELETE FROM `missions`/);
+});
+
+test("mantém a navegação essencial acessível nas superfícies públicas", async () => {
+  const [homeResponse, orderResponse] = await Promise.all([
+    render(),
+    render("/ordem"),
+  ]);
+  const [home, order] = await Promise.all([
+    homeResponse.text(),
+    orderResponse.text(),
+  ]);
+
+  for (const html of [home, order]) {
+    assert.match(html, /class="skip-link"[^>]*href="#main-content"/i);
+    assert.match(html, /id="main-content"/i);
+    assert.match(html, /responsive-navigation-wide/i);
+    assert.match(html, /responsive-navigation-compact/i);
+    assert.match(html, /<summary>/i);
+  }
+
+  assert.match(home, /Explorar portal/i);
+  assert.match(order, /Neste documento/i);
+});
+
+test("o shell de gestão usa navegação compatível com teclado e RBAC", async () => {
+  const [dashboard, accountMenu, responsiveCss] = await Promise.all([
+    readFile(new URL("../components/admin/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/account-menu.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/styles/responsive.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(dashboard, /<nav className="admin-navigation"/);
+  assert.match(dashboard, /aria-current=.*page/);
+  assert.match(dashboard, /className="admin-mobile-navigation"/);
+  assert.match(dashboard, /id="active-admin-area"/);
+  assert.doesNotMatch(dashboard, /role="tab(list|panel)?"/);
+  assert.match(responsiveCss, /\.admin-navigation\s*{\s*display:\s*none/s);
+  assert.match(responsiveCss, /\.admin-mobile-navigation\s*{\s*display:\s*grid/s);
+  assert.match(accountMenu, /foundry:world:manage/);
+  assert.match(accountMenu, /session:manage/);
 });
