@@ -1,0 +1,87 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    name: Quality gate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Validate repository
+        run: npm run ci
+
+  deploy:
+    name: Migrate and deploy
+    if: github.ref == 'refs/heads/main'
+    needs:
+      - quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Apply portal migrations
+        run: npm run db:migrate:remote
+
+      - name: Apply integration migrations
+        run: npm run db:migrate:integration:remote
+
+      - name: Apply automation migrations
+        run: npm run db:migrate:automation:remote
+
+      - name: Deploy portal provider
+        run: npm run deploy
+
+      - name: Deploy Discord integration
+        run: npm run deploy:integration
+
+      - name: Deploy Foundry bridge
+        run: npm run deploy:foundry
+
+      - name: Deploy automation
+        run: npm run deploy:automation
+
+      - name: Verify production services
+        run: npm run smoke:production
+        env:
+          SMOKE_PORTAL_URL: ${{ vars.SMOKE_PORTAL_URL }}
+          SMOKE_INTEGRATION_URL: ${{ vars.SMOKE_INTEGRATION_URL }}
+          SMOKE_FOUNDRY_URL: ${{ vars.SMOKE_FOUNDRY_URL }}
+          SMOKE_AUTOMATION_URL: ${{ vars.SMOKE_AUTOMATION_URL }}
