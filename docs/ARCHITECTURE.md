@@ -156,6 +156,19 @@ Um novo Worker é criado quando o domínio exige ao menos um destes limites:
 segurança própria, escala independente, isolamento de falhas ou ciclo de release
 diferente. Telas e CRUDs não justificam microsserviços por si só.
 
+O repositório compartilhado não define a fronteira de runtime. Portal, Discord,
+Foundry e Automation são unidades implantáveis independentes e permanecem no
+mesmo workspace para compartilhar contratos e testes. A política de entrega e
+os critérios para uma futura extração estão registrados no
+[ADR 0003](./adr/0003-monorepo-e-entrega-protegida.md).
+
+## Entrega
+
+Pull Requests executam um quality gate reproduzível. Produção aceita somente o
+conteúdo de `main`, aplica migrações aditivas, implanta primeiro os provedores de
+contrato e encerra com smoke tests. O procedimento, rollback e orçamento do
+nível gratuito estão em [Entrega, operação e orçamento](./DELIVERY.md).
+
 ## Observabilidade
 
 Cada requisição recebe um correlation ID. Logs são estruturados em JSON e ações
