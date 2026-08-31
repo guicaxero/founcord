@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CreateCampaignSessionSchema,
+  CreateDiscordPostDraftSchema,
   CreateMissionSchema,
   FoundryCharacterSyncRequestSchema,
   FoundryChatBatchRequestSchema,
@@ -25,6 +26,33 @@ describe("contratos públicos", () => {
   it("exige versão otimista nas mudanças editoriais", () => {
     expect(() => UpdatePostSchema.parse({ status: "published" })).toThrow();
     expect(() => UpdatePostSchema.parse({ version: 1 })).toThrow();
+  });
+
+  it("aceita somente identidade narrativa segura para o Discord", () => {
+    const base = {
+      campaignId: "11111111-1111-4111-8111-111111111111",
+      interactionId: "123456789012345678",
+      discordUserId: "223456789012345678",
+      guildId: "323456789012345678",
+      channelId: "423456789012345678",
+      forumChannelId: "523456789012345678",
+      forumTagId: null,
+      personaName: "Aster",
+      title: "Sinais no ermo",
+      body: "A chama foi vista ao norte.",
+    };
+    expect(CreateDiscordPostDraftSchema.parse({
+      ...base,
+      personaAvatarUrl: "https://cdn.example/aster.png",
+    }).personaAvatarUrl).toBe("https://cdn.example/aster.png");
+    expect(() => CreateDiscordPostDraftSchema.parse({
+      ...base,
+      personaAvatarUrl: "http://localhost/avatar.png",
+    })).toThrow();
+    expect(() => CreateDiscordPostDraftSchema.parse({
+      ...base,
+      personaName: "Aster\nNarrador",
+    })).toThrow();
   });
 
   it("aceita somente projeções sanitizadas de personagens do Demon Lord", () => {

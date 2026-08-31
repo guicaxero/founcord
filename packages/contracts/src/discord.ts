@@ -80,7 +80,26 @@ export const CreateDiscordPostDraftSchema = z
     channelId: DiscordSnowflakeSchema.nullable(),
     forumChannelId: DiscordSnowflakeSchema,
     forumTagId: DiscordSnowflakeSchema.nullable().default(null),
-    personaName: z.string().trim().min(1).max(80).nullable(),
+    personaName: z
+      .string()
+      .trim()
+      .min(1)
+      .max(80)
+      .refine((value) => !/[\r\n]/.test(value), {
+        message: "O nome narrativo deve ocupar uma única linha.",
+      })
+      .nullable()
+      .default(null),
+    personaAvatarUrl: z
+      .string()
+      .trim()
+      .url()
+      .max(2_048)
+      .refine((value) => new URL(value).protocol === "https:", {
+        message: "O avatar deve usar HTTPS.",
+      })
+      .nullable()
+      .default(null),
     title: z.string().trim().min(3).max(100),
     body: z.string().trim().min(1).max(1_700),
   })

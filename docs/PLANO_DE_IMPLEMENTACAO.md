@@ -114,16 +114,17 @@ segurança, escala ou ciclo de release em uma separação adicional.
 - Sessões com captura sanitizada de chat público do Foundry.
 - Automation Worker com Workers AI, cota, leases, retry, DLQ e rascunhos
   obrigatoriamente `pending_review`.
+- Diário de Sessões com entidade própria, vínculo explícito à sessão, revisão,
+  publicação, arquivo e exclusão auditada.
 - Design system inicial responsivo e acessível, navegação pública e shell de
   gestão revisados.
 - CI protegido e workflow manual de produção.
-- Deploy da PR #20 validado em produção no commit `993f5c3`.
+- Deploy da PR #24 validado em produção no commit `5914126`.
 
 ### Limitações conhecidas
 
-- Resumos de sessão ainda compartilham o modelo de `posts`.
-- A identidade visual de mensagens do Discord ainda depende do bot; webhook
-  para nome/avatar personalizados ainda não foi implementado.
+- A identidade narrativa por webhook depende de `MANAGE_WEBHOOKS`; sem essa
+  permissão a publicação usa o bot com atribuição textual.
 - Parte dos painéis preserva seletores CSS legados e precisa de migração gradual
   para as primitivas do design system.
 - Mercador, ficha do jogador e criador de criaturas ainda não existem.
@@ -172,7 +173,7 @@ Entregas:
 - endpoints `/health` validados;
 - procedimento de deploy e rollback documentado.
 
-### Fase 2 — Discord — concluída, com melhorias pendentes
+### Fase 2 — Discord — concluída
 
 Entregas já disponíveis:
 
@@ -184,7 +185,7 @@ Entregas já disponíveis:
 - referência entre post do portal e tópico Discord;
 - D1 de integração separado do banco do portal.
 
-Melhorias pendentes desta fase:
+Melhorias concluídas após o primeiro corte:
 
 1. **Conteúdo completo no tópico**
    - usar título, descrição e corpo preenchidos no portal;
@@ -193,11 +194,11 @@ Melhorias pendentes desta fase:
    - não publicar somente uma URL sem contexto.
 
 2. **Identidade visual por webhook**
-   - avaliar webhook por fórum/campanha;
-   - permitir nome e avatar configurados com segurança;
+   - webhook gerenciado por fórum e pertencente à aplicação;
+   - nome e avatar HTTPS configurados com segurança;
    - manter o bot como responsável por comandos e operações autorizadas;
-   - validar permissões, rotação de tokens e comportamento quando o webhook não
-     existir.
+   - fallback para o bot quando `MANAGE_WEBHOOKS` não estiver disponível;
+   - nenhum token de webhook armazenado no Portal, contratos ou logs.
 
 3. **Ciclo de vida de posts**
    - permitir arquivar/remover da exibição;
@@ -255,9 +256,9 @@ Entregas:
 - captura sanitizada de chat público do Foundry;
 - área de sessões com preparação, captura, encerramento e revisão de fontes.
 
-## 6. Próxima entrega: Diário de Sessões
+## 6. Diário de Sessões — concluído
 
-Esta é a próxima PR recomendada antes de Mercador ou ficha de jogador.
+O domínio foi separado de Posts e implantado em produção pela PR #24.
 
 ### Objetivo
 
@@ -293,9 +294,9 @@ campanha.
 - dados privados, sussurros, rolagens cegas e HTML não entram na fonte;
 - fontes brutas continuam sujeitas à retenção definida no runbook de automação.
 
-## 7. Funcionalidades posteriores
+## 7. Próxima entrega e funcionalidades posteriores
 
-### 7.1 Mercador
+### 7.1 Mercador — próxima entrega
 
 Implementar em duas etapas para reduzir risco.
 
@@ -481,9 +482,8 @@ acoplar os bancos ou o ciclo de execução.
 ```text
 Estado atual
   -> Deploy da fundação visual (concluído)
-  -> Validação visual em produção
-  -> Diário de Sessões
-  -> Webhooks e melhoria do conteúdo do Discord
+  -> Diário de Sessões (concluído e implantado)
+  -> Webhooks e melhoria do conteúdo do Discord (concluído neste corte)
   -> Mercador somente leitura
   -> Compra assistida/automática, se o Foundry permitir
   -> Área do jogador e ficha

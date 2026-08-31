@@ -24,7 +24,7 @@ export const POST = withApiHandler(async ({ request, correlationId }) => {
   }
 
   const body = input.personaName
-    ? `> Escrito por **${input.personaName}**\n\n${input.body}`
+    ? `> Escrito por **${escapeMarkdown(input.personaName)}**\n\n${input.body}`
     : input.body;
   const draft = await createPost(
     session,
@@ -45,3 +45,7 @@ export const POST = withApiHandler(async ({ request, correlationId }) => {
 
   return jsonResponse({ post: pendingReview }, { status: 201 }, correlationId);
 });
+
+function escapeMarkdown(value: string): string {
+  return value.replace(/([\\`*_{}[\]()<>#+\-.!|])/g, "\\$1");
+}
