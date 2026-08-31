@@ -1,6 +1,6 @@
 import { UpdateSessionSummarySchema } from "@vigilia/contracts";
 import { getOptionalSession, requireSession } from "@/server/auth/session";
-import { updateSessionSummary } from "@/server/domain/session-summaries";
+import { deleteSessionSummary, updateSessionSummary } from "@/server/domain/session-summaries";
 import { assertSameOrigin, jsonResponse, parseJson, withApiHandler } from "@/server/http";
 
 type RouteContext = Readonly<{ params: Promise<{ campaignId: string; summaryId: string }> }>;
@@ -23,5 +23,18 @@ export async function PATCH(request: Request, context: RouteContext) {
     const input = await parseJson(request, UpdateSessionSummarySchema);
     const summary = await updateSessionSummary(session, campaignId, summaryId, input, correlationId);
     return jsonResponse(summary, {}, correlationId);
+  })(request);
+}
+
+export async function DELETE(request: Request, context: RouteContext) {
+  const { campaignId, summaryId } = await context.params;
+  return withApiHandler(async ({ correlationId }) => {
+    assertSameOrigin(request);
+    const version = Number(new URL(request.url).searchParams.get("version"));
+    if (!Number.isInteger(version) || version < 1) {
+      return jsonResponse({ error: "invalid_version", message: "A versão do resumo é obrigatória." }, { status: 422 }, correlationId);
+    }
+    await deleteSessionSummary(await requireSession(request), campaignId, summaryId, version, correlationId);
+    return new Response(null, { status: 204, headers: { "x-correlation-id": correlationId } });
   })(request);
 }

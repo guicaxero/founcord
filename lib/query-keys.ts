@@ -5,8 +5,8 @@ export const queryKeys = {
     ["campaigns", campaignId, "missions", scope] as const,
   posts: (campaignId: string, scope: "public" | "editorial" = "public") =>
     ["campaigns", campaignId, "posts", scope] as const,
-  sessionSummaries: (campaignId: string) =>
-    ["campaigns", campaignId, "session-summaries"] as const,
+  sessionSummaries: (campaignId: string, scope: "public" | "editorial" = "public") =>
+    ["campaigns", campaignId, "session-summaries", scope] as const,
   members: (campaignId: string) => ["campaigns", campaignId, "members"] as const,
   audit: (campaignId: string) => ["campaigns", campaignId, "audit"] as const,
   automations: (campaignId: string) =>

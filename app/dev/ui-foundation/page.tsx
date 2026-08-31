@@ -1,8 +1,10 @@
 import { permissions } from "@vigilia/authz";
 import type {
   CampaignListResponse,
+  CampaignSessionListResponse,
   CurrentUserResponse,
   PostListResponse,
+  SessionSummaryListResponse,
 } from "@vigilia/contracts";
 import { notFound } from "next/navigation";
 import { DashboardClient } from "@/components/admin/dashboard-client";
@@ -57,6 +59,70 @@ const previewPosts: PostListResponse = {
   }],
 };
 
+const previewSessions: CampaignSessionListResponse = {
+  data: [{
+    id: "55555555-5555-4555-8555-555555555555",
+    campaignId,
+    title: "O sino sob a lama",
+    status: "ended",
+    mission: { id: "66666666-6666-4666-8666-666666666666", title: "Sinos sob a lama" },
+    master: { id: previewUser.user!.id, name: previewUser.user!.displayName },
+    foundry: null,
+    discordReference: null,
+    discordImported: false,
+    notes: "Fontes revisadas para a prévia visual.",
+    automationJobId: null,
+    postId: null,
+    summaryId: "77777777-7777-4777-8777-777777777777",
+    startedAt: "2026-08-29T22:00:00.000Z",
+    endedAt: "2026-08-30T01:30:00.000Z",
+    createdAt: "2026-08-29T21:45:00.000Z",
+    updatedAt: "2026-08-30T01:30:00.000Z",
+    version: 3,
+  }],
+};
+
+const previewSummaries: SessionSummaryListResponse = {
+  data: [
+    {
+      id: "77777777-7777-4777-8777-777777777777",
+      campaignId,
+      sessionId: previewSessions.data[0]!.id,
+      sessionTitle: previewSessions.data[0]!.title,
+      mission: previewSessions.data[0]!.mission,
+      authorUserId: previewUser.user!.id,
+      authorName: previewUser.user!.displayName,
+      title: "O sino sob a lama",
+      body: "A expedição alcançou a capela afundada e interrompeu o ritual antes do terceiro toque.",
+      status: "pending_review",
+      source: "automation",
+      reviewedBy: null,
+      publishedAt: null,
+      version: 1,
+      createdAt: "2026-08-30T01:40:00.000Z",
+      updatedAt: "2026-08-30T01:40:00.000Z",
+    },
+    {
+      id: "88888888-8888-4888-8888-888888888888",
+      campaignId,
+      sessionId: null,
+      sessionTitle: null,
+      mission: null,
+      authorUserId: previewUser.user!.id,
+      authorName: previewUser.user!.displayName,
+      title: "Registro sem vínculo",
+      body: "Um rascunho manual preservado para validar estados e ações destrutivas.",
+      status: "archived",
+      source: "manual",
+      reviewedBy: null,
+      publishedAt: null,
+      version: 2,
+      createdAt: "2026-08-28T18:00:00.000Z",
+      updatedAt: "2026-08-30T02:00:00.000Z",
+    },
+  ],
+};
+
 export default function UiFoundationPreviewPage() {
   if (process.env.NODE_ENV !== "development") notFound();
 
@@ -65,6 +131,9 @@ export default function UiFoundationPreviewPage() {
       initialMe={previewUser}
       initialCampaigns={previewCampaigns}
       initialEditorialPosts={previewPosts}
+      initialSessionSummaries={previewSummaries}
+      initialSessions={previewSessions}
+      initialTab="summaries"
     />
   );
 }

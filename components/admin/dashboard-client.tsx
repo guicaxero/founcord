@@ -5,9 +5,11 @@ import type { Permission } from "@vigilia/authz";
 import type {
   Campaign,
   CampaignListResponse,
+  CampaignSessionListResponse,
   CreateCampaignInput,
   CurrentUserResponse,
   PostListResponse,
+  SessionSummaryListResponse,
 } from "@vigilia/contracts";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
@@ -21,8 +23,9 @@ import { MembersPanel } from "./members-panel";
 import { MissionsPanel } from "./missions-panel";
 import { PostsPanel } from "./posts-panel";
 import { SessionsPanel } from "./sessions-panel";
+import { SessionSummariesPanel } from "./session-summaries-panel";
 
-type Tab = "missions" | "posts" | "sessions" | "automations" | "foundry" | "members" | "audit" | "campaigns";
+type Tab = "missions" | "posts" | "summaries" | "sessions" | "automations" | "foundry" | "members" | "audit" | "campaigns";
 
 type TabDefinition = Readonly<{
   id: Tab;
@@ -39,6 +42,13 @@ const tabDefinitions: readonly TabDefinition[] = [
     eyebrow: "Registros da mesa",
     description: "Capture registros do Foundry, associe fontes e prepare rascunhos para revisão.",
     permissions: ["session:read", "session:manage"],
+  },
+  {
+    id: "summaries",
+    label: "Diário de Sessões",
+    eyebrow: "Revisão factual",
+    description: "Revise e publique registros factuais sem misturá-los às crônicas da campanha.",
+    permissions: ["session:manage", "post:review", "post:publish", "post:delete"],
   },
   {
     id: "automations",
@@ -95,12 +105,18 @@ export function DashboardClient({
   initialMe,
   initialCampaigns,
   initialEditorialPosts,
+  initialSessionSummaries,
+  initialSessions,
+  initialTab = "missions",
 }: Readonly<{
   initialMe?: CurrentUserResponse;
   initialCampaigns?: CampaignListResponse;
   initialEditorialPosts?: PostListResponse;
+  initialSessionSummaries?: SessionSummaryListResponse;
+  initialSessions?: CampaignSessionListResponse;
+  initialTab?: Tab;
 }> = {}) {
-  const [tab, setTab] = useState<Tab>("missions");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [selectedCampaign, setSelectedCampaign] = useState("");
   const me = useQuery({
     queryKey: queryKeys.me,
@@ -313,18 +329,26 @@ export function DashboardClient({
                   : {})}
               />
             ) : null}
+            {activeTab === "summaries" ? (
+              <SessionSummariesPanel
+                campaignId={campaignId}
+                me={me.data}
+                {...(initialSessionSummaries ? { initialSummaries: initialSessionSummaries } : {})}
+                {...(initialSessions ? { initialSessions } : {})}
+              />
+            ) : null}
             {activeTab === "sessions" ? (
               <SessionsPanel
                 campaignId={campaignId}
                 me={me.data}
-                onOpenReview={() => setTab("posts")}
+                onOpenReview={() => setTab("summaries")}
               />
             ) : null}
             {activeTab === "automations" ? (
               <AutomationsPanel
                 campaignId={campaignId}
                 me={me.data}
-                onOpenReview={() => setTab("posts")}
+                onOpenReview={(target) => setTab(target === "session_summary" ? "summaries" : "posts")}
               />
             ) : null}
             {activeTab === "foundry" && campaign ? (

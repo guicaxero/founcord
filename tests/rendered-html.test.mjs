@@ -47,6 +47,7 @@ test("renderiza a primeira superfície do portal", async () => {
   );
   assert.match(html, /Enquanto houver luz/);
   assert.match(html, /Chamados da Ordem/);
+  assert.match(html, /Diário de Sessões/);
   assert.match(html, /O Império está em crise/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|Your site is taking shape/i);
 });
@@ -114,8 +115,9 @@ test("mantém a navegação essencial acessível nas superfícies públicas", as
 });
 
 test("o shell de gestão usa navegação compatível com teclado e RBAC", async () => {
-  const [dashboard, accountMenu, responsiveCss] = await Promise.all([
+  const [dashboard, summaries, accountMenu, responsiveCss] = await Promise.all([
     readFile(new URL("../components/admin/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/admin/session-summaries-panel.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/account-menu.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/styles/responsive.css", import.meta.url), "utf8"),
   ]);
@@ -124,6 +126,10 @@ test("o shell de gestão usa navegação compatível com teclado e RBAC", async 
   assert.match(dashboard, /aria-current=.*page/);
   assert.match(dashboard, /className="admin-mobile-navigation"/);
   assert.match(dashboard, /id="active-admin-area"/);
+  assert.match(dashboard, /Diário de Sessões/);
+  assert.match(summaries, /aria-label="Filtrar resumos por estado"/);
+  assert.match(summaries, /aria-live="polite"/);
+  assert.match(summaries, /Digite <strong>EXCLUIR/);
   assert.doesNotMatch(dashboard, /role="tab(list|panel)?"/);
   assert.match(responsiveCss, /\.admin-navigation\s*{\s*display:\s*none/s);
   assert.match(responsiveCss, /\.admin-mobile-navigation\s*{\s*display:\s*grid/s);
