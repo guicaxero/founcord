@@ -841,6 +841,27 @@
   -webkit-line-clamp: unset;
 }
 
+.session-diary {
+  border-top: 1px solid var(--ink-200);
+  padding: clamp(3.5rem, 6vw, 5rem) clamp(2rem, 5vw, 4rem);
+  background: var(--paper-200);
+}
+
+.session-diary-intro { max-width: 42rem; margin: -1.4rem 0 2rem; color: var(--ink-600); font-family: var(--font-display); line-height: 1.6; }
+.session-diary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--ink-800); }
+.session-diary-grid > .feedback-state { grid-column: 1 / -1; margin: var(--space-8) 0; }
+.session-diary-card { min-height: 240px; border-right: 1px solid var(--ink-200); padding: 2rem 2rem 2rem 0; }
+.session-diary-card + .session-diary-card { padding-left: 2rem; }
+.session-diary-card:last-child { border-right: 0; }
+.session-diary-card > span { color: var(--ember-700); font-size: var(--text-xs); font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.session-diary-card h3 { margin: 1rem 0 .7rem; font-family: var(--font-display); font-size: 1.65rem; font-weight: 600; letter-spacing: -.03em; }
+.session-diary-card > p:not(.session-diary-mission) { display: -webkit-box; overflow: hidden; margin: 0; color: var(--ink-600); font-family: var(--font-display); font-size: .92rem; line-height: 1.7; -webkit-box-orient: vertical; -webkit-line-clamp: 5; }
+.session-diary-mission { margin: 0 0 .8rem; color: var(--ink-700); font-size: var(--text-sm); font-weight: 700; }
+.session-diary-card details { margin-top: 1.3rem; border-top: 1px solid var(--ink-200); padding-top: 1rem; }
+.session-diary-card summary { width: max-content; min-height: var(--control-min-height); display: inline-flex; align-items: center; color: var(--ember-700); font-size: var(--text-xs); font-weight: 800; letter-spacing: .06em; list-style: none; text-transform: uppercase; }
+.session-diary-card summary::after { content: "  +"; }
+.session-diary-card details[open] summary::after { content: "  −"; }
+
 .page-frame > footer {
   display: flex;
   justify-content: space-between;

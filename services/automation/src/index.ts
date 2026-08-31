@@ -174,6 +174,7 @@ async function processAutomationMessage(
         requestedByUserId: claim.row.requested_by_user_id,
         kind: claim.row.kind,
         model: generated.model,
+        target: claim.row.target_json ? JSON.parse(claim.row.target_json) : { type: "post" },
         ...generated.draft,
       },
       claim.row.correlation_id,
@@ -185,6 +186,7 @@ async function processAutomationMessage(
         claim.leaseToken,
         generated.draft,
         portal.postId,
+        portal.summaryId,
         generated.model,
       ))
     ) {

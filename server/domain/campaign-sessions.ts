@@ -48,6 +48,7 @@ type CampaignSessionRow = Readonly<{
   transcript_truncated: number;
   automation_job_id: string | null;
   post_id: string | null;
+  summary_id: string | null;
   capture_error: string | null;
   started_at: string | null;
   ended_at: string | null;
@@ -89,12 +90,13 @@ export async function listCampaignSessions(
               cs.status, cs.world_id, cs.world_title, cs.discord_reference,
               cs.notes, cs.captured_message_count, cs.last_captured_at,
               cs.transcript_truncated, cs.automation_job_id,
-              adl.post_id, cs.capture_error, cs.started_at, cs.ended_at,
+              adl.post_id, asl.summary_id, cs.capture_error, cs.started_at, cs.ended_at,
               cs.created_at, cs.updated_at, cs.version
        FROM campaign_sessions cs
        INNER JOIN iam_users u ON u.id = cs.master_user_id
        LEFT JOIN missions m ON m.id = cs.mission_id
        LEFT JOIN automation_draft_links adl ON adl.job_id = cs.automation_job_id
+       LEFT JOIN automation_session_summary_links asl ON asl.job_id = cs.automation_job_id
        WHERE cs.campaign_id = ?
        ORDER BY
          CASE cs.status
@@ -535,6 +537,7 @@ export async function generateCampaignSessionDraft(
         label: `Sessão: ${existing.title}`,
         content,
       },
+      target: { type: "session_summary", sessionId },
       ...(input.suggestedTitle ? { suggestedTitle: input.suggestedTitle } : {}),
       ...(input.instructions ? { instructions: input.instructions } : {}),
     },
@@ -711,6 +714,7 @@ function mapCampaignSession(
     notes: row.notes,
     automationJobId: row.automation_job_id,
     postId: row.post_id,
+    summaryId: row.summary_id,
     startedAt: toIsoDateTime(row.started_at),
     endedAt: toIsoDateTime(row.ended_at),
     createdAt: toIsoDateTime(row.created_at),

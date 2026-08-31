@@ -25,6 +25,11 @@ export const AutomationKindSchema = z.enum(automationKinds);
 export const AutomationJobStatusSchema = z.enum(automationJobStatuses);
 export const AutomationSourceKindSchema = z.enum(automationSourceKinds);
 
+export const AutomationTargetSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("post") }).strict(),
+  z.object({ type: z.literal("session_summary"), sessionId: EntityIdSchema }).strict(),
+]);
+
 export const AutomationSourceSchema = z
   .object({
     kind: AutomationSourceKindSchema.default("pasted_text"),
@@ -40,6 +45,7 @@ export const CreateAutomationJobSchema = z
     source: AutomationSourceSchema,
     suggestedTitle: z.string().trim().min(3).max(140).optional(),
     instructions: z.string().trim().min(3).max(2_000).optional(),
+    target: AutomationTargetSchema.optional(),
   })
   .strict();
 
@@ -61,7 +67,9 @@ export const AutomationJobSchema = z
     sourceLabel: z.string().nullable(),
     sourcePreview: z.string().max(240),
     suggestedTitle: z.string().nullable(),
+    target: AutomationTargetSchema,
     postId: EntityIdSchema.nullable(),
+    summaryId: EntityIdSchema.nullable(),
     attempts: z.number().int().nonnegative(),
     maxAttempts: z.number().int().positive(),
     model: z.string().nullable(),
@@ -117,21 +125,27 @@ export const AutomationDraftCallbackSchema = AutomationGeneratedDraftSchema.exte
   requestedByUserId: EntityIdSchema,
   kind: AutomationKindSchema,
   model: z.string().min(1).max(160),
+  target: AutomationTargetSchema,
 }).strict();
 
 export const AutomationDraftCallbackResponseSchema = z
   .object({
-    postId: EntityIdSchema,
+    postId: EntityIdSchema.nullable(),
+    summaryId: EntityIdSchema.nullable(),
     status: z.literal("pending_review"),
     duplicate: z.boolean(),
   })
-  .strict();
+  .strict()
+  .refine((value) => Boolean(value.postId) !== Boolean(value.summaryId), {
+    message: "O resultado deve apontar para um post ou um resumo.",
+  });
 
 export const RetryAutomationJobSchema = z.object({}).strict();
 
 export type AutomationKind = z.infer<typeof AutomationKindSchema>;
 export type AutomationJobStatus = z.infer<typeof AutomationJobStatusSchema>;
 export type AutomationSourceKind = z.infer<typeof AutomationSourceKindSchema>;
+export type AutomationTarget = z.infer<typeof AutomationTargetSchema>;
 export type CreateAutomationJobInput = z.infer<typeof CreateAutomationJobSchema>;
 export type AutomationJobCreateRequest = z.infer<
   typeof AutomationJobCreateRequestSchema
