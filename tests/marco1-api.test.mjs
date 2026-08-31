@@ -75,6 +75,7 @@ test("Marco 1: autenticação, RBAC, campanha, missões, posts e auditoria", asy
         `/api/campaigns/${privateCampaign.id}`,
         `/api/campaigns/${privateCampaign.id}/missions`,
         `/api/campaigns/${privateCampaign.id}/posts`,
+        `/api/campaigns/${privateCampaign.id}/session-summaries`,
       ]) {
         assert.equal((await api(mf, path)).status, 404);
         assert.equal((await api(mf, path, { token: identities.playerOne.token })).status, 200);
@@ -234,6 +235,91 @@ test("Marco 1: autenticação, RBAC, campanha, missões, posts e auditoria", asy
       );
       const visible = publicPosts.data.data.find((post) => post.id === published.id);
       assert.equal(visible.title, "Relato extraído automaticamente");
+    });
+
+    await t.test("separa resumos de sessão e protege seu ciclo editorial", async () => {
+      const created = await api(
+        mf,
+        `/api/campaigns/${defaultCampaignId}/session-summaries`,
+        {
+          token: identities.owner.token,
+          method: "POST",
+          body: {
+            campaignId: defaultCampaignId,
+            sessionId: null,
+            title: "O retorno da estrada cinzenta",
+            body: "A expedição retornou antes que a névoa fechasse a passagem.",
+            status: "published",
+          },
+        },
+      );
+      assert.equal(created.status, 201, JSON.stringify(created.data));
+      assert.equal(created.data.status, "draft");
+
+      const publicDrafts = await api(
+        mf,
+        `/api/campaigns/${defaultCampaignId}/session-summaries`,
+      );
+      assert.equal(publicDrafts.data.data.some((item) => item.id === created.data.id), false);
+
+      const directPublish = await api(
+        mf,
+        `/api/campaigns/${defaultCampaignId}/session-summaries/${created.data.id}`,
+        {
+          token: identities.owner.token,
+          method: "PATCH",
+          body: { version: created.data.version, status: "published" },
+        },
+      );
+      assert.equal(directPublish.status, 409);
+
+      const playerReview = await api(
+        mf,
+        `/api/campaigns/${defaultCampaignId}/session-summaries/${created.data.id}`,
+        {
+          token: identities.playerOne.token,
+          method: "PATCH",
+          body: { version: created.data.version, status: "pending_review" },
+        },
+      );
+      assert.equal(playerReview.status, 403);
+
+      const pending = await transitionSummary(mf, created.data, "pending_review", identities.owner.token);
+      const published = await transitionSummary(mf, pending, "published", identities.owner.token);
+      assert.equal(published.status, "published");
+
+      const editPublished = await api(
+        mf,
+        `/api/campaigns/${defaultCampaignId}/session-summaries/${published.id}`,
+        {
+          token: identities.owner.token,
+          method: "PATCH",
+          body: { version: published.version, title: "Alteração sem restauração" },
+        },
+      );
+      assert.equal(editPublished.status, 409);
+
+      const [publicSummaries, publicPosts] = await Promise.all([
+        api(mf, `/api/campaigns/${defaultCampaignId}/session-summaries`),
+        api(mf, `/api/campaigns/${defaultCampaignId}/posts`),
+      ]);
+      assert.equal(publicSummaries.data.data.some((item) => item.id === published.id), true);
+      assert.equal(publicPosts.data.data.some((item) => item.id === published.id), false);
+
+      const archived = await transitionSummary(mf, published, "archived", identities.owner.token);
+      const playerDelete = await api(
+        mf,
+        `/api/campaigns/${defaultCampaignId}/session-summaries/${archived.id}?version=${archived.version}`,
+        { token: identities.playerOne.token, method: "DELETE" },
+      );
+      assert.equal(playerDelete.status, 403);
+
+      const deleted = await api(
+        mf,
+        `/api/campaigns/${defaultCampaignId}/session-summaries/${archived.id}?version=${archived.version}`,
+        { token: identities.owner.token, method: "DELETE" },
+      );
+      assert.equal(deleted.status, 204, JSON.stringify(deleted.data));
     });
 
     await t.test("protege a API interna e cria post Discord para revisão", async () => {
@@ -518,6 +604,7 @@ test("Marco 1: autenticação, RBAC, campanha, missões, posts e auditoria", asy
         "post.published",
         "discord.post.published",
         "post.deleted_permanently",
+        "session_summary.deleted_permanently",
       ]) {
         assert.equal(actions.has(action), true, `ação ausente: ${action}`);
       }
@@ -705,4 +792,18 @@ async function transitionPost(mf, post, status, token) {
     body: { version: post.version, status },
   });
   return response.status === 200 ? response.data : response;
+}
+
+async function transitionSummary(mf, summary, status, token) {
+  const response = await api(
+    mf,
+    `/api/campaigns/${summary.campaignId}/session-summaries/${summary.id}`,
+    {
+      token,
+      method: "PATCH",
+      body: { version: summary.version, status },
+    },
+  );
+  assert.equal(response.status, 200, JSON.stringify(response.data));
+  return response.data;
 }

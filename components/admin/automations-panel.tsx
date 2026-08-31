@@ -50,7 +50,7 @@ export function AutomationsPanel({
 }: Readonly<{
   campaignId: string;
   me: CurrentUserResponse;
-  onOpenReview: () => void;
+  onOpenReview: (target: AutomationJob["target"]["type"]) => void;
 }>) {
   const queryClient = useQueryClient();
   const formRef = useRef<HTMLFormElement>(null);
@@ -122,11 +122,13 @@ export function AutomationsPanel({
     });
   }
 
-  async function openReview() {
+  async function openReview(target: AutomationJob["target"]["type"]) {
     await queryClient.invalidateQueries({
-      queryKey: queryKeys.posts(campaignId, "editorial"),
+      queryKey: target === "session_summary"
+        ? queryKeys.sessionSummaries(campaignId, "editorial")
+        : queryKeys.posts(campaignId, "editorial"),
     });
-    onOpenReview();
+    onOpenReview(target);
   }
 
   if (jobs.isLoading) {
@@ -228,7 +230,7 @@ export function AutomationsPanel({
                     </div>
                     <footer>
                       {job.status === "awaiting_review" ? (
-                        <button className="admin-primary" type="button" onClick={openReview}>
+                        <button className="admin-primary" type="button" onClick={() => openReview(job.target.type)}>
                           Abrir mesa de revisão
                         </button>
                       ) : null}
@@ -274,8 +276,8 @@ export function AutomationsPanel({
             <form ref={formRef} className="admin-form" onSubmit={submit}>
               <label className="full">
                 Resultado desejado
-                <select name="kind" defaultValue="session_summary" required>
-                  {Object.entries(kindContent).map(([value, content]) => (
+                <select name="kind" defaultValue="chronicle_draft" required>
+                  {Object.entries(kindContent).filter(([value]) => value !== "session_summary").map(([value, content]) => (
                     <option key={value} value={value}>{content.label}</option>
                   ))}
                 </select>

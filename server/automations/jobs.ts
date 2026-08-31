@@ -38,6 +38,13 @@ export async function requestCampaignAutomation(
   idempotencyKey: string,
   correlationId: string,
 ): Promise<AutomationJobCreateResponse> {
+  if (input.kind === "session_summary" && input.target?.type !== "session_summary") {
+    throw new HttpError(
+      422,
+      "session_summary_requires_session",
+      "Gere resumos de sessão pela área Sessões, após revisar as fontes.",
+    );
+  }
   requirePermission(session.principal, "automation:run", {
     kind: "campaign",
     campaignId: input.campaignId,

@@ -388,6 +388,34 @@
   white-space: nowrap;
 }
 
+.session-summary-heading {
+  margin-bottom: var(--space-4);
+}
+
+.admin-live-feedback {
+  min-height: 1.5rem;
+  margin: var(--space-3) 0;
+  color: var(--moss-700);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.summary-session-context {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  border-left: 3px solid var(--ember-500);
+  padding: var(--space-3) var(--space-4);
+  background: var(--paper-100);
+  color: var(--ink-700);
+  font-size: var(--text-sm);
+}
+
+.summary-session-context span {
+  color: var(--ink-600);
+}
+
 .admin-list {
   border-top: 1px solid var(--ink-800);
 }
