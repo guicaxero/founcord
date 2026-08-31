@@ -20,6 +20,8 @@ type DiscordPostTargetRow = Readonly<{
   forum_channel_id: string;
   forum_tag_id: string | null;
   discord_user_id: string;
+  persona_name: string | null;
+  persona_avatar_url: string | null;
 }>;
 
 type DiscordPostLinkRow = Readonly<{
@@ -39,6 +41,8 @@ export type DiscordPostTarget = Readonly<{
   forumChannelId: string;
   forumTagId: string | null;
   discordUserId: string;
+  personaName: string | null;
+  personaAvatarUrl: string | null;
 }>;
 
 export type NewDiscordPostTarget = DiscordPostTarget;
@@ -113,8 +117,8 @@ export async function completeDiscordInteraction(
     env.INTEGRATION_DB.prepare(
       `INSERT OR IGNORE INTO discord_post_targets (
         id, post_id, interaction_id, campaign_id, guild_id, forum_channel_id,
-        forum_tag_id, discord_user_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        forum_tag_id, discord_user_id, persona_name, persona_avatar_url
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       crypto.randomUUID(),
       postId,
@@ -124,6 +128,8 @@ export async function completeDiscordInteraction(
       target.forumChannelId,
       target.forumTagId,
       target.discordUserId,
+      target.personaName,
+      target.personaAvatarUrl,
     ),
   ]);
 }
@@ -173,7 +179,7 @@ export async function getDiscordPostTarget(
 ): Promise<DiscordPostTarget> {
   const row = await env.INTEGRATION_DB.prepare(
     `SELECT campaign_id, guild_id, forum_channel_id, forum_tag_id,
-            discord_user_id
+            discord_user_id, persona_name, persona_avatar_url
      FROM discord_post_targets
      WHERE post_id = ?`,
   )
@@ -186,6 +192,8 @@ export async function getDiscordPostTarget(
     forumChannelId: row.forum_channel_id,
     forumTagId: row.forum_tag_id,
     discordUserId: row.discord_user_id,
+    personaName: row.persona_name ?? null,
+    personaAvatarUrl: row.persona_avatar_url ?? null,
   };
 }
 

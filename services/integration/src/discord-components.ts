@@ -1,5 +1,6 @@
 export const POST_COMMAND_NAME = "post";
-export const POST_MODAL_PREFIX = "post:create:v2:";
+export const POST_MODAL_PREFIX = "post:create:v3:";
+const PREVIOUS_POST_MODAL_PREFIX = "post:create:v2:";
 const LEGACY_POST_MODAL_PREFIX = "post:create:v1:";
 
 export type DiscordPostModalTarget = Readonly<{
@@ -28,6 +29,20 @@ export function postModalResponse(
               style: 1,
               required: false,
               max_length: 80,
+            },
+          ],
+        },
+        {
+          type: 1,
+          components: [
+            {
+              type: 4,
+              custom_id: "post_avatar_url",
+              label: "Avatar de quem escreve (opcional)",
+              placeholder: "https://exemplo.com/personagem.png",
+              style: 1,
+              required: false,
+              max_length: 2_048,
             },
           ],
         },
@@ -74,9 +89,12 @@ export function postTargetFromModal(
       ? { forumChannelId, forumTagId: null }
       : null;
   }
-  if (!customId?.startsWith(POST_MODAL_PREFIX)) return null;
+  if (!customId) return null;
+  const supportedPrefix = [POST_MODAL_PREFIX, PREVIOUS_POST_MODAL_PREFIX]
+    .find((prefix) => customId.startsWith(prefix));
+  if (!supportedPrefix) return null;
   const [forumChannelId, forumTagId, ...extra] = customId
-    .slice(POST_MODAL_PREFIX.length)
+    .slice(supportedPrefix.length)
     .split(":");
   if (extra.length > 0 || !forumChannelId || !isSnowflake(forumChannelId)) {
     return null;

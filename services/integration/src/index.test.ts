@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DiscordPostPublication, Post } from "@vigilia/contracts";
 import { handlePublicationBatch, integrationApp } from "./index";
+import { postTargetFromModal } from "./discord-components";
 import type { IntegrationEnv, PublicationBatch } from "./types";
 
 const applicationId = "1540460545558323250";
@@ -175,8 +176,9 @@ describe("Discord integration Worker", () => {
     const body = (await response.json()) as { type: number; data: { custom_id: string } };
     expect(body.type).toBe(9);
     expect(body.data.custom_id).toBe(
-      `post:create:v2:${forumChannelId}:${forumTagId}`,
+      `post:create:v3:${forumChannelId}:${forumTagId}`,
     );
+    expect(JSON.stringify(body)).toContain("post_avatar_url");
   });
 
   it("oferece autocomplete das tags do fórum escolhido", async () => {
@@ -259,9 +261,10 @@ describe("Discord integration Worker", () => {
       channel_id: "323456789012345678",
       member: { user: { id: discordUserId, username: "guardiao" } },
       data: {
-        custom_id: `post:create:v2:${forumChannelId}:${forumTagId}`,
+        custom_id: `post:create:v3:${forumChannelId}:${forumTagId}`,
         components: [
           { type: 1, components: [{ type: 4, custom_id: "post_persona", value: "Aster" }] },
+          { type: 1, components: [{ type: 4, custom_id: "post_avatar_url", value: "https://cdn.example/aster.png" }] },
           { type: 1, components: [{ type: 4, custom_id: "post_title", value: "Sinais no ermo" }] },
           { type: 1, components: [{ type: 4, custom_id: "post_body", value: "A chama foi vista ao norte." }] },
         ],
@@ -285,6 +288,10 @@ describe("Discord integration Worker", () => {
 
     expect(portalFetch).toHaveBeenCalledTimes(1);
     expect(db.inbox.get("323456")?.status).toBe("succeeded");
+    expect(db.targets.get("cccccccc-cccc-4ccc-8ccc-cccccccccccc")).toMatchObject({
+      persona_name: "Aster",
+      persona_avatar_url: "https://cdn.example/aster.png",
+    });
   });
 
   it("publica uma única thread e registra a associação", async () => {
@@ -320,6 +327,8 @@ describe("Discord integration Worker", () => {
       forum_channel_id: forumChannelId,
       forum_tag_id: forumTagId,
       discord_user_id: discordUserId,
+      persona_name: null,
+      persona_avatar_url: null,
     });
     const batch = {
       messages: [{ body, ack, retry }],
@@ -370,6 +379,248 @@ describe("Discord integration Worker", () => {
     ).toHaveLength(1);
   });
 
+  it("mantém compatibilidade com identificadores dos modais anteriores", () => {
+    expect(postTargetFromModal(`post:create:v2:${forumChannelId}:${forumTagId}`)).toEqual({
+      forumChannelId,
+      forumTagId,
+    });
+    expect(postTargetFromModal(`post:create:v1:${forumChannelId}`)).toEqual({
+      forumChannelId,
+      forumTagId: null,
+    });
+  });
+
+  it("publica no fórum com nome e avatar narrativos por webhook", async () => {
+    const webhookId = "923456789012345678";
+    const webhookToken = "webhook-token-not-persisted";
+    portalFetch.mockImplementation(async (request: Request) => {
+      if (request.url.endsWith("/api/internal/integration/discord/publications")) {
+        return Response.json({ ok: true });
+      }
+      return Response.json({
+        post: {
+          ...postFixture("published"),
+          body: "> Escrito por **Aster**\n\nA chama foi vista ao norte.",
+        },
+      });
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        if (url.endsWith(`/channels/${forumChannelId}/webhooks`)) {
+          if (init?.method !== "POST") return Response.json([]);
+          return Response.json({
+            id: webhookId,
+            token: webhookToken,
+            type: 1,
+            name: "Ordem · Publicações",
+            channel_id: forumChannelId,
+            application_id: applicationId,
+          });
+        }
+        if (url.includes(`/webhooks/${webhookId}/${webhookToken}?wait=true`)) {
+          return Response.json({
+            id: "933456789012345678",
+            channel_id: "943456789012345678",
+          });
+        }
+        if (url.endsWith("/users/@me/channels")) {
+          return Response.json({ id: "723456789012345678" });
+        }
+        if (url.endsWith("/channels/723456789012345678/messages")) {
+          return Response.json({ id: "823456789012345678" });
+        }
+        return Response.json({});
+      }),
+    );
+    const postId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    db.targets.set(postId, {
+      campaign_id: campaignId,
+      guild_id: guildId,
+      forum_channel_id: forumChannelId,
+      forum_tag_id: forumTagId,
+      discord_user_id: discordUserId,
+      persona_name: "Aster",
+      persona_avatar_url: "https://cdn.example/aster.png",
+    });
+    const ack = vi.fn();
+    await handlePublicationBatch(
+      {
+        messages: [{
+          body: {
+            type: "discord.post.publish",
+            version: 1,
+            postId,
+            campaignId,
+            correlationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          },
+          ack,
+          retry: vi.fn(),
+        }],
+      } as unknown as PublicationBatch,
+      env,
+    );
+
+    expect(ack).toHaveBeenCalledOnce();
+    const webhookCall = vi.mocked(fetch).mock.calls.find(([input]) =>
+      String(input).includes(`/webhooks/${webhookId}/${webhookToken}?wait=true`),
+    );
+    expect(webhookCall).toBeDefined();
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining(`/channels/${forumChannelId}/webhooks`),
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ authorization: "Bot bot-token" }),
+      }),
+    );
+    const payload = JSON.parse(String(webhookCall?.[1]?.body)) as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      username: "Aster",
+      avatar_url: "https://cdn.example/aster.png",
+      thread_name: "Sinais no ermo",
+      applied_tags: [forumTagId],
+      allowed_mentions: { parse: [] },
+    });
+    expect(String(payload.content)).toContain("A chama foi vista ao norte.");
+    expect(String(payload.content)).not.toContain("Escrito por");
+    expect(db.links.get(postId)).toMatchObject({
+      thread_id: "943456789012345678",
+      starter_message_id: "933456789012345678",
+    });
+    expect(JSON.stringify([...db.targets.values(), ...db.links.values()])).not.toContain(webhookToken);
+  });
+
+  it("reutiliza o webhook gerenciado do fórum sem criar outro", async () => {
+    const webhookId = "923456789012345678";
+    const webhookToken = "existing-webhook-token";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        if (url.endsWith(`/channels/${forumChannelId}/webhooks`)) {
+          return Response.json([{
+            id: webhookId,
+            token: webhookToken,
+            type: 1,
+            name: "Ordem · Publicações",
+            channel_id: forumChannelId,
+            user: { id: applicationId },
+          }]);
+        }
+        if (url.includes(`/webhooks/${webhookId}/${webhookToken}?wait=true`)) {
+          return Response.json({
+            id: "933456789012345678",
+            channel_id: "943456789012345678",
+          });
+        }
+        if (url.endsWith("/users/@me/channels")) {
+          return Response.json({ id: "723456789012345678" });
+        }
+        if (url.endsWith("/channels/723456789012345678/messages")) {
+          return Response.json({ id: "823456789012345678" });
+        }
+        void init;
+        return Response.json({});
+      }),
+    );
+    const postId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    db.targets.set(postId, {
+      campaign_id: campaignId,
+      guild_id: guildId,
+      forum_channel_id: forumChannelId,
+      forum_tag_id: forumTagId,
+      discord_user_id: discordUserId,
+      persona_name: "Aster",
+      persona_avatar_url: null,
+    });
+
+    await handlePublicationBatch(
+      {
+        messages: [{
+          body: {
+            type: "discord.post.publish",
+            version: 1,
+            postId,
+            campaignId,
+            correlationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          },
+          ack: vi.fn(),
+          retry: vi.fn(),
+        }],
+      } as unknown as PublicationBatch,
+      env,
+    );
+
+    const webhookManagementCalls = vi.mocked(fetch).mock.calls.filter(([input]) =>
+      String(input).endsWith(`/channels/${forumChannelId}/webhooks`),
+    );
+    expect(webhookManagementCalls).toHaveLength(1);
+    expect(webhookManagementCalls[0]?.[1]?.method).toBeUndefined();
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining(`/webhooks/${webhookId}/${webhookToken}?wait=true`),
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("usa o bot quando o fórum não permite gerenciar webhooks", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        if (url.endsWith(`/channels/${forumChannelId}/webhooks`)) {
+          return Response.json(
+            { code: 50013, message: "Missing Permissions" },
+            { status: 403 },
+          );
+        }
+        if (url.endsWith(`/channels/${forumChannelId}/threads`)) {
+          return Response.json({ id: "953456789012345678", message: { id: "963456789012345678" } });
+        }
+        if (url.endsWith("/users/@me/channels")) {
+          return Response.json({ id: "723456789012345678" });
+        }
+        if (url.endsWith("/channels/723456789012345678/messages")) {
+          return Response.json({ id: "823456789012345678" });
+        }
+        return Response.json({});
+      }),
+    );
+    const postId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    db.targets.set(postId, {
+      campaign_id: campaignId,
+      guild_id: guildId,
+      forum_channel_id: forumChannelId,
+      forum_tag_id: forumTagId,
+      discord_user_id: discordUserId,
+      persona_name: "Aster",
+      persona_avatar_url: null,
+    });
+    const ack = vi.fn();
+    await handlePublicationBatch(
+      {
+        messages: [{
+          body: {
+            type: "discord.post.publish",
+            version: 1,
+            postId,
+            campaignId,
+            correlationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          },
+          ack,
+          retry: vi.fn(),
+        }],
+      } as unknown as PublicationBatch,
+      env,
+    );
+
+    expect(ack).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining(`/channels/${forumChannelId}/threads`),
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
   it("avisa o autor por DM quando a entrega esgota as tentativas", async () => {
     const dmMessages: unknown[] = [];
     vi.stubGlobal(
@@ -399,6 +650,8 @@ describe("Discord integration Worker", () => {
       forum_channel_id: forumChannelId,
       forum_tag_id: forumTagId,
       discord_user_id: discordUserId,
+      persona_name: null,
+      persona_avatar_url: null,
     });
     db.deliveries.set(`post:${postId}:forum:v1`, {
       status: "failed",
@@ -495,7 +748,7 @@ function toHex(value: ArrayBuffer): string {
 class FakeDatabase {
   readonly inbox = new Map<string, { status: "processing" | "succeeded" | "failed"; result: string | null; attempts: number }>();
   readonly deliveries = new Map<string, { status: "pending" | "succeeded" | "failed"; externalId: string | null; attempts: number }>();
-  readonly targets = new Map<string, { campaign_id: string; guild_id: string; forum_channel_id: string; forum_tag_id: string | null; discord_user_id: string }>();
+  readonly targets = new Map<string, { campaign_id: string; guild_id: string; forum_channel_id: string; forum_tag_id: string | null; discord_user_id: string; persona_name: string | null; persona_avatar_url: string | null }>();
   readonly links = new Map<string, {
     post_id: string;
     campaign_id: string;
@@ -598,6 +851,8 @@ class FakeStatement {
         forum_channel_id: String(this.args[5]),
         forum_tag_id: this.args[6] === null ? null : String(this.args[6]),
         discord_user_id: String(this.args[7]),
+        persona_name: this.args[8] === null ? null : String(this.args[8]),
+        persona_avatar_url: this.args[9] === null ? null : String(this.args[9]),
       });
     } else if (this.sql.includes("INSERT OR IGNORE INTO discord_post_links")) {
       this.db.links.set(String(this.args[1]), {

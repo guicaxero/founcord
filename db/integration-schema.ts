@@ -74,6 +74,8 @@ export const discordPostTargets = sqliteTable(
     guildId: text("guild_id").notNull(),
     forumChannelId: text("forum_channel_id").notNull(),
     forumTagId: text("forum_tag_id"),
+    personaName: text("persona_name"),
+    personaAvatarUrl: text("persona_avatar_url"),
     ...timestamps,
   },
   (table) => [

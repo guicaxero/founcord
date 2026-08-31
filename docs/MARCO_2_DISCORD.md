@@ -23,6 +23,11 @@ fórum do Discord.
   -> tópico no fórum Discord
 ```
 
+O modal também aceita nome narrativo e avatar HTTPS opcionais. Depois da
+revisão, a integração usa um webhook de entrada gerenciado pela própria
+aplicação para criar o tópico com `username` e `avatar_url` personalizados. O
+bot continua responsável pelos comandos, validações, DMs e fallback.
+
 O Discord Integration Worker valida a assinatura Ed25519 e a idade do timestamp
 antes de interpretar o corpo. A resposta inicial é enviada imediatamente; o
 trabalho restante é concluído com `waitUntil`.
@@ -42,6 +47,10 @@ vinculado. O backend então aplica as permissões reais desse usuário.
 - `audit_log`: registra `discord.post.published` com correlation ID.
 - Queue `ordem-discord-publications`: entrega assíncrona pelo menos uma vez.
 - Queue `ordem-discord-publications-dlq`: mensagens que esgotaram as tentativas.
+
+`discord_post_targets` também preserva o nome e o avatar narrativos até a
+publicação. Tokens de webhook não são armazenados: o Worker lista ou cria um
+webhook pertencente à aplicação diretamente no fórum.
 
 Desde o Marco 2.5, o Integration Worker usa `ordem-integration-db` e não possui
 acesso físico ao D1 do portal. Identidade, RBAC, posts e auditoria são acessados
@@ -97,7 +106,9 @@ Depois de testes, revisão e merge na `main`:
 4. No Discord Developer Portal, definir a Interactions Endpoint URL como
    `https://ordem-discord-integration.<subdominio>.workers.dev/interactions`.
 5. Convidar o bot ao servidor com acesso ao canal e permissões para visualizar o
-   canal, enviar mensagens, criar posts e enviar mensagens em posts.
+   canal, enviar mensagens, criar posts, enviar mensagens em posts e
+   **Gerenciar webhooks**. Sem esta última permissão, a publicação continua pelo
+   bot e mantém a autoria no corpo do texto.
 6. Definir `DISCORD_BOT_TOKEN` em `.env.local` e executar
    `npm run discord:register`. O script carrega esse arquivo ignorado pelo Git e
    registra o comando diretamente na guild oficial.
@@ -119,6 +130,8 @@ desenvolvimento. Sem `DISCORD_GUILD_ID`, o script registra o comando global.
 8. Reprocessar a mensagem de teste e confirmar que nenhum tópico duplicado é
    criado.
 9. Conferir logs estruturados e a ação `discord.post.published` na auditoria.
+10. Preencher nome/avatar em uma publicação de teste e confirmar que o cabeçalho
+    do tópico usa a identidade narrativa.
 
 A criação do banco, migração dos registros legados e rollback estão descritos
 em [Marco 2.5 — Isolamento de persistência](./MARCO_2_5_STORAGE.md).
@@ -129,3 +142,5 @@ em [Marco 2.5 — Isolamento de persistência](./MARCO_2_5_STORAGE.md).
 - Não publica conteúdo sem revisão humana.
 - Não sincroniza personagens do Foundry; isso pertence ao Marco 3.
 - Não executa resumos ou IA; isso pertence ao Marco 4.
+- URLs de avatar são referências HTTPS; o sistema não hospeda nem transforma a
+  imagem neste corte.

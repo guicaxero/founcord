@@ -235,6 +235,7 @@ async function processPostModal(
     forumChannelId: target.forumChannelId,
     forumTagId: target.forumTagId,
     personaName: values.post_persona?.trim() || null,
+    personaAvatarUrl: values.post_avatar_url?.trim() || null,
     title: values.post_title,
     body: values.post_body,
   });
@@ -243,7 +244,10 @@ async function processPostModal(
       env,
       interaction.application_id,
       interaction.token,
-      { content: "Não foi possível validar os campos do post.", embeds: [] },
+      {
+        content: "Revise nome, avatar, título e conteúdo. O avatar deve ser uma URL HTTPS válida.",
+        embeds: [],
+      },
     );
     return;
   }
@@ -276,6 +280,8 @@ async function processPostModal(
       guildId: input.data.guildId,
       forumChannelId: input.data.forumChannelId,
       forumTagId: input.data.forumTagId,
+      personaName: input.data.personaName,
+      personaAvatarUrl: input.data.personaAvatarUrl,
     });
     await editOriginalInteraction(env, interaction.application_id, interaction.token, {
       content: "Post enviado para revisão humana no portal.",
@@ -345,6 +351,7 @@ async function publishPost(
       post,
       target.forumChannelId,
       target.forumTagId,
+      { name: target.personaName, avatarUrl: target.personaAvatarUrl },
     );
     const publishedAt = new Date().toISOString();
     await completeDiscordPublication(
