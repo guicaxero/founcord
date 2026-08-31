@@ -887,10 +887,10 @@ function PrepareDraft({
       {item.automationJobId && job?.status !== "cancelled" ? (
         <div className={`session-editorial-state is-${job?.status ?? "registered"}`} role="status">
           <span>Fluxo editorial</span>
-          <h3>{jobState?.label ?? (item.postId ? "Rascunho pronto para revisão" : "Processamento registrado")}</h3>
+          <h3>{jobState?.label ?? (item.postId || item.summaryId ? "Rascunho pronto para revisão" : "Processamento registrado")}</h3>
           <p>{jobState?.description ?? "Acompanhe a fila em Automações para mais detalhes."}</p>
           <div className="session-editorial-actions">
-            {item.postId || job?.status === "awaiting_review" ? (
+            {item.postId || item.summaryId || job?.status === "awaiting_review" ? (
               <button className="admin-primary" type="button" onClick={onOpenReview}>Abrir mesa de revisão</button>
             ) : null}
             {job?.status === "failed" && canManage ? (
@@ -991,12 +991,12 @@ function SessionHistoryCard({
         {item.status === "ended" && !item.automationJobId && canManage ? (
           <button className="admin-primary" type="button" onClick={onPrepare}>Preparar rascunho</button>
         ) : null}
-        {item.status === "ended" && item.automationJobId && !item.postId ? (
+        {item.status === "ended" && item.automationJobId && !item.postId && !item.summaryId ? (
           <button className="secondary-action" type="button" onClick={onPrepare}>
             {job?.status === "cancelled" ? "Preparar novo rascunho" : "Acompanhar processamento"}
           </button>
         ) : null}
-        {item.postId || job?.status === "awaiting_review" ? (
+        {item.postId || item.summaryId || job?.status === "awaiting_review" ? (
           <button className="admin-primary" type="button" onClick={onOpenReview}>Abrir revisão</button>
         ) : null}
       </footer>

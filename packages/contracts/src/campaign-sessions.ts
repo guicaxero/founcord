@@ -95,6 +95,7 @@ export const CampaignSessionSchema = z
     notes: z.string().max(20_000),
     automationJobId: EntityIdSchema.nullable(),
     postId: EntityIdSchema.nullable(),
+    summaryId: EntityIdSchema.nullable(),
     startedAt: IsoDateTimeSchema.nullable(),
     endedAt: IsoDateTimeSchema.nullable(),
     createdAt: IsoDateTimeSchema,

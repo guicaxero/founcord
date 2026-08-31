@@ -268,6 +268,73 @@ export const posts = sqliteTable(
   ],
 );
 
+export const sessionSummaries = sqliteTable(
+  "session_summaries",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    sessionId: text("session_id").references(() => campaignSessions.id, {
+      onDelete: "set null",
+    }),
+    authorUserId: text("author_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    status: text("status", {
+      enum: ["draft", "pending_review", "published", "archived"],
+    })
+      .notNull()
+      .default("draft"),
+    source: text("source", { enum: ["manual", "automation"] })
+      .notNull()
+      .default("manual"),
+    reviewedBy: text("reviewed_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    publishedAt: text("published_at"),
+    version: integer("version").notNull().default(1),
+    ...timestamps,
+  },
+  (table) => [
+    index("idx_session_summaries_campaign_status_published").on(
+      table.campaignId,
+      table.status,
+      table.publishedAt,
+    ),
+    index("idx_session_summaries_session").on(table.sessionId),
+  ],
+);
+
+export const automationSessionSummaryLinks = sqliteTable(
+  "automation_session_summary_links",
+  {
+    jobId: text("job_id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    sessionId: text("session_id").references(() => campaignSessions.id, {
+      onDelete: "set null",
+    }),
+    summaryId: text("summary_id")
+      .notNull()
+      .references(() => sessionSummaries.id, { onDelete: "cascade" }),
+    requestedByUserId: text("requested_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("uq_automation_session_summary_links_summary_id").on(table.summaryId),
+    index("idx_automation_session_summary_links_campaign").on(
+      table.campaignId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const automationDraftLinks = sqliteTable(
   "automation_draft_links",
   {

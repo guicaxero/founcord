@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AccountMenu } from "@/components/account-menu";
 import { MissionBoard } from "@/components/mission-board";
 import { PublishedPosts } from "@/components/published-posts";
+import { SessionSummaries } from "@/components/session-summaries";
 import { ResponsiveNavigation } from "@/components/responsive-navigation";
 import { DEFAULT_CAMPAIGN_ID } from "@/server/constants";
 
@@ -28,6 +29,7 @@ export default function Home() {
               { href: "#quadro", label: "Missões", current: true },
               { href: "/ordem", label: "Código da Ordem" },
               { href: "#cronicas", label: "Crônicas" },
+              { href: "#diario", label: "Diário de Sessões" },
             ]}
           />
           <AccountMenu />
@@ -107,6 +109,7 @@ export default function Home() {
         </section>
 
         <PublishedPosts campaignId={DEFAULT_CAMPAIGN_ID} initialPosts={[]} />
+        <SessionSummaries campaignId={DEFAULT_CAMPAIGN_ID} initialSummaries={[]} />
         <footer>
           <span>Uma campanha comunitária, sem fins lucrativos.</span>
           <span>Enquanto houver luz, haverá esperança.</span>

@@ -128,6 +128,7 @@
   .mission-board,
   .campaign-panel,
   .publications,
+  .session-diary,
   .order-preview {
     padding: 3rem 1.5rem;
   }
@@ -143,14 +144,17 @@
   }
 
   .order-preview-grid,
-  .publication-grid {
+  .publication-grid,
+  .session-diary-grid {
     grid-template-columns: 1fr;
   }
 
   .order-preview-grid article,
   .order-preview-grid article + article,
   .publication-grid article,
-  .publication-grid article + article {
+  .publication-grid article + article,
+  .session-diary-card,
+  .session-diary-card + .session-diary-card {
     min-height: auto;
     border-right: 0;
     border-bottom: 1px solid var(--ink-200);

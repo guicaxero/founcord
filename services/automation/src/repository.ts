@@ -1,10 +1,12 @@
 import {
+  AutomationTargetSchema,
   AutomationJobSchema,
   AutomationQuotaSchema,
   type AutomationGeneratedDraft,
   type AutomationJob,
   type AutomationJobCreateRequest,
   type AutomationQuota,
+  type AutomationTarget,
 } from "@vigilia/contracts";
 import { AutomationServiceError } from "./auth";
 import type { AutomationEnv } from "./types";
@@ -24,9 +26,11 @@ type AutomationJobRow = Readonly<{
   source_content: string;
   suggested_title: string | null;
   instructions: string | null;
+  target_json: string;
   idempotency_key: string;
   correlation_id: string;
   post_id: string | null;
+  summary_id: string | null;
   result_title: string | null;
   result_body: string | null;
   model: string | null;
@@ -64,8 +68,8 @@ export async function createAutomationJob(
       `INSERT INTO automation_jobs (
         id, campaign_id, requested_by_user_id, requested_by_name, kind, status,
         source_kind, source_label, source_content, suggested_title, instructions,
-        idempotency_key, correlation_id
-      ) VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?)`,
+        target_json, idempotency_key, correlation_id
+      ) VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(
         id,
@@ -78,6 +82,7 @@ export async function createAutomationJob(
         input.source.content,
         input.suggestedTitle ?? null,
         input.instructions ?? null,
+        JSON.stringify(input.target ?? { type: "post" }),
         idempotencyKey,
         input.correlationId,
       )
@@ -154,18 +159,19 @@ export async function completeAutomationJob(
   jobId: string,
   leaseToken: string,
   generated: AutomationGeneratedDraft,
-  postId: string,
+  postId: string | null,
+  summaryId: string | null,
   model: string,
 ): Promise<boolean> {
   const result = await env.AUTOMATION_DB.prepare(
     `UPDATE automation_jobs
-     SET status = 'awaiting_review', post_id = ?, result_title = ?, result_body = ?,
+     SET status = 'awaiting_review', post_id = ?, summary_id = ?, result_title = ?, result_body = ?,
          model = ?, lease_token = NULL, lease_expires_at = NULL,
          error_code = NULL, error_message = NULL,
          completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
      WHERE id = ? AND status = 'processing' AND lease_token = ?`,
   )
-    .bind(postId, generated.title, generated.body, model, jobId, leaseToken)
+    .bind(postId, summaryId, generated.title, generated.body, model, jobId, leaseToken)
     .run();
   if ((result.meta.changes ?? 0) === 0) return false;
   await env.AUTOMATION_DB.prepare(
@@ -387,6 +393,8 @@ export function mapJob(row: AutomationJobRow): AutomationJob {
     sourcePreview: preview,
     suggestedTitle: row.suggested_title,
     postId: row.post_id,
+    summaryId: row.summary_id,
+    target: parseTarget(row.target_json),
     attempts: row.attempts,
     maxAttempts: row.max_attempts,
     model: row.model,
@@ -396,6 +404,14 @@ export function mapJob(row: AutomationJobRow): AutomationJob {
     startedAt: row.started_at ? toIso(row.started_at) : null,
     completedAt: row.completed_at ? toIso(row.completed_at) : null,
   });
+}
+
+function parseTarget(value: string): AutomationTarget {
+  try {
+    return AutomationTargetSchema.parse(JSON.parse(value));
+  } catch {
+    return { type: "post" };
+  }
 }
 
 function dailyJobLimit(env: AutomationEnv): number {

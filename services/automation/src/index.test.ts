@@ -71,6 +71,7 @@ describe("Automation Worker queue", () => {
     });
     portal.createPortalAutomationDraft.mockResolvedValue({
       postId,
+      summaryId: null,
       status: "pending_review",
       duplicate: false,
     });
@@ -90,6 +91,7 @@ describe("Automation Worker queue", () => {
       "lease-token",
       expect.any(Object),
       postId,
+      null,
       "@cf/meta/llama-3.1-8b-instruct-fast",
     );
     expect(message.ack).toHaveBeenCalledOnce();
