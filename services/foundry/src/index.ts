@@ -14,6 +14,9 @@ import {
   FoundryCommandResultRequestSchema,
   FoundryHeartbeatRequestSchema,
   FoundryHeartbeatResponseSchema,
+  FoundryMerchantSyncRequestSchema,
+  FoundryMerchantSyncResponseSchema,
+  MerchantCatalogResponseSchema,
   FoundryPairingApprovalRequestSchema,
   FoundryPairingApprovalResponseSchema,
   FoundryPairingCreateRequestSchema,
@@ -36,12 +39,16 @@ import {
   authorizeFoundryPairing,
   cancelFoundryCaptureSession,
   cancelFoundryPairing,
+  claimFoundryMerchantSync,
   claimFoundrySync,
   completeFoundryCommand,
+  completeFoundryMerchantSync,
   completeFoundrySync,
   createFoundryPairing,
   enqueueFoundryCommand,
   failFoundrySync,
+  failFoundryMerchantSync,
+  getFoundryMerchantCatalog,
   getFoundryCaptureTranscript,
   endFoundryCaptureSession,
   listFoundryCaptureSessions,
@@ -87,7 +94,7 @@ foundryApp.get("/health", async (context) => {
 foundryApp.get("/openapi.json", (context) =>
   context.json({
     openapi: "3.1.0",
-    info: { title: "Ordem Foundry Bridge API", version: "0.3.0" },
+    info: { title: "Ordem Foundry Bridge API", version: "0.4.0" },
     paths: {
       "/health": { get: { responses: { 200: { description: "Healthy" } } } },
       "/v1/pairings": {
@@ -101,6 +108,9 @@ foundryApp.get("/openapi.json", (context) =>
       },
       "/v1/worlds/{worldId}/characters/sync": {
         post: { responses: { 200: { description: "Projection synchronized" } } },
+      },
+      "/v1/worlds/{worldId}/merchant/sync": {
+        post: { responses: { 200: { description: "Merchant catalog synchronized" } } },
       },
       "/v1/worlds/{worldId}/chat/batches": {
         post: { responses: { 200: { description: "Public chat batch accepted" } } },
@@ -280,6 +290,55 @@ foundryApp.post("/v1/worlds/:worldId/characters/sync", async (context) => {
   }
 });
 
+foundryApp.post("/v1/worlds/:worldId/merchant/sync", async (context) => {
+  const worldId = parseUuid(context.req.param("worldId"));
+  const world = await authenticateWorld(context.req.raw, context.env, worldId);
+  const input = await parseJson(context.req.raw, FoundryMerchantSyncRequestSchema);
+  const claim = await claimFoundryMerchantSync(context.env, worldId, input.syncId);
+  if (claim === "succeeded") {
+    return context.json(
+      FoundryMerchantSyncResponseSchema.parse({
+        syncId: input.syncId,
+        accepted: 0,
+        duplicate: true,
+        stale: false,
+      }),
+    );
+  }
+  if (claim === "processing") {
+    throw new FoundryBridgeError(
+      409,
+      "merchant_sync_in_progress",
+      "Esta sincronização do Mercador já está em processamento.",
+    );
+  }
+
+  try {
+    const result = await completeFoundryMerchantSync(
+      context.env,
+      worldId,
+      world.campaignId,
+      input,
+    );
+    return context.json(
+      FoundryMerchantSyncResponseSchema.parse({
+        syncId: input.syncId,
+        accepted: result.accepted,
+        duplicate: false,
+        stale: result.stale,
+      }),
+    );
+  } catch (error) {
+    await failFoundryMerchantSync(
+      context.env,
+      worldId,
+      input.syncId,
+      error,
+    ).catch(() => undefined);
+    throw error;
+  }
+});
+
 foundryApp.post("/v1/worlds/:worldId/chat/batches", async (context) => {
   const worldId = parseUuid(context.req.param("worldId"));
   await authenticateWorld(context.req.raw, context.env, worldId);
@@ -355,6 +414,19 @@ foundryApp.get("/internal/foundry/campaigns/:campaignId/worlds", async (context)
   const worlds = await listFoundryWorlds(context.env, campaignId);
   return context.json({ worlds: worlds.map((world) => FoundryWorldStatusSchema.parse(world)) });
 });
+
+foundryApp.get(
+  "/internal/foundry/campaigns/:campaignId/merchant",
+  async (context) => {
+    await assertStaticBearer(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN);
+    const campaignId = parseUuid(context.req.param("campaignId"));
+    return context.json(
+      MerchantCatalogResponseSchema.parse(
+        await getFoundryMerchantCatalog(context.env, campaignId),
+      ),
+    );
+  },
+);
 
 foundryApp.get(
   "/internal/foundry/campaigns/:campaignId/capture-sessions",

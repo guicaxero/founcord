@@ -296,7 +296,7 @@ campanha.
 
 ## 7. Próxima entrega e funcionalidades posteriores
 
-### 7.1 Mercador — próxima entrega
+### 7.1 Mercador — em implementação
 
 Implementar em duas etapas para reduzir risco.
 
@@ -310,6 +310,10 @@ Implementar em duas etapas para reduzir risco.
 - filtros e indicação de estoque;
 - estado offline e data da última sincronização;
 - nenhuma alteração de ficha nesta etapa.
+
+O contrato, a persistência, a API, `/mercador` e a página pública são entregues
+em `codex/merchant-read-model`. A captura do ator no módulo Foundry é mantida em
+PR independente no repositório público do módulo.
 
 #### Etapa B — compra assistida ou automática
 

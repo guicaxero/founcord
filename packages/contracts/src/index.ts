@@ -7,5 +7,6 @@ export * from "./common";
 export * from "./events";
 export * from "./foundry";
 export * from "./missions";
+export * from "./merchant";
 export * from "./posts";
 export * from "./discord";

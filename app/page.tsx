@@ -30,6 +30,7 @@ export default function Home() {
               { href: "/ordem", label: "Código da Ordem" },
               { href: "#cronicas", label: "Crônicas" },
               { href: "#diario", label: "Diário de Sessões" },
+              { href: "/mercador", label: "Mercador" },
             ]}
           />
           <AccountMenu />

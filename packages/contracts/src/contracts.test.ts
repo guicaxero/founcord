@@ -6,6 +6,7 @@ import {
   FoundryCharacterSyncRequestSchema,
   FoundryChatBatchRequestSchema,
   FoundryCommandCreateRequestSchema,
+  FoundryMerchantSyncRequestSchema,
   FoundryPairingCreateRequestSchema,
   FoundryUserCodeSchema,
   UpdatePostSchema,
@@ -104,6 +105,41 @@ describe("contratos públicos", () => {
         command: { type: "actor.sync.request", payload: {} },
       }).command.type,
     ).toBe("actor.sync.request");
+  });
+
+  it("distingue estoque desconhecido, esgotado e disponível no Mercador", () => {
+    const baseItem = {
+      name: "Tocha",
+      description: null,
+      category: "Equipamento",
+      imageUrl: null,
+      price: "1 cp",
+      sourceUpdatedAt: "2026-08-31T12:00:00.000Z",
+    };
+    const sync = FoundryMerchantSyncRequestSchema.parse({
+      syncId: "12121212-1212-4212-8212-121212121212",
+      capturedAt: "2026-08-31T12:00:00.000Z",
+      catalog: {
+        merchantActorId: "merchant-001",
+        merchantName: "Intendente da Ordem",
+        sourceUpdatedAt: "2026-08-31T12:00:00.000Z",
+        items: [
+          { ...baseItem, itemId: "unknown", quantity: null },
+          { ...baseItem, itemId: "sold-out", quantity: 0 },
+          { ...baseItem, itemId: "available", quantity: 3 },
+        ],
+      },
+    });
+    expect(sync.catalog.items.map((item) => item.quantity)).toEqual([null, 0, 3]);
+    expect(() =>
+      FoundryMerchantSyncRequestSchema.parse({
+        ...sync,
+        catalog: {
+          ...sync.catalog,
+          items: [{ ...baseItem, itemId: "negative", quantity: -1 }],
+        },
+      }),
+    ).toThrow();
   });
 
   it("inicia pareamento sem aceitar campanha escolhida pelo Foundry", () => {

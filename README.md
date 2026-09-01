@@ -138,3 +138,14 @@ rascunho, e o Discord permanece explicitamente como referência não importada.
 
 Consulte [o runbook do Marco 4](docs/MARCO_4_AUTOMATIONS.md) para segurança,
 custos, recursos, secrets, migrations, deploy e rollback.
+
+## Mercador — vitrine somente leitura
+
+O Foundry publica um snapshot sanitizado do ator configurado como Mercador no
+banco de integração. O portal expõe a página pública `/mercador` e o Discord
+oferece `/mercador`, ambos com busca, disponibilidade, estado online/offline e
+data da última sincronização. Este corte nunca altera moedas, inventário ou
+quantidade; o Foundry continua sendo a fonte de verdade.
+
+Consulte [a especificação do Mercador](docs/MERCADOR_SOMENTE_LEITURA_SPEC.md)
+para contrato, estados, acessibilidade, deploy e limites desta etapa.

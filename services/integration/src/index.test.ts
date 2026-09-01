@@ -76,7 +76,7 @@ describe("Discord integration Worker", () => {
     expect(response.status).toBe(401);
   });
 
-  it("registra o /post no servidor sem expor o Bot Token", async () => {
+  it("registra /post e /mercador no servidor sem expor o Bot Token", async () => {
     const discordFetch = vi.fn(
       async (input: string | URL | Request, init?: RequestInit) => {
         void input;
@@ -123,6 +123,7 @@ describe("Discord integration Worker", () => {
         expect.objectContaining({ name: "tag", autocomplete: true }),
       ]),
     );
+    expect(commands[1]).toMatchObject({ name: "mercador" });
   });
 
   it("responde ao PING assinado do Discord", async () => {
@@ -179,6 +180,67 @@ describe("Discord integration Worker", () => {
       `post:create:v3:${forumChannelId}:${forumTagId}`,
     );
     expect(JSON.stringify(body)).toContain("post_avatar_url");
+  });
+
+  it("consulta o Mercador com filtro de disponibilidade e link para o portal", async () => {
+    db.merchantCatalog = {
+      campaign_id: campaignId,
+      last_seen_at: new Date().toISOString(),
+      connection_status: "online",
+      merchant_name: "Intendente da Ordem",
+      captured_at: new Date().toISOString(),
+      items_json: JSON.stringify([
+        {
+          itemId: "torch-001",
+          name: "Tocha",
+          description: "Uma fonte simples de luz.",
+          category: "Equipamento",
+          imageUrl: null,
+          price: "1 cp",
+          quantity: 5,
+          sourceUpdatedAt: "2026-08-31T12:00:00.000Z",
+        },
+        {
+          itemId: "oil-001",
+          name: "Óleo",
+          description: null,
+          category: "Equipamento",
+          imageUrl: null,
+          price: null,
+          quantity: 0,
+          sourceUpdatedAt: "2026-08-31T12:00:00.000Z",
+        },
+      ]),
+    };
+    const response = await integrationApp.fetch(
+      await signedRequest(
+        {
+          id: "323459",
+          application_id: applicationId,
+          type: 2,
+          token: "merchant-command",
+          guild_id: guildId,
+          data: {
+            name: "mercador",
+            options: [
+              { name: "busca", type: 3, value: "tocha" },
+              { name: "disponibilidade", type: 3, value: "available" },
+            ],
+          },
+        },
+        keys.privateKey,
+      ),
+      env,
+      executionContext(),
+    );
+    const body = (await response.json()) as {
+      data: { embeds: Array<{ fields: Array<{ name: string }> }>; components: unknown };
+    };
+    expect(response.status).toBe(200);
+    expect(body.data.embeds[0]?.fields).toEqual([
+      expect.objectContaining({ name: "Tocha" }),
+    ]);
+    expect(JSON.stringify(body.data.components)).toContain("https://ordem.example/mercador");
   });
 
   it("oferece autocomplete das tags do fórum escolhido", async () => {
@@ -759,6 +821,14 @@ class FakeDatabase {
     starter_message_id: string | null;
     published_at: string;
   }>();
+  merchantCatalog: {
+    campaign_id: string;
+    last_seen_at: string | null;
+    connection_status: "online" | "offline";
+    merchant_name: string | null;
+    captured_at: string | null;
+    items_json: string | null;
+  } | null = null;
 
   prepare(sql: string) {
     return new FakeStatement(this, sql);
@@ -783,6 +853,9 @@ class FakeStatement {
   }
 
   async first<T>(): Promise<T | null> {
+    if (this.sql.includes("FROM foundry_worlds fw")) {
+      return this.db.merchantCatalog as T | null;
+    }
     if (this.sql.includes("FROM integration_inbox_events")) {
       const row = this.db.inbox.get(String(this.args[0]));
       return (row

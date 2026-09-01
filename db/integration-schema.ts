@@ -262,6 +262,31 @@ export const foundryActorLinks = sqliteTable(
   ],
 );
 
+export const foundryMerchantCatalogs = sqliteTable(
+  "foundry_merchant_catalogs",
+  {
+    worldId: text("world_id")
+      .primaryKey()
+      .references(() => foundryWorlds.id, { onDelete: "cascade" }),
+    campaignId: text("campaign_id").notNull(),
+    merchantActorId: text("merchant_actor_id").notNull(),
+    merchantName: text("merchant_name").notNull(),
+    syncId: text("sync_id").notNull(),
+    capturedAt: text("captured_at").notNull(),
+    sourceUpdatedAt: text("source_updated_at").notNull(),
+    itemCount: integer("item_count").notNull().default(0),
+    itemsJson: text("items_json").notNull().default("[]"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("uq_foundry_merchant_sync_id").on(table.syncId),
+    index("idx_foundry_merchant_campaign_captured").on(
+      table.campaignId,
+      table.capturedAt,
+    ),
+  ],
+);
+
 export const foundryCaptureSessions = sqliteTable(
   "foundry_capture_sessions",
   {

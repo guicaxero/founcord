@@ -1,4 +1,9 @@
-import type { Post } from "@vigilia/contracts";
+import {
+  MerchantCatalogResponseSchema,
+  MerchantItemProjectionSchema,
+  type MerchantCatalogResponse,
+  type Post,
+} from "@vigilia/contracts";
 import type { DiscordThread } from "./discord-client";
 import type { IntegrationEnv } from "./types";
 
@@ -63,6 +68,81 @@ export type InboxClaim =
   | Readonly<{ status: "processing" }>
   | Readonly<{ status: "failed" }>
   | Readonly<{ status: "succeeded"; postId: string | null }>;
+
+type MerchantCatalogRow = Readonly<{
+  campaign_id: string;
+  last_seen_at: string | null;
+  connection_status: "online" | "offline";
+  merchant_name: string | null;
+  captured_at: string | null;
+  items_json: string | null;
+}>;
+
+export async function getDiscordMerchantCatalog(
+  env: IntegrationEnv,
+  campaignId: string,
+): Promise<MerchantCatalogResponse> {
+  const row = await env.INTEGRATION_DB.prepare(
+    `SELECT fw.campaign_id, fw.last_seen_at,
+            CASE
+              WHEN fw.last_seen_at IS NOT NULL
+                AND (unixepoch('now') - unixepoch(fw.last_seen_at)) <= 90
+                THEN 'online'
+              ELSE 'offline'
+            END AS connection_status,
+            mc.merchant_name, mc.captured_at, mc.items_json
+     FROM foundry_worlds fw
+     LEFT JOIN foundry_merchant_catalogs mc ON mc.world_id = fw.id
+     WHERE fw.campaign_id = ? AND fw.revoked_at IS NULL
+     ORDER BY
+       CASE WHEN mc.world_id IS NULL THEN 1 ELSE 0 END,
+       CASE
+         WHEN fw.last_seen_at IS NOT NULL
+           AND (unixepoch('now') - unixepoch(fw.last_seen_at)) <= 90
+           THEN 0
+         ELSE 1
+       END,
+       mc.captured_at DESC,
+       fw.registered_at DESC
+     LIMIT 1`,
+  )
+    .bind(campaignId)
+    .first<MerchantCatalogRow>();
+  if (!row) {
+    return MerchantCatalogResponseSchema.parse({
+      campaignId,
+      connection: { status: "not_connected", lastSeenAt: null },
+      catalog: null,
+    });
+  }
+  const capturedAt = row.captured_at ? normalizeD1Date(row.captured_at) : null;
+  const isStale = capturedAt
+    ? Date.now() - Date.parse(capturedAt) > 15 * 60 * 1_000
+    : true;
+  return MerchantCatalogResponseSchema.parse({
+    campaignId: row.campaign_id,
+    connection: {
+      status: row.connection_status,
+      lastSeenAt: row.last_seen_at ? normalizeD1Date(row.last_seen_at) : null,
+    },
+    catalog:
+      row.merchant_name && capturedAt && row.items_json
+        ? {
+            merchantName: row.merchant_name,
+            syncedAt: capturedAt,
+            freshness:
+              row.connection_status === "offline"
+                ? "offline"
+                : isStale
+                  ? "stale"
+                  : "fresh",
+            items: MerchantItemProjectionSchema.array()
+              .max(500)
+              .parse(JSON.parse(row.items_json)),
+          }
+        : null,
+  });
+}
 
 export async function claimDiscordInteraction(
   env: IntegrationEnv,
@@ -291,6 +371,11 @@ export async function getDiscordDeliveryAttempts(
 
 function deliveryKey(postId: string): string {
   return `post:${postId}:forum:v1`;
+}
+
+function normalizeD1Date(value: string): string {
+  if (/^\d{4}-\d{2}-\d{2}T/.test(value)) return new Date(value).toISOString();
+  return new Date(`${value.replace(" ", "T")}Z`).toISOString();
 }
 
 function errorMessage(error: unknown): string {

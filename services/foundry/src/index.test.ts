@@ -16,8 +16,12 @@ const repository = vi.hoisted(() => ({
   pollFoundryCommands: vi.fn(),
   completeFoundryCommand: vi.fn(),
   claimFoundrySync: vi.fn(),
+  claimFoundryMerchantSync: vi.fn(),
   completeFoundrySync: vi.fn(),
+  completeFoundryMerchantSync: vi.fn(),
   failFoundrySync: vi.fn(),
+  failFoundryMerchantSync: vi.fn(),
+  getFoundryMerchantCatalog: vi.fn(),
   startFoundryCaptureSession: vi.fn(),
   listFoundryCaptureSessions: vi.fn(),
   endFoundryCaptureSession: vi.fn(),
@@ -95,8 +99,21 @@ describe("Foundry Bridge Worker", () => {
     });
     repository.recordHeartbeat.mockResolvedValue(undefined);
     repository.claimFoundrySync.mockResolvedValue("claimed");
+    repository.claimFoundryMerchantSync.mockResolvedValue("claimed");
     repository.completeFoundrySync.mockResolvedValue(undefined);
+    repository.completeFoundryMerchantSync.mockResolvedValue({ accepted: 1, stale: false });
     repository.failFoundrySync.mockResolvedValue(undefined);
+    repository.failFoundryMerchantSync.mockResolvedValue(undefined);
+    repository.getFoundryMerchantCatalog.mockResolvedValue({
+      campaignId,
+      connection: { status: "online", lastSeenAt: "2026-08-23T02:00:00.000Z" },
+      catalog: {
+        merchantName: "Intendente da Ordem",
+        syncedAt: "2026-08-23T02:00:00.000Z",
+        freshness: "fresh",
+        items: [],
+      },
+    });
     repository.pollFoundryCommands.mockResolvedValue([]);
     repository.completeFoundryCommand.mockResolvedValue("completed");
     repository.enqueueFoundryCommand.mockResolvedValue({
@@ -234,6 +251,39 @@ describe("Foundry Bridge Worker", () => {
       sync.syncId,
       sync.characters,
     );
+  });
+
+  it("sincroniza o catálogo sanitizado do Mercador no banco de integração", async () => {
+    const sync = merchantSync();
+    const response = await request(`/v1/worlds/${worldId}/merchant/sync`, {
+      method: "POST",
+      headers: bearer(accessToken),
+      body: JSON.stringify(sync),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      syncId: sync.syncId,
+      accepted: 1,
+      duplicate: false,
+      stale: false,
+    });
+    expect(repository.completeFoundryMerchantSync).toHaveBeenCalledWith(
+      env,
+      worldId,
+      campaignId,
+      sync,
+    );
+  });
+
+  it("protege a leitura do Mercador com o token entre serviços", async () => {
+    const path = `/internal/foundry/campaigns/${campaignId}/merchant`;
+    expect((await request(path)).status).toBe(401);
+    const response = await request(path, { headers: bearer(serviceToken) });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      campaignId,
+      catalog: { merchantName: "Intendente da Ordem" },
+    });
   });
 
   it("enfileira comandos internos com idempotência obrigatória", async () => {
@@ -387,6 +437,30 @@ function characterSync() {
         sourceUpdatedAt: "2026-08-23T01:59:00.000Z",
       },
     ],
+  };
+}
+
+function merchantSync() {
+  return {
+    syncId: "12121212-1212-4212-8212-121212121212",
+    capturedAt: "2026-08-23T02:00:00.000Z",
+    catalog: {
+      merchantActorId: "merchant-001",
+      merchantName: "Intendente da Ordem",
+      sourceUpdatedAt: "2026-08-23T01:59:00.000Z",
+      items: [
+        {
+          itemId: "item-001",
+          name: "Óleo de lanterna",
+          description: "Mantém uma lanterna acesa por mais tempo.",
+          category: "Equipamento",
+          imageUrl: null,
+          price: "2 cp",
+          quantity: 4,
+          sourceUpdatedAt: "2026-08-23T01:59:00.000Z",
+        },
+      ],
+    },
   };
 }
 

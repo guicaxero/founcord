@@ -2,9 +2,12 @@ import {
   FoundryCaptureSessionSchema,
   FoundryChatBatchResponseSchema,
   FoundryCommandSchema,
+  MerchantCatalogResponseSchema,
+  MerchantItemProjectionSchema,
   type FoundryCaptureSession,
   type FoundryCaptureSessionStartRequest,
   type FoundryCharacterProjection,
+  type FoundryMerchantSyncRequest,
   type FoundryChatBatchRequest,
   type FoundryChatBatchResponse,
   type FoundryCommand,
@@ -14,6 +17,7 @@ import {
   type FoundryPairingPreview,
   type FoundryWorldIdentity,
   type FoundryWorldStatus,
+  type MerchantCatalogResponse,
 } from "@vigilia/contracts";
 import type { AuthenticatedWorld, FoundryEnv } from "./types";
 import { FoundryBridgeError } from "./auth";
@@ -75,6 +79,15 @@ type ChatEventRow = Readonly<{
   speaker_name: string | null;
   message_kind: "message" | "roll";
   content: string;
+}>;
+
+type MerchantCatalogRow = Readonly<{
+  campaign_id: string;
+  last_seen_at: string | null;
+  connection_status: "online" | "offline";
+  merchant_name: string | null;
+  captured_at: string | null;
+  items_json: string | null;
 }>;
 
 export type FoundryPairingState = Readonly<{
@@ -750,6 +763,189 @@ export async function failFoundrySync(
   )
     .bind(errorMessage(error), `${worldId}:${syncId}`)
     .run();
+}
+
+export async function claimFoundryMerchantSync(
+  env: FoundryEnv,
+  worldId: string,
+  syncId: string,
+): Promise<"claimed" | "processing" | "succeeded"> {
+  return claimFoundryEvent(env, merchantEventId(worldId, syncId));
+}
+
+export async function completeFoundryMerchantSync(
+  env: FoundryEnv,
+  worldId: string,
+  campaignId: string,
+  input: FoundryMerchantSyncRequest,
+): Promise<Readonly<{ accepted: number; stale: boolean }>> {
+  const eventId = merchantEventId(worldId, input.syncId);
+  const results = await env.INTEGRATION_DB.batch([
+    env.INTEGRATION_DB.prepare(
+      `INSERT INTO foundry_merchant_catalogs (
+        world_id, campaign_id, merchant_actor_id, merchant_name, sync_id,
+        captured_at, source_updated_at, item_count, items_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(world_id) DO UPDATE SET
+        campaign_id = excluded.campaign_id,
+        merchant_actor_id = excluded.merchant_actor_id,
+        merchant_name = excluded.merchant_name,
+        sync_id = excluded.sync_id,
+        captured_at = excluded.captured_at,
+        source_updated_at = excluded.source_updated_at,
+        item_count = excluded.item_count,
+        items_json = excluded.items_json,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE excluded.captured_at > foundry_merchant_catalogs.captured_at`,
+    ).bind(
+      worldId,
+      campaignId,
+      input.catalog.merchantActorId,
+      input.catalog.merchantName,
+      input.syncId,
+      input.capturedAt,
+      input.catalog.sourceUpdatedAt,
+      input.catalog.items.length,
+      JSON.stringify(input.catalog.items),
+    ),
+    env.INTEGRATION_DB.prepare(
+      `UPDATE integration_inbox_events
+       SET status = 'succeeded', result_entity_id = ?, last_error = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE source = 'foundry' AND external_event_id = ?`,
+    ).bind(input.syncId, eventId),
+  ]);
+  const applied = (results[0]?.meta.changes ?? 0) > 0;
+  return {
+    accepted: applied ? input.catalog.items.length : 0,
+    stale: !applied,
+  };
+}
+
+export async function failFoundryMerchantSync(
+  env: FoundryEnv,
+  worldId: string,
+  syncId: string,
+  error: unknown,
+): Promise<void> {
+  await env.INTEGRATION_DB.prepare(
+    `UPDATE integration_inbox_events
+     SET status = 'failed', last_error = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE source = 'foundry' AND external_event_id = ?`,
+  )
+    .bind(errorMessage(error), merchantEventId(worldId, syncId))
+    .run();
+}
+
+export async function getFoundryMerchantCatalog(
+  env: FoundryEnv,
+  campaignId: string,
+): Promise<MerchantCatalogResponse> {
+  const row = await env.INTEGRATION_DB.prepare(
+    `SELECT fw.campaign_id, fw.last_seen_at,
+            CASE
+              WHEN fw.last_seen_at IS NOT NULL
+                AND (unixepoch('now') - unixepoch(fw.last_seen_at)) <= 90
+                THEN 'online'
+              ELSE 'offline'
+            END AS connection_status,
+            mc.merchant_name, mc.captured_at, mc.items_json
+     FROM foundry_worlds fw
+     LEFT JOIN foundry_merchant_catalogs mc ON mc.world_id = fw.id
+     WHERE fw.campaign_id = ? AND fw.revoked_at IS NULL
+     ORDER BY
+       CASE WHEN mc.world_id IS NULL THEN 1 ELSE 0 END,
+       CASE
+         WHEN fw.last_seen_at IS NOT NULL
+           AND (unixepoch('now') - unixepoch(fw.last_seen_at)) <= 90
+           THEN 0
+         ELSE 1
+       END,
+       mc.captured_at DESC,
+       fw.registered_at DESC
+     LIMIT 1`,
+  )
+    .bind(campaignId)
+    .first<MerchantCatalogRow>();
+
+  if (!row) {
+    return MerchantCatalogResponseSchema.parse({
+      campaignId,
+      connection: { status: "not_connected", lastSeenAt: null },
+      catalog: null,
+    });
+  }
+
+  const connectionStatus = row.connection_status;
+  const capturedAt = row.captured_at ? normalizeD1Date(row.captured_at) : null;
+  const stale = capturedAt
+    ? Date.now() - Date.parse(capturedAt) > 15 * 60 * 1_000
+    : true;
+  return MerchantCatalogResponseSchema.parse({
+    campaignId: row.campaign_id,
+    connection: {
+      status: connectionStatus,
+      lastSeenAt: row.last_seen_at ? normalizeD1Date(row.last_seen_at) : null,
+    },
+    catalog:
+      row.merchant_name && capturedAt && row.items_json
+        ? {
+            merchantName: row.merchant_name,
+            syncedAt: capturedAt,
+            freshness:
+              connectionStatus === "offline"
+                ? "offline"
+                : stale
+                  ? "stale"
+                  : "fresh",
+            items: parseMerchantItems(row.items_json),
+          }
+        : null,
+  });
+}
+
+async function claimFoundryEvent(
+  env: FoundryEnv,
+  externalEventId: string,
+): Promise<"claimed" | "processing" | "succeeded"> {
+  await env.INTEGRATION_DB.prepare(
+    `INSERT OR IGNORE INTO integration_inbox_events (
+      id, source, external_event_id, status, attempts
+    ) VALUES (?, 'foundry', ?, 'processing', 0)`,
+  )
+    .bind(crypto.randomUUID(), externalEventId)
+    .run();
+  const claimed = await env.INTEGRATION_DB.prepare(
+    `UPDATE integration_inbox_events
+     SET status = 'processing', attempts = attempts + 1, last_error = NULL,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE source = 'foundry' AND external_event_id = ? AND attempts < 3
+       AND (status = 'failed' OR (status = 'processing' AND attempts = 0))`,
+  )
+    .bind(externalEventId)
+    .run();
+  if ((claimed.meta.changes ?? 0) > 0) return "claimed";
+  const row = await env.INTEGRATION_DB.prepare(
+    `SELECT status, attempts FROM integration_inbox_events
+     WHERE source = 'foundry' AND external_event_id = ?`,
+  )
+    .bind(externalEventId)
+    .first<InboxRow>();
+  return row?.status === "succeeded" ? "succeeded" : "processing";
+}
+
+function merchantEventId(worldId: string, syncId: string): string {
+  return `${worldId}:merchant:${syncId}`;
+}
+
+function parseMerchantItems(value: string) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error("Merchant projection contains invalid JSON.");
+  }
+  return MerchantItemProjectionSchema.array().max(500).parse(parsed);
 }
 
 export async function startFoundryCaptureSession(

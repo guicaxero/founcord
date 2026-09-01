@@ -271,7 +271,7 @@ async function getCampaignIdentity(campaignId: string): Promise<CampaignIdentity
   return campaign;
 }
 
-async function foundryRequest(
+export async function foundryRequest(
   path: string,
   options: Readonly<{
     method: "GET" | "POST" | "DELETE";

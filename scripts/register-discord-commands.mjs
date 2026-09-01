@@ -35,6 +35,31 @@ const response = await fetch(`https://discord.com/api/v10${route}`, {
         },
       ],
     },
+    {
+      name: "mercador",
+      description: "Consulta o estoque sincronizado do Mercador da campanha.",
+      type: 1,
+      dm_permission: false,
+      options: [
+        {
+          type: 3,
+          name: "busca",
+          description: "Filtra pelo nome ou descrição do item.",
+          required: false,
+          max_length: 80,
+        },
+        {
+          type: 3,
+          name: "disponibilidade",
+          description: "Filtra os itens pela quantidade disponível.",
+          required: false,
+          choices: [
+            { name: "Em estoque", value: "available" },
+            { name: "Esgotados", value: "sold_out" },
+          ],
+        },
+      ],
+    },
   ]),
 });
 

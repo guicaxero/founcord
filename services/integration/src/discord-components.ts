@@ -1,4 +1,5 @@
 export const POST_COMMAND_NAME = "post";
+export const MERCHANT_COMMAND_NAME = "mercador";
 export const POST_MODAL_PREFIX = "post:create:v3:";
 const PREVIOUS_POST_MODAL_PREFIX = "post:create:v2:";
 const LEGACY_POST_MODAL_PREFIX = "post:create:v1:";
