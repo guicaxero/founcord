@@ -17,4 +17,6 @@ export const queryKeys = {
     ["campaigns", campaignId, "sessions", "options"] as const,
   foundryWorlds: (campaignId: string) =>
     ["campaigns", campaignId, "foundry", "worlds"] as const,
+  merchant: (campaignId: string) =>
+    ["campaigns", campaignId, "merchant"] as const,
 } as const;

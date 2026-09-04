@@ -12,7 +12,7 @@ const otherCampaignId = "99999999-9999-4999-8999-999999999999";
 const serviceToken = "test-integration-token-with-at-least-32-bytes";
 const staleSyncId = "66666666-6666-4666-8666-666666666666";
 
-test("Marcos 3 e 4.1: conexão, comandos e captura pública do Foundry", async () => {
+test("Marcos 3, 4.1 e Mercador: conexão, projeções e captura pública do Foundry", async () => {
   const serverRoot = join(root, ".wrangler", "foundry-test-bundle");
   const portalCalls = [];
   const mf = new Miniflare(
@@ -288,6 +288,52 @@ test("Marcos 3 e 4.1: conexão, comandos e captura pública do Foundry", async (
     assert.equal(duplicateSync.data.duplicate, true);
     assert.equal(portalCalls.length, 2);
 
+    const merchantSyncId = "13131313-1313-4313-8313-131313131313";
+    const merchantCapturedAt = new Date().toISOString();
+    const merchantSynced = await api(mf, `/v1/worlds/${worldId}/merchant/sync`, {
+      method: "POST",
+      token: accessToken,
+      body: merchantSync(merchantSyncId, merchantCapturedAt),
+    });
+    assert.equal(merchantSynced.status, 200, JSON.stringify(merchantSynced.data));
+    assert.deepEqual(merchantSynced.data, {
+      syncId: merchantSyncId,
+      accepted: 2,
+      duplicate: false,
+      stale: false,
+    });
+
+    const merchantCatalog = await api(
+      mf,
+      `/internal/foundry/campaigns/${campaignId}/merchant`,
+      { token: serviceToken },
+    );
+    assert.equal(merchantCatalog.status, 200, JSON.stringify(merchantCatalog.data));
+    assert.equal(merchantCatalog.data.connection.status, "online");
+    assert.equal(merchantCatalog.data.catalog.merchantName, "Intendente da Ordem");
+    assert.deepEqual(
+      merchantCatalog.data.catalog.items.map((item) => item.quantity),
+      [5, 0],
+    );
+
+    const staleMerchant = await api(mf, `/v1/worlds/${worldId}/merchant/sync`, {
+      method: "POST",
+      token: accessToken,
+      body: merchantSync(
+        "14141414-1414-4414-8414-141414141414",
+        "2020-01-01T00:00:00.000Z",
+      ),
+    });
+    assert.equal(staleMerchant.data.stale, true);
+    assert.equal(staleMerchant.data.accepted, 0);
+
+    const duplicateMerchant = await api(mf, `/v1/worlds/${worldId}/merchant/sync`, {
+      method: "POST",
+      token: accessToken,
+      body: merchantSync(merchantSyncId, merchantCapturedAt),
+    });
+    assert.equal(duplicateMerchant.data.duplicate, true);
+
     const captureSessionId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     const chatPath = `/v1/worlds/${worldId}/chat/batches`;
     const outsideCapture = await api(mf, chatPath, {
@@ -506,5 +552,39 @@ function characterSync(syncId) {
         sourceUpdatedAt: new Date().toISOString(),
       },
     ],
+  };
+}
+
+function merchantSync(syncId, capturedAt) {
+  return {
+    syncId,
+    capturedAt,
+    catalog: {
+      merchantActorId: "merchant-001",
+      merchantName: "Intendente da Ordem",
+      sourceUpdatedAt: capturedAt,
+      items: [
+        {
+          itemId: "torch-001",
+          name: "Tocha",
+          description: "Uma fonte simples de luz.",
+          category: "Equipamento",
+          imageUrl: null,
+          price: "1 cp",
+          quantity: 5,
+          sourceUpdatedAt: capturedAt,
+        },
+        {
+          itemId: "oil-001",
+          name: "Óleo",
+          description: null,
+          category: "Equipamento",
+          imageUrl: null,
+          price: null,
+          quantity: 0,
+          sourceUpdatedAt: capturedAt,
+        },
+      ],
+    },
   };
 }

@@ -5,6 +5,7 @@ import {
   DiscordPostPublicationSchema,
   type DiscordInteraction,
   type DiscordPostPublication,
+  type MerchantCatalogResponse,
 } from "@vigilia/contracts";
 import {
   createForumThread,
@@ -16,6 +17,7 @@ import {
 } from "./discord-client";
 import {
   extractModalValues,
+  MERCHANT_COMMAND_NAME,
   POST_COMMAND_NAME,
   postModalResponse,
   postTargetFromModal,
@@ -35,6 +37,7 @@ import {
   getDiscordDeliveryAttempts,
   getDiscordPostLink,
   getDiscordPostTarget,
+  getDiscordMerchantCatalog,
   type DiscordPostLink,
 } from "./repository";
 import type { IntegrationEnv, PublicationBatch } from "./types";
@@ -132,6 +135,36 @@ integrationApp.post("/interactions", async (context) => {
       type: 4,
       data: { content: "Este servidor não está autorizado para a campanha.", flags: 64 },
     });
+  }
+  if (interaction.type === 2 && interaction.data?.name === MERCHANT_COMMAND_NAME) {
+    try {
+      return context.json(
+        merchantInteractionResponse(
+          context.env,
+          await getDiscordMerchantCatalog(
+            context.env,
+            context.env.DEFAULT_CAMPAIGN_ID,
+          ),
+          commandStringOption(interaction, "busca"),
+          commandStringOption(interaction, "disponibilidade"),
+        ),
+      );
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          level: "error",
+          code: "discord_merchant_lookup_failed",
+          message: error instanceof Error ? error.message : "Unknown error",
+        }),
+      );
+      return context.json({
+        type: 4,
+        data: {
+          content: "Não foi possível consultar o Mercador agora. Tente novamente.",
+          flags: 64,
+        },
+      });
+    }
   }
   if (interaction.type === 4 && interaction.data?.name === POST_COMMAND_NAME) {
     const forumChannelId = forumChannelIdFromOption(interaction);
@@ -320,6 +353,125 @@ function dashboardButton(env: IntegrationEnv) {
       ],
     },
   ];
+}
+
+function merchantInteractionResponse(
+  env: IntegrationEnv,
+  response: MerchantCatalogResponse,
+  query: string | null,
+  availability: string | null,
+) {
+  const portalButton = [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 5,
+          label: "Consultar estoque completo",
+          url: `${env.SITE_URL}/mercador`,
+        },
+      ],
+    },
+  ];
+  if (!response.catalog) {
+    const offline = response.connection.status === "offline";
+    return {
+      type: 4,
+      data: {
+        content: offline
+          ? "O Mercador está indisponível no momento. O mundo está offline e ainda não há um catálogo sincronizado."
+          : "O estoque do Mercador ainda não está disponível.",
+        flags: 64,
+        components: portalButton,
+        allowed_mentions: { parse: [] },
+      },
+    };
+  }
+
+  const normalizedQuery = normalizeMerchantSearch(query ?? "");
+  const filtered = response.catalog.items.filter((item) => {
+    const matchesQuery =
+      !normalizedQuery ||
+      normalizeMerchantSearch(item.name).includes(normalizedQuery) ||
+      normalizeMerchantSearch(item.description ?? "").includes(normalizedQuery);
+    const matchesAvailability =
+      availability === "available"
+        ? item.quantity !== null && item.quantity > 0
+        : availability === "sold_out"
+          ? item.quantity === 0
+          : true;
+    return matchesQuery && matchesAvailability;
+  });
+  const shown = filtered.slice(0, 8);
+  const state =
+    response.catalog.freshness === "fresh"
+      ? "Catálogo atualizado"
+      : response.catalog.freshness === "stale"
+        ? "Dados desatualizados"
+        : "Mundo offline — o estoque pode ter mudado";
+  return {
+    type: 4,
+    data: {
+      flags: 64,
+      embeds: [
+        {
+          title: response.catalog.merchantName,
+          description: `${state}. Última sincronização: ${discordTimestamp(response.catalog.syncedAt)}.\n${
+            filtered.length === 0
+              ? "Nenhum item corresponde aos filtros."
+              : `Exibindo ${shown.length} de ${filtered.length} ${filtered.length === 1 ? "item" : "itens"}.`
+          }`,
+          color: 0xb78a4a,
+          fields: shown.map((item) => ({
+            name: truncateDiscord(item.name, 128),
+            value: truncateDiscord(
+              `**Preço:** ${merchantPrice(item.price)}\n**Estoque:** ${merchantStock(item.quantity)}\n${item.description ?? "Descrição não informada."}`,
+              480,
+            ),
+            inline: false,
+          })),
+          footer: { text: "Vitrine somente para consulta" },
+        },
+      ],
+      components: portalButton,
+      allowed_mentions: { parse: [] },
+    },
+  };
+}
+
+function commandStringOption(
+  interaction: DiscordInteraction,
+  name: string,
+): string | null {
+  const option = interaction.data?.options?.find((candidate) => candidate.name === name);
+  return typeof option?.value === "string" ? option.value : null;
+}
+
+function merchantPrice(price: string | null): string {
+  return price ?? "Preço não informado";
+}
+
+function merchantStock(quantity: number | null): string {
+  if (quantity === null) return "Estoque não informado";
+  if (quantity === 0) return "Esgotado";
+  return `${quantity} em estoque`;
+}
+
+function discordTimestamp(value: string): string {
+  return `<t:${Math.floor(Date.parse(value) / 1_000)}:f>`;
+}
+
+function truncateDiscord(value: string, maxLength: number): string {
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
+}
+
+function normalizeMerchantSearch(value: string): string {
+  return value
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toLocaleLowerCase("pt-BR");
 }
 
 async function publishPost(

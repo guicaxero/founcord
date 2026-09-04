@@ -62,6 +62,16 @@ test("renderiza o Código oficial da Ordem", async () => {
   assert.match(html, /Cinco verdades do mundo/i);
 });
 
+test("renderiza a vitrine pública do Mercador", async () => {
+  const response = await render("/mercador");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Mercador/i);
+  assert.match(html, /Compras e reservas não são realizadas/i);
+  assert.match(html, /Estoque da campanha/i);
+  assert.match(html, /Carregando|Consultando o catálogo/i);
+});
+
 test("renderiza a entrada protegida do painel", async () => {
   const response = await render("/dashboard");
   assert.equal(response.status, 200);
