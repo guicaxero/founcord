@@ -1,5 +1,9 @@
 import type { Post } from "@vigilia/contracts";
-import { MERCHANT_COMMAND_NAME, POST_COMMAND_NAME } from "./discord-components";
+import {
+  CHARACTER_COMMAND_NAME,
+  MERCHANT_COMMAND_NAME,
+  POST_COMMAND_NAME,
+} from "./discord-components";
 import type { IntegrationEnv } from "./types";
 
 export type DiscordThread = Readonly<{
@@ -82,6 +86,12 @@ export async function registerGuildCommands(
               ],
             },
           ],
+        },
+        {
+          name: CHARACTER_COMMAND_NAME,
+          description: "Abre sua ficha vinculada à campanha no portal da Ordem.",
+          type: 1,
+          dm_permission: false,
         },
       ]),
     },

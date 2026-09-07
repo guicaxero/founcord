@@ -3,6 +3,8 @@ export const permissions = [
   "automation:read",
   "automation:run",
   "campaign:manage",
+  "character:link:manage",
+  "character:self:read",
   "foundry:world:manage",
   "integration:manage",
   "member:manage",
@@ -74,6 +76,8 @@ export const rolePermissions = {
     "automation:read",
     "automation:run",
     "campaign:manage",
+    "character:link:manage",
+    "character:self:read",
     "foundry:world:manage",
     "integration:manage",
     "member:manage",
@@ -90,6 +94,8 @@ export const rolePermissions = {
   gm: [
     "automation:read",
     "automation:run",
+    "character:link:manage",
+    "character:self:read",
     "foundry:world:manage",
     "mission:create",
     "mission:edit",
@@ -99,13 +105,14 @@ export const rolePermissions = {
   ],
   editor: [
     "automation:read",
+    "character:self:read",
     "mission:edit",
     "post:create",
     "post:review",
     "session:read",
   ],
-  moderator: ["mission:review", "post:publish", "post:review"],
-  player: [],
+  moderator: ["character:self:read", "mission:review", "post:publish", "post:review"],
+  player: ["character:self:read"],
   automation: ["post:create"],
 } as const satisfies Readonly<Record<RoleName, readonly Permission[]>>;
 

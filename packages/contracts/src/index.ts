@@ -1,6 +1,7 @@
 export * from "./audit";
 export * from "./automations";
 export * from "./campaigns";
+export * from "./characters";
 export * from "./campaign-sessions";
 export * from "./session-summaries";
 export * from "./common";

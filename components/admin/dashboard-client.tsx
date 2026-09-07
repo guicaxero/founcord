@@ -4,10 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Permission } from "@vigilia/authz";
 import type {
   Campaign,
+  CampaignCharacterLinkManagementResponse,
+  CampaignMemberListResponse,
   CampaignListResponse,
   CampaignSessionListResponse,
   CreateCampaignInput,
   CurrentUserResponse,
+  FoundryWorldListResponse,
   PostListResponse,
   SessionSummaryListResponse,
 } from "@vigilia/contracts";
@@ -18,6 +21,7 @@ import { hasCapability } from "@/lib/capabilities";
 import { queryKeys } from "@/lib/query-keys";
 import { AuditPanel } from "./audit-panel";
 import { AutomationsPanel } from "./automations-panel";
+import { CharacterLinksPanel } from "./character-links-panel";
 import { FoundryPanel } from "./foundry-panel";
 import { MembersPanel } from "./members-panel";
 import { MissionsPanel } from "./missions-panel";
@@ -25,7 +29,7 @@ import { PostsPanel } from "./posts-panel";
 import { SessionsPanel } from "./sessions-panel";
 import { SessionSummariesPanel } from "./session-summaries-panel";
 
-type Tab = "missions" | "posts" | "summaries" | "sessions" | "automations" | "foundry" | "members" | "audit" | "campaigns";
+type Tab = "missions" | "posts" | "summaries" | "sessions" | "automations" | "foundry" | "characters" | "members" | "audit" | "campaigns";
 
 type TabDefinition = Readonly<{
   id: Tab;
@@ -63,6 +67,13 @@ const tabDefinitions: readonly TabDefinition[] = [
     eyebrow: "Integrações",
     description: "Conecte mundos de Shadow of the Demon Lord e acompanhe presença, personagens e versões.",
     permissions: ["foundry:world:manage"],
+  },
+  {
+    id: "characters",
+    label: "Personagens",
+    eyebrow: "Identidade integrada",
+    description: "Associe membros aos personagens sincronizados antes de liberar fichas e transações.",
+    permissions: ["character:link:manage"],
   },
   {
     id: "missions",
@@ -107,6 +118,9 @@ export function DashboardClient({
   initialEditorialPosts,
   initialSessionSummaries,
   initialSessions,
+  initialCharacterMembers,
+  initialCharacterLinks,
+  initialCharacterWorlds,
   initialTab = "missions",
 }: Readonly<{
   initialMe?: CurrentUserResponse;
@@ -114,6 +128,9 @@ export function DashboardClient({
   initialEditorialPosts?: PostListResponse;
   initialSessionSummaries?: SessionSummaryListResponse;
   initialSessions?: CampaignSessionListResponse;
+  initialCharacterMembers?: CampaignMemberListResponse;
+  initialCharacterLinks?: CampaignCharacterLinkManagementResponse;
+  initialCharacterWorlds?: FoundryWorldListResponse;
   initialTab?: Tab;
 }> = {}) {
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -353,6 +370,14 @@ export function DashboardClient({
             ) : null}
             {activeTab === "foundry" && campaign ? (
               <FoundryPanel key={campaignId} campaignId={campaignId} campaignName={campaign.name} />
+            ) : null}
+            {activeTab === "characters" ? (
+              <CharacterLinksPanel
+                campaignId={campaignId}
+                {...(initialCharacterMembers ? { initialMembers: initialCharacterMembers } : {})}
+                {...(initialCharacterLinks ? { initialLinks: initialCharacterLinks } : {})}
+                {...(initialCharacterWorlds ? { initialWorlds: initialCharacterWorlds } : {})}
+              />
             ) : null}
             {activeTab === "members" ? <MembersPanel campaignId={campaignId} me={me.data} /> : null}
             {activeTab === "audit" ? <AuditPanel campaignId={campaignId} /> : null}

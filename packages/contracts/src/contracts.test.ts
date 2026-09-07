@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CampaignCharacterLinkInputSchema,
   CreateCampaignSessionSchema,
   CreateDiscordPostDraftSchema,
   CreateMissionSchema,
@@ -13,6 +14,22 @@ import {
 } from "./index";
 
 describe("contratos públicos", () => {
+  it("aceita somente referências explícitas no vínculo de personagem", () => {
+    expect(
+      CampaignCharacterLinkInputSchema.parse({
+        worldId: "world-001",
+        actorId: "actor-001",
+      }),
+    ).toEqual({ worldId: "world-001", actorId: "actor-001" });
+    expect(() =>
+      CampaignCharacterLinkInputSchema.parse({
+        worldId: "world-001",
+        actorId: "actor-001",
+        userId: "não-pode-ser-escolhido-pelo-cliente",
+      }),
+    ).toThrow();
+  });
+
   it("normaliza uma missão válida", () => {
     const mission = CreateMissionSchema.parse({
       campaignId: "11111111-1111-4111-8111-111111111111",

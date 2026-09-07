@@ -76,7 +76,7 @@ describe("Discord integration Worker", () => {
     expect(response.status).toBe(401);
   });
 
-  it("registra /post e /mercador no servidor sem expor o Bot Token", async () => {
+  it("registra /post, /mercador e /personagem sem expor o Bot Token", async () => {
     const discordFetch = vi.fn(
       async (input: string | URL | Request, init?: RequestInit) => {
         void input;
@@ -124,6 +124,10 @@ describe("Discord integration Worker", () => {
       ]),
     );
     expect(commands[1]).toMatchObject({ name: "mercador" });
+    expect(commands[2]).toMatchObject({
+      name: "personagem",
+      description: "Abre sua ficha vinculada à campanha no portal da Ordem.",
+    });
   });
 
   it("responde ao PING assinado do Discord", async () => {
@@ -241,6 +245,35 @@ describe("Discord integration Worker", () => {
       expect.objectContaining({ name: "Tocha" }),
     ]);
     expect(JSON.stringify(body.data.components)).toContain("https://ordem.example/mercador");
+  });
+
+  it("encaminha /personagem de forma privada para a área autenticada", async () => {
+    const response = await integrationApp.fetch(
+      await signedRequest(
+        {
+          id: "323460",
+          application_id: applicationId,
+          type: 2,
+          token: "character-command",
+          guild_id: guildId,
+          data: { name: "personagem" },
+        },
+        keys.privateKey,
+      ),
+      env,
+      executionContext(),
+    );
+    const body = (await response.json()) as {
+      type: number;
+      data: { content: string; flags: number; components: unknown };
+    };
+    expect(response.status).toBe(200);
+    expect(body.type).toBe(4);
+    expect(body.data.flags).toBe(64);
+    expect(body.data.content).toContain("ficha é privada");
+    expect(JSON.stringify(body.data.components)).toContain(
+      "https://ordem.example/personagem",
+    );
   });
 
   it("oferece autocomplete das tags do fórum escolhido", async () => {

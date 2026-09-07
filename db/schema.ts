@@ -399,6 +399,37 @@ export const foundryCharacterProjections = sqliteTable(
   ],
 );
 
+export const campaignCharacterLinks = sqliteTable(
+  "campaign_character_links",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    worldId: text("world_id").notNull(),
+    foundryActorId: text("foundry_actor_id").notNull(),
+    actorName: text("actor_name").notNull(),
+    linkedByUserId: text("linked_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("uq_campaign_character_links_member").on(
+      table.campaignId,
+      table.userId,
+    ),
+    uniqueIndex("uq_campaign_character_links_actor").on(
+      table.worldId,
+      table.foundryActorId,
+    ),
+    index("idx_campaign_character_links_campaign").on(table.campaignId),
+  ],
+);
+
 export const foundrySyncCursors = sqliteTable(
   "foundry_sync_cursors",
   {
