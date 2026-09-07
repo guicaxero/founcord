@@ -166,4 +166,53 @@ describe("principalFromRoleAssignments", () => {
       }),
     ).toBe(false);
   });
+
+  it("separa a consulta do próprio personagem da gestão de vínculos", () => {
+    const manager = principalFromRoleAssignments("manager", [
+      {
+        roleName: "campaign_manager",
+        scope: { kind: "campaign", campaignId: "campaign-a" },
+      },
+    ]);
+    const gm = principalFromRoleAssignments("gm", [
+      { roleName: "gm", scope: { kind: "campaign", campaignId: "campaign-a" } },
+    ]);
+    const player = principalFromRoleAssignments("player", [
+      {
+        roleName: "player",
+        scope: { kind: "campaign", campaignId: "campaign-a" },
+      },
+    ]);
+
+    expect(
+      hasPermission(manager, "character:link:manage", {
+        kind: "campaign",
+        campaignId: "campaign-a",
+      }),
+    ).toBe(true);
+    expect(
+      hasPermission(gm, "character:link:manage", {
+        kind: "campaign",
+        campaignId: "campaign-a",
+      }),
+    ).toBe(true);
+    expect(
+      hasPermission(player, "character:self:read", {
+        kind: "campaign",
+        campaignId: "campaign-a",
+      }),
+    ).toBe(true);
+    expect(
+      hasPermission(player, "character:link:manage", {
+        kind: "campaign",
+        campaignId: "campaign-a",
+      }),
+    ).toBe(false);
+    expect(
+      hasPermission(gm, "character:link:manage", {
+        kind: "campaign",
+        campaignId: "campaign-b",
+      }),
+    ).toBe(false);
+  });
 });

@@ -8,6 +8,11 @@ import type {
 } from "@vigilia/contracts";
 import { notFound } from "next/navigation";
 import { DashboardClient } from "@/components/admin/dashboard-client";
+import {
+  previewCharacterLinks,
+  previewCharacterMembers,
+  previewCharacterWorlds,
+} from "../character-fixtures";
 
 const campaignId = "11111111-1111-4111-8111-111111111111";
 
@@ -133,7 +138,10 @@ export default function UiFoundationPreviewPage() {
       initialEditorialPosts={previewPosts}
       initialSessionSummaries={previewSummaries}
       initialSessions={previewSessions}
-      initialTab="summaries"
+      initialCharacterMembers={previewCharacterMembers}
+      initialCharacterLinks={previewCharacterLinks}
+      initialCharacterWorlds={previewCharacterWorlds}
+      initialTab="characters"
     />
   );
 }

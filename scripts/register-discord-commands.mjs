@@ -60,6 +60,12 @@ const response = await fetch(`https://discord.com/api/v10${route}`, {
         },
       ],
     },
+    {
+      name: "personagem",
+      description: "Abre sua ficha vinculada à campanha no portal da Ordem.",
+      type: 1,
+      dm_permission: false,
+    },
   ]),
 });
 

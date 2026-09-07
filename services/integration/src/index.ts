@@ -16,6 +16,7 @@ import {
   sendDirectMessage,
 } from "./discord-client";
 import {
+  CHARACTER_COMMAND_NAME,
   extractModalValues,
   MERCHANT_COMMAND_NAME,
   POST_COMMAND_NAME,
@@ -135,6 +136,9 @@ integrationApp.post("/interactions", async (context) => {
       type: 4,
       data: { content: "Este servidor não está autorizado para a campanha.", flags: 64 },
     });
+  }
+  if (interaction.type === 2 && interaction.data?.name === CHARACTER_COMMAND_NAME) {
+    return context.json(characterInteractionResponse(context.env));
   }
   if (interaction.type === 2 && interaction.data?.name === MERCHANT_COMMAND_NAME) {
     try {
@@ -353,6 +357,31 @@ function dashboardButton(env: IntegrationEnv) {
       ],
     },
   ];
+}
+
+function characterInteractionResponse(env: IntegrationEnv) {
+  return {
+    type: 4,
+    data: {
+      content:
+        "Sua ficha é privada e fica disponível no portal após o vínculo com um personagem do Foundry.",
+      flags: 64,
+      components: [
+        {
+          type: 1,
+          components: [
+            {
+              type: 2,
+              style: 5,
+              label: "Abrir meu personagem",
+              url: `${env.SITE_URL}/personagem`,
+            },
+          ],
+        },
+      ],
+      allowed_mentions: { parse: [] },
+    },
+  } as const;
 }
 
 function merchantInteractionResponse(

@@ -101,7 +101,7 @@ mostrados e quantos existem no catálogo.
 ## Fora do escopo
 
 - compra, reserva e pedido manual;
-- vínculo entre usuário Discord e ator;
+- uso do vínculo entre membro e ator para compra;
 - leitura ou alteração de moedas;
 - transferência de item;
 - edição do catálogo no portal;
@@ -109,3 +109,6 @@ mostrados e quantos existem no catálogo.
 
 Essas operações pertencem à etapa de compra assistida/automática e exigirão um
 comando Foundry tipado, idempotência, recibo, auditoria e autorização própria.
+
+O vínculo entre membro do portal e ator já possui um primeiro corte isolado e
+auditável. Ele não altera o catálogo público e ainda não autoriza transações.

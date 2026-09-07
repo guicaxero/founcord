@@ -120,6 +120,8 @@ segurança, escala ou ciclo de release em uma separação adicional.
   gestão revisados.
 - CI protegido e workflow manual de produção.
 - Deploy da PR #24 validado em produção no commit `5914126`.
+- Mercador somente leitura publicado no portal e no Discord, com catálogo vindo
+  do ator configurado no Foundry.
 
 ### Limitações conhecidas
 
@@ -127,7 +129,8 @@ segurança, escala ou ciclo de release em uma separação adicional.
   permissão a publicação usa o bot com atribuição textual.
 - Parte dos painéis preserva seletores CSS legados e precisa de migração gradual
   para as primitivas do design system.
-- Mercador, ficha do jogador e criador de criaturas ainda não existem.
+- Compra no Mercador, edição completa de ficha e criador de criaturas ainda não
+  existem.
 - Compra automática depende de confirmar a estrutura de atores e moedas do
   sistema Shadow of the Demon Lord no Foundry.
 - Captura atual usa apenas chat público do Foundry; Discord é referência, não
@@ -296,7 +299,7 @@ campanha.
 
 ## 7. Próxima entrega e funcionalidades posteriores
 
-### 7.1 Mercador — em implementação
+### 7.1 Mercador — Etapa A concluída; Etapa B em implementação
 
 Implementar em duas etapas para reduzir risco.
 
@@ -311,9 +314,9 @@ Implementar em duas etapas para reduzir risco.
 - estado offline e data da última sincronização;
 - nenhuma alteração de ficha nesta etapa.
 
-O contrato, a persistência, a API, `/mercador` e a página pública são entregues
-em `codex/merchant-read-model`. A captura do ator no módulo Foundry é mantida em
-PR independente no repositório público do módulo.
+O contrato, a persistência, a API, `/mercador`, a página pública e o comando
+Discord foram publicados. A captura do ator permanece exclusivamente no
+repositório público do módulo Foundry.
 
 #### Etapa B — compra assistida ou automática
 
@@ -324,6 +327,18 @@ PR independente no repositório público do módulo.
 - descontar moedas e inserir item em uma operação idempotente;
 - registrar recibo, auditoria e notificação;
 - impedir compra quando o mundo estiver offline ou a projeção estiver vencida.
+
+Primeiro incremento da Etapa B:
+
+- associação explícita entre membro da campanha e ator sincronizado;
+- um personagem ativo por membro e um membro por ator;
+- gestão por proprietário, gestor ou mestre no escopo da campanha;
+- consulta privada do próprio personagem;
+- preservação do vínculo quando a projeção ficar indisponível;
+- auditoria de criação, troca e remoção.
+
+Esse incremento está especificado em `docs/VINCULO_JOGADOR_ATOR_SPEC.md` e não
+realiza escrita em moedas ou inventário.
 
 Fallback caso a escrita segura não seja possível:
 
@@ -342,6 +357,17 @@ Fallback caso a escrita segura não seja possível:
 - comando Discord que encaminha para o portal;
 - estado claro para ator não vinculado, mundo offline e dados desatualizados;
 - auditoria de toda alteração.
+
+Primeiro corte implementado junto ao vínculo de identidade:
+
+- rota autenticada **Meu personagem**;
+- projeção sanitizada de identidade, nível, ancestralidade, caminhos e condição;
+- estados sem vínculo, sincronizado e temporariamente indisponível;
+- comando Discord `/personagem` com resposta privada e acesso direto ao portal;
+- nenhum campo editável e nenhum dado de outros jogadores exposto.
+
+Permanecem pendentes a projeção ampliada de inventário e magias, edição
+autorizada e o comando Discord que encaminha para esta área.
 
 O portal não substitui a ficha mecânica do Foundry. Em caso de divergência, o
 Foundry vence e a projeção é atualizada.

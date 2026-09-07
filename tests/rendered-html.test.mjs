@@ -72,6 +72,17 @@ test("renderiza a vitrine pública do Mercador", async () => {
   assert.match(html, /Carregando|Consultando o catálogo/i);
 });
 
+test("renderiza a área autenticada de personagem sem expor uma ficha no HTML", async () => {
+  const response = await render("/personagem");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Meu personagem/i);
+  assert.match(html, /Área do jogador/i);
+  assert.match(html, /Carregando seus personagens|Consultando seus vínculos/i);
+  assert.match(html, /noindex/i);
+  assert.doesNotMatch(html, /foundry_actor_id|owner_user_ids/i);
+});
+
 test("renderiza a entrada protegida do painel", async () => {
   const response = await render("/dashboard");
   assert.equal(response.status, 200);
@@ -81,8 +92,10 @@ test("renderiza a entrada protegida do painel", async () => {
 });
 
 test("não publica a prévia visual de desenvolvimento", async () => {
-  const response = await render("/dev/ui-foundation");
-  assert.equal(response.status, 404);
+  for (const path of ["/dev/ui-foundation", "/dev/player-character"]) {
+    const response = await render(path);
+    assert.equal(response.status, 404);
+  }
 });
 
 test("não mantém artefatos do starter na superfície final", async () => {

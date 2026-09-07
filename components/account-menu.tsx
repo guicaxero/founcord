@@ -12,6 +12,7 @@ const managementPermissions = new Set([
   "automation:read",
   "automation:run",
   "campaign:manage",
+  "character:link:manage",
   "foundry:world:manage",
   "integration:manage",
   "member:manage",
@@ -75,7 +76,7 @@ export function AccountMenu() {
       {canManage ? (
         <Link className="account-action" href="/dashboard">Painel de gestão</Link>
       ) : (
-        <a className="account-action" href="#quadro">Minhas missões</a>
+        <Link className="account-action" href="/personagem">Meu personagem</Link>
       )}
       <button
         className="account-logout"

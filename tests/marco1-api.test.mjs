@@ -515,6 +515,87 @@ test("Marco 1: autenticação, RBAC, campanha, missões, posts e auditoria", asy
       assert.equal(auditCount.count, 1);
     });
 
+    await t.test("vincula membro e ator com RBAC, exclusividade e auditoria", async () => {
+      const campaignPath = `/api/campaigns/${defaultCampaignId}`;
+      const managementPath = `${campaignPath}/character-links`;
+      const playerOnePath = `${campaignPath}/members/${identities.playerOne.id}/character-link`;
+      const playerTwoPath = `${campaignPath}/members/${identities.playerTwo.id}/character-link`;
+      const input = {
+        worldId: "22222222-2222-4222-8222-222222222222",
+        actorId: "aster-001",
+      };
+
+      assert.equal(
+        (await api(mf, managementPath, { token: identities.playerOne.token })).status,
+        403,
+      );
+      assert.equal(
+        (await api(mf, playerOnePath, {
+          token: identities.playerOne.token,
+          method: "PUT",
+          body: input,
+        })).status,
+        403,
+      );
+
+      const linked = await api(mf, playerOnePath, {
+        token: identities.gm.token,
+        method: "PUT",
+        body: input,
+      });
+      assert.equal(linked.status, 200, JSON.stringify(linked.data));
+      assert.equal(linked.data.userId, identities.playerOne.id);
+      assert.equal(linked.data.actorName, "Aster");
+      assert.equal(linked.data.character.name, "Aster");
+
+      const ownCharacters = await api(mf, "/api/me/characters", {
+        token: identities.playerOne.token,
+      });
+      assert.equal(ownCharacters.status, 200, JSON.stringify(ownCharacters.data));
+      assert.equal(
+        ownCharacters.data.data.find((entry) => entry.campaign.id === defaultCampaignId).link.actorId,
+        "aster-001",
+      );
+      assert.equal(JSON.stringify(ownCharacters.data).includes(identities.playerTwo.id), false);
+
+      const collision = await api(mf, playerTwoPath, {
+        token: identities.owner.token,
+        method: "PUT",
+        body: input,
+      });
+      assert.equal(collision.status, 409);
+      assert.equal(collision.data.error.code, "character_already_linked");
+
+      assert.equal(
+        (await api(mf, playerOnePath, {
+          token: identities.playerOne.token,
+          method: "DELETE",
+        })).status,
+        403,
+      );
+      assert.equal(
+        (await api(mf, playerOnePath, {
+          token: identities.gm.token,
+          method: "DELETE",
+        })).status,
+        200,
+      );
+
+      const afterRemoval = await api(mf, "/api/me/characters", {
+        token: identities.playerOne.token,
+      });
+      assert.equal(
+        afterRemoval.data.data.find((entry) => entry.campaign.id === defaultCampaignId).link,
+        null,
+      );
+      const audit = await api(mf, `${campaignPath}/audit`, {
+        token: identities.owner.token,
+      });
+      const actions = audit.data.data.map((entry) => entry.action);
+      assert.ok(actions.includes("character.link.created"));
+      assert.ok(actions.includes("character.link.removed"));
+    });
+
     await t.test("arquiva, restaura e restringe a exclusão permanente de posts", async () => {
       const created = await api(mf, `/api/campaigns/${defaultCampaignId}/posts`, {
         token: identities.owner.token,
