@@ -16,6 +16,7 @@ import {
   FoundryHeartbeatResponseSchema,
   FoundryMerchantSyncRequestSchema,
   FoundryMerchantSyncResponseSchema,
+  FoundryMerchantPurchaseContextSchema,
   MerchantCatalogResponseSchema,
   FoundryPairingApprovalRequestSchema,
   FoundryPairingApprovalResponseSchema,
@@ -34,7 +35,7 @@ import {
   generateAccessToken,
   hashToken,
 } from "./auth";
-import { syncCharactersWithPortal } from "./portal-client";
+import { reportMerchantPurchaseDelivery, syncCharactersWithPortal } from "./portal-client";
 import {
   authorizeFoundryPairing,
   cancelFoundryCaptureSession,
@@ -49,6 +50,7 @@ import {
   failFoundrySync,
   failFoundryMerchantSync,
   getFoundryMerchantCatalog,
+  getFoundryMerchantPurchaseContext,
   getFoundryCaptureTranscript,
   endFoundryCaptureSession,
   listFoundryCaptureSessions,
@@ -364,13 +366,26 @@ foundryApp.post(
     const commandId = parseUuid(context.req.param("commandId"));
     await authenticateWorld(context.req.raw, context.env, worldId);
     const input = await parseJson(context.req.raw, FoundryCommandResultRequestSchema);
-    const disposition = await completeFoundryCommand(
+    const completion = await completeFoundryCommand(
       context.env,
       worldId,
       commandId,
       input,
     );
-    return context.json({ commandId, disposition });
+    if (completion.command.type === "merchant.purchase.request") {
+      await reportMerchantPurchaseDelivery(
+        context.env,
+        {
+          requestId: completion.command.payload.requestId,
+          commandId,
+          outcome: input.outcome,
+          error: input.outcome === "failed" ? input.error : null,
+          deliveredAt: new Date().toISOString(),
+        },
+        requestCorrelationId(context.req.raw),
+      );
+    }
+    return context.json({ commandId, disposition: completion.disposition });
   },
 );
 
@@ -423,6 +438,20 @@ foundryApp.get(
     return context.json(
       MerchantCatalogResponseSchema.parse(
         await getFoundryMerchantCatalog(context.env, campaignId),
+      ),
+    );
+  },
+);
+
+foundryApp.get(
+  "/internal/foundry/campaigns/:campaignId/worlds/:worldId/merchant/purchase-context",
+  async (context) => {
+    await assertStaticBearer(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN);
+    const campaignId = parseUuid(context.req.param("campaignId"));
+    const worldId = parseUuid(context.req.param("worldId"));
+    return context.json(
+      FoundryMerchantPurchaseContextSchema.parse(
+        await getFoundryMerchantPurchaseContext(context.env, campaignId, worldId),
       ),
     );
   },

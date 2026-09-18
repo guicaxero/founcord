@@ -430,6 +430,61 @@ export const campaignCharacterLinks = sqliteTable(
   ],
 );
 
+export const merchantPurchaseRequests = sqliteTable(
+  "merchant_purchase_requests",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    requesterUserId: text("requester_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    worldId: text("world_id").notNull(),
+    buyerActorId: text("buyer_actor_id").notNull(),
+    buyerActorName: text("buyer_actor_name").notNull(),
+    merchantActorId: text("merchant_actor_id").notNull(),
+    catalogSyncId: text("catalog_sync_id").notNull(),
+    itemId: text("item_id").notNull(),
+    itemName: text("item_name").notNull(),
+    priceSnapshot: text("price_snapshot").notNull(),
+    quantity: integer("quantity").notNull(),
+    note: text("note"),
+    status: text("status", {
+      enum: [
+        "pending_delivery",
+        "awaiting_master",
+        "delivery_failed",
+        "fulfilled",
+        "rejected",
+        "cancelled",
+      ],
+    })
+      .notNull()
+      .default("pending_delivery"),
+    commandId: text("command_id"),
+    deliveryError: text("delivery_error"),
+    resolvedByUserId: text("resolved_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    resolutionNote: text("resolution_note"),
+    resolvedAt: text("resolved_at"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("uq_merchant_purchase_command").on(table.commandId),
+    index("idx_merchant_purchase_campaign_status").on(
+      table.campaignId,
+      table.status,
+      table.createdAt,
+    ),
+    index("idx_merchant_purchase_requester").on(
+      table.requesterUserId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const foundrySyncCursors = sqliteTable(
   "foundry_sync_cursors",
   {

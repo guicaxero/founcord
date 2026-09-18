@@ -25,11 +25,12 @@ import { CharacterLinksPanel } from "./character-links-panel";
 import { FoundryPanel } from "./foundry-panel";
 import { MembersPanel } from "./members-panel";
 import { MissionsPanel } from "./missions-panel";
+import { MerchantPurchasesPanel } from "./merchant-purchases-panel";
 import { PostsPanel } from "./posts-panel";
 import { SessionsPanel } from "./sessions-panel";
 import { SessionSummariesPanel } from "./session-summaries-panel";
 
-type Tab = "missions" | "posts" | "summaries" | "sessions" | "automations" | "foundry" | "characters" | "members" | "audit" | "campaigns";
+type Tab = "missions" | "posts" | "summaries" | "sessions" | "automations" | "foundry" | "characters" | "merchantPurchases" | "members" | "audit" | "campaigns";
 
 type TabDefinition = Readonly<{
   id: Tab;
@@ -74,6 +75,13 @@ const tabDefinitions: readonly TabDefinition[] = [
     eyebrow: "Identidade integrada",
     description: "Associe membros aos personagens sincronizados antes de liberar fichas e transações.",
     permissions: ["character:link:manage"],
+  },
+  {
+    id: "merchantPurchases",
+    label: "Pedidos do Mercador",
+    eyebrow: "Acertos da campanha",
+    description: "Acompanhe solicitações, realize o acerto no Foundry e registre a decisão humana.",
+    permissions: ["merchant:purchase:manage"],
   },
   {
     id: "missions",
@@ -379,6 +387,7 @@ export function DashboardClient({
                 {...(initialCharacterWorlds ? { initialWorlds: initialCharacterWorlds } : {})}
               />
             ) : null}
+            {activeTab === "merchantPurchases" ? <MerchantPurchasesPanel campaignId={campaignId} /> : null}
             {activeTab === "members" ? <MembersPanel campaignId={campaignId} me={me.data} /> : null}
             {activeTab === "audit" ? <AuditPanel campaignId={campaignId} /> : null}
             {activeTab === "campaigns" ? (

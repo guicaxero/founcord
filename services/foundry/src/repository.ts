@@ -2,6 +2,8 @@ import {
   FoundryCaptureSessionSchema,
   FoundryChatBatchResponseSchema,
   FoundryCommandSchema,
+  FoundryCommandInputSchema,
+  FoundryMerchantPurchaseContextSchema,
   MerchantCatalogResponseSchema,
   MerchantItemProjectionSchema,
   type FoundryCaptureSession,
@@ -11,6 +13,7 @@ import {
   type FoundryChatBatchRequest,
   type FoundryChatBatchResponse,
   type FoundryCommand,
+  type FoundryCommandInput,
   type FoundryCommandCreateRequest,
   type FoundryCommandResultRequest,
   type FoundryPairingApprovalRequest,
@@ -18,6 +21,7 @@ import {
   type FoundryWorldIdentity,
   type FoundryWorldStatus,
   type MerchantCatalogResponse,
+  type FoundryMerchantPurchaseContext,
 } from "@vigilia/contracts";
 import type { AuthenticatedWorld, FoundryEnv } from "./types";
 import { FoundryBridgeError } from "./auth";
@@ -30,7 +34,7 @@ type WorldRow = Readonly<{
 
 type CommandRow = Readonly<{
   id: string;
-  command_type: "actor.sync.request" | "chat.message.create";
+  command_type: "actor.sync.request" | "chat.message.create" | "merchant.purchase.request";
   payload_json: string;
   lease_token: string;
   created_at: string;
@@ -83,9 +87,12 @@ type ChatEventRow = Readonly<{
 
 type MerchantCatalogRow = Readonly<{
   campaign_id: string;
+  world_id?: string;
   last_seen_at: string | null;
   connection_status: "online" | "offline";
+  merchant_actor_id?: string | null;
   merchant_name: string | null;
+  sync_id?: string | null;
   captured_at: string | null;
   items_json: string | null;
 }>;
@@ -651,7 +658,23 @@ export async function completeFoundryCommand(
   worldId: string,
   commandId: string,
   input: FoundryCommandResultRequest,
-): Promise<"completed" | "already_completed"> {
+): Promise<Readonly<{
+  disposition: "completed" | "already_completed";
+  command: FoundryCommandInput;
+}>> {
+  const commandRow = await env.INTEGRATION_DB.prepare(
+    `SELECT command_type, payload_json FROM foundry_commands
+     WHERE id = ? AND world_id = ?`,
+  )
+    .bind(commandId, worldId)
+    .first<{ command_type: string; payload_json: string }>();
+  if (!commandRow) {
+    throw new FoundryBridgeError(404, "command_not_found", "Comando não encontrado.");
+  }
+  const command = FoundryCommandInputSchema.parse({
+    type: commandRow.command_type,
+    payload: JSON.parse(commandRow.payload_json) as unknown,
+  });
   const result = await env.INTEGRATION_DB.prepare(
     `UPDATE foundry_commands
      SET status = ?, result_json = ?, last_error = ?, completed_at = CURRENT_TIMESTAMP,
@@ -667,14 +690,14 @@ export async function completeFoundryCommand(
       input.deliveryToken,
     )
     .run();
-  if ((result.meta.changes ?? 0) > 0) return "completed";
+  if ((result.meta.changes ?? 0) > 0) return { disposition: "completed", command };
   const existing = await env.INTEGRATION_DB.prepare(
     "SELECT status FROM foundry_commands WHERE id = ? AND world_id = ?",
   )
     .bind(commandId, worldId)
     .first<{ status: string }>();
   if (existing?.status === "succeeded" || existing?.status === "failed") {
-    return "already_completed";
+    return { disposition: "already_completed", command };
   }
   throw new FoundryBridgeError(
     409,
@@ -898,6 +921,52 @@ export async function getFoundryMerchantCatalog(
                 : stale
                   ? "stale"
                   : "fresh",
+            items: parseMerchantItems(row.items_json),
+          }
+        : null,
+  });
+}
+
+export async function getFoundryMerchantPurchaseContext(
+  env: FoundryEnv,
+  campaignId: string,
+  worldId: string,
+): Promise<FoundryMerchantPurchaseContext> {
+  const row = await env.INTEGRATION_DB.prepare(
+    `SELECT fw.id AS world_id, fw.campaign_id, fw.last_seen_at,
+            CASE
+              WHEN fw.last_seen_at IS NOT NULL
+                AND (unixepoch('now') - unixepoch(fw.last_seen_at)) <= 90
+                THEN 'online'
+              ELSE 'offline'
+            END AS connection_status,
+            mc.merchant_actor_id, mc.merchant_name, mc.sync_id,
+            mc.captured_at, mc.items_json
+     FROM foundry_worlds fw
+     LEFT JOIN foundry_merchant_catalogs mc ON mc.world_id = fw.id
+     WHERE fw.id = ? AND fw.campaign_id = ? AND fw.revoked_at IS NULL
+     LIMIT 1`,
+  )
+    .bind(worldId, campaignId)
+    .first<MerchantCatalogRow>();
+  if (!row || !row.world_id) {
+    throw new FoundryBridgeError(404, "world_not_found", "Mundo não encontrado.");
+  }
+  const capturedAt = row.captured_at ? normalizeD1Date(row.captured_at) : null;
+  return FoundryMerchantPurchaseContextSchema.parse({
+    campaignId: row.campaign_id,
+    worldId: row.world_id,
+    connection: {
+      status: row.connection_status,
+      lastSeenAt: row.last_seen_at ? normalizeD1Date(row.last_seen_at) : null,
+    },
+    catalog:
+      row.merchant_actor_id && row.merchant_name && row.sync_id && capturedAt && row.items_json
+        ? {
+            merchantActorId: row.merchant_actor_id,
+            merchantName: row.merchant_name,
+            syncId: row.sync_id,
+            syncedAt: capturedAt,
             items: parseMerchantItems(row.items_json),
           }
         : null,

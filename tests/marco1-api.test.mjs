@@ -596,6 +596,97 @@ test("Marco 1: autenticação, RBAC, campanha, missões, posts e auditoria", asy
       assert.ok(actions.includes("character.link.removed"));
     });
 
+    await t.test("protege, acompanha e decide pedidos assistidos do Mercador", async () => {
+      const purchaseId = "a1111111-1111-4111-8111-111111111111";
+      const callbackPurchaseId = "a2222222-2222-4222-8222-222222222222";
+      const commandId = "a3333333-3333-4333-8333-333333333333";
+      for (const [id, status] of [
+        [purchaseId, "awaiting_master"],
+        [callbackPurchaseId, "pending_delivery"],
+      ]) {
+        await db.prepare(
+          `INSERT INTO merchant_purchase_requests (
+             id, campaign_id, requester_user_id, world_id, buyer_actor_id,
+             buyer_actor_name, merchant_actor_id, catalog_sync_id, item_id,
+             item_name, price_snapshot, quantity, note, status
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(
+          id,
+          defaultCampaignId,
+          identities.playerOne.id,
+          "22222222-2222-4222-8222-222222222222",
+          "aster-001",
+          "Aster",
+          "merchant-001",
+          "b1111111-1111-4111-8111-111111111111",
+          "item-001",
+          "Óleo de lanterna",
+          "2 cp",
+          1,
+          "Antes da próxima missão.",
+          status,
+        ).run();
+      }
+
+      const path = `/api/campaigns/${defaultCampaignId}/merchant/purchases`;
+      assert.equal((await api(mf, path)).status, 401);
+      const own = await api(mf, `${path}?scope=self`, {
+        token: identities.playerOne.token,
+      });
+      assert.equal(own.status, 200, JSON.stringify(own.data));
+      assert.equal(own.data.data.length, 2);
+      assert.equal(own.data.data[0].requester.userId, identities.playerOne.id);
+      const otherPlayer = await api(mf, path, { token: identities.playerTwo.token });
+      assert.deepEqual(otherPlayer.data.data, []);
+      const management = await api(mf, path, { token: identities.gm.token });
+      assert.equal(management.data.data.length, 2);
+
+      const forbidden = await api(mf, `${path}/${purchaseId}`, {
+        token: identities.playerOne.token,
+        method: "PATCH",
+        body: { action: "fulfill", resolutionNote: null },
+      });
+      assert.equal(forbidden.status, 403);
+
+      const fulfilled = await api(mf, `${path}/${purchaseId}`, {
+        token: identities.gm.token,
+        method: "PATCH",
+        body: { action: "fulfill", resolutionNote: "Entregue na ficha." },
+      });
+      assert.equal(fulfilled.status, 200, JSON.stringify(fulfilled.data));
+      assert.equal(fulfilled.data.status, "fulfilled");
+      assert.equal(fulfilled.data.resolvedByName, identities.gm.displayName);
+
+      const callbackPath = "/api/internal/integration/foundry/merchant-purchases/delivery";
+      const callback = {
+        requestId: callbackPurchaseId,
+        commandId,
+        outcome: "succeeded",
+        error: null,
+        deliveredAt: "2026-09-11T12:00:00.000Z",
+      };
+      assert.equal((await api(mf, callbackPath, { method: "POST", body: callback })).status, 401);
+      const delivered = await api(mf, callbackPath, {
+        method: "POST",
+        body: callback,
+        headers: { authorization: "Bearer test-integration-token-with-at-least-32-bytes" },
+      });
+      assert.equal(delivered.status, 200, JSON.stringify(delivered.data));
+      assert.equal(delivered.data.status, "awaiting_master");
+
+      const repeated = await api(mf, callbackPath, {
+        method: "POST",
+        body: callback,
+        headers: { authorization: "Bearer test-integration-token-with-at-least-32-bytes" },
+      });
+      assert.equal(repeated.status, 200);
+      const audits = await db.prepare(
+        `SELECT action FROM audit_log
+         WHERE entity_type = 'merchant_purchase_request' AND entity_id = ?`,
+      ).bind(callbackPurchaseId).all();
+      assert.equal(audits.results.filter((row) => row.action === "merchant.purchase.delivered").length, 1);
+    });
+
     await t.test("arquiva, restaura e restringe a exclusão permanente de posts", async () => {
       const created = await api(mf, `/api/campaigns/${defaultCampaignId}/posts`, {
         token: identities.owner.token,

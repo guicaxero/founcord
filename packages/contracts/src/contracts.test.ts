@@ -10,6 +10,7 @@ import {
   FoundryMerchantSyncRequestSchema,
   FoundryPairingCreateRequestSchema,
   FoundryUserCodeSchema,
+  MerchantPurchaseRequestInputSchema,
   UpdatePostSchema,
 } from "./index";
 
@@ -157,6 +158,40 @@ describe("contratos públicos", () => {
         },
       }),
     ).toThrow();
+  });
+
+  it("aceita somente pedidos tipados e comandos declarativos do Mercador", () => {
+    const requestId = "15151515-1515-4515-8515-151515151515";
+    expect(MerchantPurchaseRequestInputSchema.parse({
+      requestId,
+      itemId: "torch-001",
+      quantity: 2,
+      note: "Antes da próxima missão.",
+    }).quantity).toBe(2);
+    const command = FoundryCommandCreateRequestSchema.parse({
+      command: {
+        type: "merchant.purchase.request",
+        payload: {
+          requestId,
+          campaignId: "11111111-1111-4111-8111-111111111111",
+          merchantActorId: "merchant-001",
+          buyer: {
+            userId: "88888888-8888-4888-8888-888888888888",
+            displayName: "Jogador",
+            actorId: "aster-001",
+            actorName: "Aster",
+          },
+          item: { itemId: "torch-001", name: "Tocha", price: "1 cp", quantity: 2 },
+          note: null,
+          requestedAt: "2026-09-11T12:00:00.000Z",
+        },
+      },
+    });
+    expect(command.command.type).toBe("merchant.purchase.request");
+    expect(() => FoundryCommandCreateRequestSchema.parse({
+      ...command,
+      command: { ...command.command, payload: { ...command.command.payload, script: "actor.delete()" } },
+    })).toThrow();
   });
 
   it("inicia pareamento sem aceitar campanha escolhida pelo Foundry", () => {

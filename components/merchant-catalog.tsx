@@ -1,13 +1,22 @@
 "use client";
 
-import { useDeferredValue, useId, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useDeferredValue, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  CurrentUserResponse,
   MerchantCatalogResponse,
   MerchantItemProjection,
+  MerchantPurchaseDecisionInput,
+  MerchantPurchaseListResponse,
+  MerchantPurchaseRequest,
+  MerchantPurchaseRequestInput,
+  MerchantPurchaseStatus,
+  PlayerCharacterListResponse,
 } from "@vigilia/contracts";
+import Link from "next/link";
 import { FeedbackState } from "@/components/ui/feedback-state";
 import { apiFetch, errorMessage } from "@/lib/api-client";
+import { hasCapability } from "@/lib/capabilities";
 import { queryKeys } from "@/lib/query-keys";
 
 type StockFilter = "all" | "in-stock" | "out-of-stock";
@@ -27,18 +36,95 @@ const freshnessCopy = {
   },
 } as const;
 
-export function MerchantCatalog({ campaignId }: Readonly<{ campaignId: string }>) {
+export function MerchantCatalog({
+  campaignId,
+  pollingEnabled = true,
+}: Readonly<{
+  campaignId: string;
+  pollingEnabled?: boolean;
+}>) {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
+  const [selectedItem, setSelectedItem] = useState<MerchantItemProjection | null>(null);
+  const [requestId, setRequestId] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const deferredSearch = useDeferredValue(search);
+  const purchaseDialogRef = useRef<HTMLDialogElement>(null);
   const searchId = useId();
   const filterId = useId();
   const merchant = useQuery({
     queryKey: queryKeys.merchant(campaignId),
     queryFn: () =>
       apiFetch<MerchantCatalogResponse>(`/api/campaigns/${campaignId}/merchant`),
-    refetchInterval: 60_000,
+    refetchInterval: pollingEnabled ? 60_000 : false,
   });
+  const me = useQuery({
+    queryKey: queryKeys.me,
+    queryFn: () => apiFetch<CurrentUserResponse>("/api/me"),
+    staleTime: 60_000,
+  });
+  const canRequest = me.data?.authenticated === true
+    && hasCapability(me.data, "merchant:purchase:request", campaignId);
+  const characters = useQuery({
+    queryKey: queryKeys.myCharacters,
+    queryFn: () => apiFetch<PlayerCharacterListResponse>("/api/me/characters"),
+    enabled: canRequest,
+    staleTime: 30_000,
+  });
+  const linkedCharacter = characters.data?.data.find(
+    (entry) => entry.campaign.id === campaignId,
+  )?.link ?? null;
+  const purchases = useQuery({
+    queryKey: [...queryKeys.merchantPurchases(campaignId), "self"],
+    queryFn: () => apiFetch<MerchantPurchaseListResponse>(
+      `/api/campaigns/${campaignId}/merchant/purchases?scope=self`,
+    ),
+    enabled: canRequest,
+    refetchInterval: pollingEnabled ? (query) => query.state.data?.data.some((purchase) =>
+      purchase.status === "pending_delivery" || purchase.status === "awaiting_master",
+    ) ? 10_000 : false : false,
+  });
+  const createPurchase = useMutation({
+    mutationFn: (input: MerchantPurchaseRequestInput) =>
+      apiFetch<MerchantPurchaseRequest>(
+        `/api/campaigns/${campaignId}/merchant/purchases`,
+        { method: "POST", body: JSON.stringify(input) },
+      ),
+    onSuccess: async (created) => {
+      purchaseDialogRef.current?.close();
+      setSelectedItem(null);
+      setRequestId("");
+      setSuccessMessage(
+        created.status === "delivery_failed"
+          ? "Pedido registrado, mas o aviso ao Foundry falhou. A equipe poderá consultá-lo no painel."
+          : "Pedido enviado ao mestre. Nenhuma moeda ou item foi alterado.",
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.merchantPurchases(campaignId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.audit(campaignId) }),
+      ]);
+    },
+  });
+  const cancelPurchase = useMutation({
+    mutationFn: ({ purchaseId, input }: Readonly<{
+      purchaseId: string;
+      input: MerchantPurchaseDecisionInput;
+    }>) => apiFetch<MerchantPurchaseRequest>(
+      `/api/campaigns/${campaignId}/merchant/purchases/${purchaseId}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+    onSuccess: async () => {
+      setSuccessMessage("Pedido cancelado. A equipe verá o estado atualizado.");
+      await queryClient.invalidateQueries({ queryKey: queryKeys.merchantPurchases(campaignId) });
+    },
+  });
+
+  useEffect(() => {
+    if (selectedItem && purchaseDialogRef.current && !purchaseDialogRef.current.open) {
+      purchaseDialogRef.current.showModal();
+    }
+  }, [selectedItem]);
 
   const catalog = merchant.data?.catalog ?? null;
   const filteredItems = useMemo(
@@ -55,13 +141,14 @@ export function MerchantCatalog({ campaignId }: Readonly<{ campaignId: string }>
           <h1>Mercador</h1>
           <p>
             Consulte os itens conhecidos, seus preços e a quantidade registrada no
-            Foundry. Compras e reservas não são realizadas por esta página.
+            Foundry. Jogadores vinculados podem enviar um pedido para o mestre
+            realizar o acerto na mesa.
           </p>
         </div>
         <div className="merchant-seal" aria-hidden="true">
-          <span>Somente</span>
+          <span>Compra</span>
           <strong>◇</strong>
-          <small>consulta</small>
+          <small>assistida</small>
         </div>
       </header>
 
@@ -174,11 +261,58 @@ export function MerchantCatalog({ campaignId }: Readonly<{ campaignId: string }>
                 Ajuste a busca ou a disponibilidade para consultar outras mercadorias.
               </FeedbackState>
             ) : (
-              <MerchantTable merchantName={catalog.merchantName} items={filteredItems} />
+            <MerchantTable
+              merchantName={catalog.merchantName}
+              items={filteredItems}
+              canRequest={Boolean(canRequest && linkedCharacter)}
+              onRequest={(item) => {
+                createPurchase.reset();
+                setSuccessMessage("");
+                setRequestId(crypto.randomUUID());
+                setSelectedItem(item);
+              }}
+            />
             )}
           </>
         ) : null}
       </section>
+
+      <PurchaseAccess
+        authenticated={me.data?.authenticated === true}
+        canRequest={canRequest}
+        loading={me.isLoading || (canRequest && characters.isLoading)}
+        linkedCharacterName={linkedCharacter?.actorName ?? null}
+      />
+
+      {successMessage ? <p className="merchant-operation-success" role="status">{successMessage}</p> : null}
+
+      {canRequest ? (
+        <MyPurchaseRequests
+          query={purchases}
+          cancellingId={cancelPurchase.isPending ? cancelPurchase.variables?.purchaseId ?? null : null}
+          cancelError={cancelPurchase.isError ? errorMessage(cancelPurchase.error) : null}
+          onCancel={(purchaseId) => cancelPurchase.mutate({
+            purchaseId,
+            input: { action: "cancel", resolutionNote: null },
+          })}
+        />
+      ) : null}
+
+      <PurchaseDialog
+        dialogRef={purchaseDialogRef}
+        item={selectedItem}
+        characterName={linkedCharacter?.actorName ?? null}
+        requestId={requestId}
+        busy={createPurchase.isPending}
+        error={createPurchase.isError ? errorMessage(createPurchase.error) : null}
+        onClose={() => {
+          if (!createPurchase.isPending) {
+            purchaseDialogRef.current?.close();
+            setSelectedItem(null);
+          }
+        }}
+        onSubmit={(input) => createPurchase.mutate(input)}
+      />
     </>
   );
 }
@@ -262,7 +396,14 @@ function UnavailableCatalog({
 function MerchantTable({
   merchantName,
   items,
-}: Readonly<{ merchantName: string; items: MerchantItemProjection[] }>) {
+  canRequest,
+  onRequest,
+}: Readonly<{
+  merchantName: string;
+  items: MerchantItemProjection[];
+  canRequest: boolean;
+  onRequest: (item: MerchantItemProjection) => void;
+}>) {
   return (
     <div className="merchant-table-frame">
       <table className="merchant-table">
@@ -273,17 +414,29 @@ function MerchantTable({
             <th scope="col">Descrição</th>
             <th scope="col">Preço</th>
             <th scope="col">Estoque</th>
+            <th scope="col">Pedido</th>
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => <MerchantRow item={item} key={item.itemId} />)}
+          {items.map((item) => (
+            <MerchantRow item={item} canRequest={canRequest} onRequest={onRequest} key={item.itemId} />
+          ))}
         </tbody>
       </table>
     </div>
   );
 }
 
-function MerchantRow({ item }: Readonly<{ item: MerchantItemProjection }>) {
+function MerchantRow({
+  item,
+  canRequest,
+  onRequest,
+}: Readonly<{
+  item: MerchantItemProjection;
+  canRequest: boolean;
+  onRequest: (item: MerchantItemProjection) => void;
+}>) {
+  const available = item.price !== null && item.quantity !== null && item.quantity > 0;
   return (
     <tr>
       <th scope="row" data-label="Item">
@@ -308,8 +461,214 @@ function MerchantRow({ item }: Readonly<{ item: MerchantItemProjection }>) {
       </td>
       <td data-label="Preço"><Price price={item.price} /></td>
       <td data-label="Estoque"><Stock quantity={item.quantity} /></td>
+      <td data-label="Pedido">
+        {canRequest && available ? (
+          <button className="merchant-request-action" type="button" onClick={() => onRequest(item)}>
+            Solicitar ao mestre
+          </button>
+        ) : (
+          <span className="merchant-unavailable">
+            {available ? "Vínculo necessário" : "Indisponível para pedido"}
+          </span>
+        )}
+      </td>
     </tr>
   );
+}
+
+function PurchaseAccess({
+  authenticated,
+  canRequest,
+  loading,
+  linkedCharacterName,
+}: Readonly<{
+  authenticated: boolean;
+  canRequest: boolean | undefined;
+  loading: boolean;
+  linkedCharacterName: string | null;
+}>) {
+  if (loading) {
+    return <section className="merchant-purchase-access" aria-busy="true"><p>Verificando seu acesso a pedidos…</p></section>;
+  }
+  if (!authenticated) {
+    return (
+      <section className="merchant-purchase-access" aria-labelledby="merchant-request-access-title">
+        <div><span className="section-index">02 / PEDIDOS</span><h2 id="merchant-request-access-title">Peça itens ao mestre</h2><p>Entre com o Discord para usar o personagem vinculado à campanha.</p></div>
+        <a className="merchant-request-primary" href="/api/auth/discord?returnTo=/mercador">Entrar para solicitar</a>
+      </section>
+    );
+  }
+  if (!canRequest) return null;
+  if (!linkedCharacterName) {
+    return (
+      <section className="merchant-purchase-access merchant-purchase-access-warning" aria-labelledby="merchant-request-access-title">
+        <div><span className="section-index">02 / PEDIDOS</span><h2 id="merchant-request-access-title">Personagem ainda não vinculado</h2><p>Peça ao mestre ou gestor da campanha para associar sua conta a um personagem do Foundry.</p></div>
+        <Link className="secondary-action" href="/personagem">Ver área do personagem</Link>
+      </section>
+    );
+  }
+  return (
+    <section className="merchant-purchase-access" aria-labelledby="merchant-request-access-title">
+      <div><span className="section-index">02 / PEDIDOS</span><h2 id="merchant-request-access-title">Pedidos para {linkedCharacterName}</h2><p>Escolha um item disponível no catálogo. O mestre fará o acerto manualmente no Foundry.</p></div>
+      <span className="merchant-assisted-badge">Compra assistida</span>
+    </section>
+  );
+}
+
+function PurchaseDialog({
+  dialogRef,
+  item,
+  characterName,
+  requestId,
+  busy,
+  error,
+  onClose,
+  onSubmit,
+}: Readonly<{
+  dialogRef: React.RefObject<HTMLDialogElement | null>;
+  item: MerchantItemProjection | null;
+  characterName: string | null;
+  requestId: string;
+  busy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSubmit: (input: MerchantPurchaseRequestInput) => void;
+}>) {
+  if (!item) return null;
+  const maxQuantity = Math.min(item.quantity ?? 1, 99);
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    onSubmit({
+      requestId,
+      itemId: item!.itemId,
+      quantity: Number(form.get("quantity")),
+      note: String(form.get("note") ?? "").trim() || null,
+    });
+  }
+
+  return (
+    <dialog
+      className="merchant-purchase-dialog"
+      ref={dialogRef}
+      aria-labelledby="merchant-purchase-dialog-title"
+      aria-describedby="merchant-purchase-dialog-description"
+      onClose={() => { if (!busy) onClose(); }}
+    >
+      <form onSubmit={submit}>
+        <header>
+          <span className="section-index">PEDIDO ASSISTIDO</span>
+          <h2 id="merchant-purchase-dialog-title">Solicitar {item.name}</h2>
+          <p id="merchant-purchase-dialog-description">Revise o pedido que será enviado aos mestres da campanha.</p>
+        </header>
+        <dl className="merchant-purchase-summary">
+          <div><dt>Personagem</dt><dd>{characterName}</dd></div>
+          <div><dt>Preço registrado</dt><dd>{item.price}</dd></div>
+        </dl>
+        <label>
+          <span>Quantidade</span>
+          <input name="quantity" type="number" min="1" max={maxQuantity} defaultValue="1" required />
+          <small>Até {maxQuantity} unidade{maxQuantity === 1 ? "" : "s"} no estoque atual.</small>
+        </label>
+        <label>
+          <span>Observação para o mestre <small>(opcional)</small></span>
+          <textarea name="note" rows={4} maxLength={500} placeholder="Exemplo: gostaria de retirar antes da próxima missão." />
+        </label>
+        <div className="merchant-no-mutation" role="note">
+          <strong>Nenhuma moeda ou item será alterado agora.</strong>
+          <span>O mestre receberá o pedido e confirmará o acerto depois de realizá-lo no Foundry.</span>
+        </div>
+        {error ? <p className="merchant-dialog-error" role="alert">{error}</p> : null}
+        <footer>
+          <button className="secondary-action" type="button" onClick={onClose} disabled={busy}>Voltar ao catálogo</button>
+          <button className="merchant-request-primary" type="submit" disabled={busy}>
+            {busy ? "Enviando pedido…" : "Enviar pedido ao mestre"}
+          </button>
+        </footer>
+      </form>
+    </dialog>
+  );
+}
+
+type PurchaseQuery = ReturnType<typeof useQuery<MerchantPurchaseListResponse>>;
+
+function MyPurchaseRequests({
+  query,
+  cancellingId,
+  cancelError,
+  onCancel,
+}: Readonly<{
+  query: PurchaseQuery;
+  cancellingId: string | null;
+  cancelError: string | null;
+  onCancel: (purchaseId: string) => void;
+}>) {
+  return (
+    <section className="merchant-purchase-history" aria-labelledby="merchant-purchase-history-title">
+      <header className="merchant-heading">
+        <div><p className="section-index">03 / ACOMPANHAMENTO</p><h2 id="merchant-purchase-history-title">Meus pedidos</h2></div>
+        {query.isFetching && query.data ? <span className="merchant-refreshing" role="status">Atualizando pedidos…</span> : null}
+      </header>
+      {query.isPending ? (
+        <p className="merchant-purchases-loading" role="status">Consultando seus pedidos…</p>
+      ) : query.isError ? (
+        <FeedbackState title="Não foi possível consultar seus pedidos" tone="error" role="alert" action={<button className="secondary-action" type="button" onClick={() => query.refetch()}>Tentar novamente</button>}>
+          {errorMessage(query.error)}
+        </FeedbackState>
+      ) : (query.data?.data.length ?? 0) === 0 ? (
+        <FeedbackState title="Nenhum pedido enviado">Quando você solicitar um item, o andamento aparecerá aqui.</FeedbackState>
+      ) : (
+        <div className="merchant-purchase-list">
+          {query.data!.data.map((purchase) => (
+            <PurchaseCard purchase={purchase} key={purchase.id}>
+              {canCancelPurchase(purchase.status) ? (
+                <button className="merchant-cancel-action" type="button" disabled={cancellingId === purchase.id} onClick={() => onCancel(purchase.id)}>
+                  {cancellingId === purchase.id ? "Cancelando…" : "Cancelar pedido"}
+                </button>
+              ) : null}
+            </PurchaseCard>
+          ))}
+        </div>
+      )}
+      {cancelError ? <p className="merchant-dialog-error" role="alert">{cancelError}</p> : null}
+    </section>
+  );
+}
+
+export function PurchaseCard({ purchase, children }: Readonly<{
+  purchase: MerchantPurchaseRequest;
+  children?: React.ReactNode;
+}>) {
+  const status = purchaseStatusContent[purchase.status];
+  return (
+    <article className={`merchant-purchase-card merchant-purchase-${purchase.status}`}>
+      <header><div><span>{purchase.character.actorName}</span><h3>{purchase.item.name}</h3></div><span className="merchant-purchase-status">{status.label}</span></header>
+      <dl>
+        <div><dt>Quantidade</dt><dd>{purchase.item.quantity}</dd></div>
+        <div><dt>Preço registrado</dt><dd>{purchase.item.price}</dd></div>
+        <div><dt>Solicitado em</dt><dd><FormattedDateTime value={purchase.createdAt} /></dd></div>
+      </dl>
+      <p className="merchant-purchase-state-copy">{status.description}</p>
+      {purchase.note ? <p className="merchant-purchase-note"><strong>Observação:</strong> {purchase.note}</p> : null}
+      {purchase.deliveryError ? <p className="merchant-dialog-error" role="alert">{purchase.deliveryError}</p> : null}
+      {purchase.resolutionNote ? <p className="merchant-purchase-note"><strong>Retorno do mestre:</strong> {purchase.resolutionNote}</p> : null}
+      {children ? <footer>{children}</footer> : null}
+    </article>
+  );
+}
+
+export const purchaseStatusContent: Readonly<Record<MerchantPurchaseStatus, Readonly<{ label: string; description: string }>>> = {
+  pending_delivery: { label: "Enviando ao Foundry", description: "O pedido foi registrado e aguarda entrega ao mundo." },
+  awaiting_master: { label: "Aguardando o mestre", description: "Os mestres foram avisados. Nenhuma moeda ou item foi alterado." },
+  delivery_failed: { label: "Aviso não entregue", description: "O pedido continua registrado no portal para a equipe consultar." },
+  fulfilled: { label: "Atendido", description: "Um mestre confirmou que realizou o acerto manualmente." },
+  rejected: { label: "Recusado", description: "Um mestre encerrou o pedido sem atendimento." },
+  cancelled: { label: "Cancelado", description: "Você cancelou este pedido antes da decisão do mestre." },
+};
+
+function canCancelPurchase(status: MerchantPurchaseStatus): boolean {
+  return status === "pending_delivery" || status === "awaiting_master" || status === "delivery_failed";
 }
 
 function ItemImage({ item }: Readonly<{ item: MerchantItemProjection }>) {

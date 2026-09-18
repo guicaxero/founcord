@@ -22,6 +22,7 @@ const repository = vi.hoisted(() => ({
   failFoundrySync: vi.fn(),
   failFoundryMerchantSync: vi.fn(),
   getFoundryMerchantCatalog: vi.fn(),
+  getFoundryMerchantPurchaseContext: vi.fn(),
   startFoundryCaptureSession: vi.fn(),
   listFoundryCaptureSessions: vi.fn(),
   endFoundryCaptureSession: vi.fn(),
@@ -32,6 +33,7 @@ const repository = vi.hoisted(() => ({
 
 const portal = vi.hoisted(() => ({
   syncCharactersWithPortal: vi.fn(),
+  reportMerchantPurchaseDelivery: vi.fn(),
 }));
 
 vi.mock("./repository", () => repository);
@@ -115,7 +117,11 @@ describe("Foundry Bridge Worker", () => {
       },
     });
     repository.pollFoundryCommands.mockResolvedValue([]);
-    repository.completeFoundryCommand.mockResolvedValue("completed");
+    repository.completeFoundryCommand.mockResolvedValue({
+      disposition: "completed",
+      command: { type: "actor.sync.request", payload: {} },
+    });
+    portal.reportMerchantPurchaseDelivery.mockResolvedValue(undefined);
     repository.enqueueFoundryCommand.mockResolvedValue({
       commandId: "44444444-4444-4444-8444-444444444444",
       duplicate: false,
@@ -344,6 +350,50 @@ describe("Foundry Bridge Worker", () => {
     );
     expect(completed.status).toBe(200);
     expect(repository.completeFoundryCommand).toHaveBeenCalledOnce();
+  });
+
+  it("confirma a entrega de pedido do Mercador ao portal", async () => {
+    const requestId = "88888888-8888-4888-8888-888888888888";
+    const commandId = "44444444-4444-4444-8444-444444444444";
+    repository.completeFoundryCommand.mockResolvedValue({
+      disposition: "completed",
+      command: {
+        type: "merchant.purchase.request",
+        payload: {
+          requestId,
+          campaignId,
+          merchantActorId: "merchant-001",
+          buyer: {
+            userId: "99999999-9999-4999-8999-999999999999",
+            displayName: "Jogador",
+            actorId: "actor-001",
+            actorName: "Aster",
+          },
+          item: { itemId: "item-001", name: "Óleo", price: "2 cp", quantity: 1 },
+          note: null,
+          requestedAt: "2026-09-11T12:00:00.000Z",
+        },
+      },
+    });
+    const response = await request(
+      `/v1/worlds/${worldId}/commands/${commandId}/result`,
+      {
+        method: "POST",
+        headers: bearer(accessToken),
+        body: JSON.stringify({
+          deliveryToken: "66666666-6666-4666-8666-666666666666",
+          outcome: "succeeded",
+          result: { messageId: "chat-001" },
+          error: null,
+        }),
+      },
+    );
+    expect(response.status).toBe(200);
+    expect(portal.reportMerchantPurchaseDelivery).toHaveBeenCalledWith(
+      env,
+      expect.objectContaining({ requestId, commandId, outcome: "succeeded" }),
+      expect.any(String),
+    );
   });
 
   it("recebe lotes de chat somente de um mundo autenticado", async () => {
