@@ -30,6 +30,9 @@ test("Marcos 3, 4.1 e Mercador: conexão, projeções e captura pública do Foun
         PORTAL: async (request) => {
           const body = await request.json();
           portalCalls.push({ url: request.url, body });
+          if (request.url.includes("/merchant-purchases/delivery")) {
+            return Response.json({ accepted: true });
+          }
           const stale = body.syncId === staleSyncId;
           return Response.json({
             syncId: body.syncId,
@@ -315,6 +318,75 @@ test("Marcos 3, 4.1 e Mercador: conexão, projeções e captura pública do Foun
       merchantCatalog.data.catalog.items.map((item) => item.quantity),
       [5, 0],
     );
+    const purchaseContext = await api(
+      mf,
+      `/internal/foundry/campaigns/${campaignId}/worlds/${worldId}/merchant/purchase-context`,
+      { token: serviceToken },
+    );
+    assert.equal(purchaseContext.status, 200, JSON.stringify(purchaseContext.data));
+    assert.equal(purchaseContext.data.worldId, worldId);
+    assert.equal(purchaseContext.data.catalog.merchantActorId, "merchant-001");
+    assert.equal(purchaseContext.data.catalog.syncId, merchantSyncId);
+
+    const purchaseRequestId = "15151515-1515-4515-8515-151515151515";
+    const purchaseCommand = await api(
+      mf,
+      `/internal/foundry/campaigns/${campaignId}/worlds/${worldId}/commands`,
+      {
+        method: "POST",
+        token: serviceToken,
+        headers: { "idempotency-key": `portal:merchant-purchase:${purchaseRequestId}` },
+        body: {
+          command: {
+            type: "merchant.purchase.request",
+            payload: {
+              requestId: purchaseRequestId,
+              campaignId,
+              merchantActorId: "merchant-001",
+              buyer: {
+                userId: "88888888-8888-4888-8888-888888888888",
+                displayName: "Jogador",
+                actorId: "aster-001",
+                actorName: "Aster",
+              },
+              item: { itemId: "torch-001", name: "Tocha", price: "1 cp", quantity: 1 },
+              note: "Antes da próxima missão.",
+              requestedAt: new Date().toISOString(),
+            },
+          },
+        },
+      },
+    );
+    assert.equal(purchaseCommand.status, 201, JSON.stringify(purchaseCommand.data));
+    const purchasePoll = await api(mf, `/v1/worlds/${worldId}/commands/poll`, {
+      method: "POST",
+      token: accessToken,
+      body: { limit: 10 },
+    });
+    const deliveredPurchase = purchasePoll.data.commands.find(
+      (candidate) => candidate.id === purchaseCommand.data.commandId,
+    );
+    assert.equal(deliveredPurchase.type, "merchant.purchase.request");
+    const purchaseResult = await api(
+      mf,
+      `/v1/worlds/${worldId}/commands/${deliveredPurchase.id}/result`,
+      {
+        method: "POST",
+        token: accessToken,
+        body: {
+          deliveryToken: deliveredPurchase.deliveryToken,
+          outcome: "succeeded",
+          result: { messageId: "chat-purchase-001" },
+          error: null,
+        },
+      },
+    );
+    assert.equal(purchaseResult.status, 200, JSON.stringify(purchaseResult.data));
+    const deliveryCall = portalCalls.find((call) =>
+      call.url.includes("/merchant-purchases/delivery"),
+    );
+    assert.equal(deliveryCall.body.requestId, purchaseRequestId);
+    assert.equal(deliveryCall.body.outcome, "succeeded");
 
     const staleMerchant = await api(mf, `/v1/worlds/${worldId}/merchant/sync`, {
       method: "POST",

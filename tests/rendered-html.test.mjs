@@ -67,7 +67,7 @@ test("renderiza a vitrine pública do Mercador", async () => {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /Mercador/i);
-  assert.match(html, /Compras e reservas não são realizadas/i);
+  assert.match(html, /enviar um pedido para o mestre/i);
   assert.match(html, /Estoque da campanha/i);
   assert.match(html, /Carregando|Consultando o catálogo/i);
 });
@@ -92,7 +92,7 @@ test("renderiza a entrada protegida do painel", async () => {
 });
 
 test("não publica a prévia visual de desenvolvimento", async () => {
-  for (const path of ["/dev/ui-foundation", "/dev/player-character"]) {
+  for (const path of ["/dev/ui-foundation", "/dev/player-character", "/dev/merchant-purchase"]) {
     const response = await render(path);
     assert.equal(response.status, 404);
   }
@@ -150,6 +150,7 @@ test("o shell de gestão usa navegação compatível com teclado e RBAC", async 
   assert.match(dashboard, /className="admin-mobile-navigation"/);
   assert.match(dashboard, /id="active-admin-area"/);
   assert.match(dashboard, /Diário de Sessões/);
+  assert.match(dashboard, /Pedidos do Mercador/);
   assert.match(summaries, /aria-label="Filtrar resumos por estado"/);
   assert.match(summaries, /aria-live="polite"/);
   assert.match(summaries, /Digite <strong>EXCLUIR/);

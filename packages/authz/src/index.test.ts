@@ -215,4 +215,17 @@ describe("principalFromRoleAssignments", () => {
       }),
     ).toBe(false);
   });
+
+  it("permite pedidos ao jogador e restringe decisões à equipe da campanha", () => {
+    const player = principalFromRoleAssignments("player", [
+      { roleName: "player", scope: { kind: "campaign", campaignId: "campaign-a" } },
+    ]);
+    const gm = principalFromRoleAssignments("gm", [
+      { roleName: "gm", scope: { kind: "campaign", campaignId: "campaign-a" } },
+    ]);
+    expect(hasPermission(player, "merchant:purchase:request", { kind: "campaign", campaignId: "campaign-a" })).toBe(true);
+    expect(hasPermission(player, "merchant:purchase:manage", { kind: "campaign", campaignId: "campaign-a" })).toBe(false);
+    expect(hasPermission(gm, "merchant:purchase:manage", { kind: "campaign", campaignId: "campaign-a" })).toBe(true);
+    expect(hasPermission(gm, "merchant:purchase:manage", { kind: "campaign", campaignId: "campaign-b" })).toBe(false);
+  });
 });

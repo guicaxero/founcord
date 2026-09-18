@@ -224,6 +224,7 @@ export const FoundryCaptureTranscriptSchema = FoundryCaptureSessionSchema.extend
 export const FoundryCommandTypeSchema = z.enum([
   "actor.sync.request",
   "chat.message.create",
+  "merchant.purchase.request",
 ]);
 
 const ActorSyncCommandSchema = z
@@ -246,9 +247,41 @@ const ChatMessageCommandSchema = z
   })
   .strict();
 
+const MerchantPurchaseRequestCommandSchema = z
+  .object({
+    type: z.literal("merchant.purchase.request"),
+    payload: z
+      .object({
+        requestId: z.string().uuid(),
+        campaignId: z.string().uuid(),
+        merchantActorId: foundryIdentifier,
+        buyer: z
+          .object({
+            userId: z.string().uuid(),
+            displayName: z.string().trim().min(1).max(100),
+            actorId: foundryIdentifier,
+            actorName: z.string().trim().min(1).max(120),
+          })
+          .strict(),
+        item: z
+          .object({
+            itemId: foundryIdentifier,
+            name: z.string().trim().min(1).max(160),
+            price: z.string().trim().min(1).max(64),
+            quantity: z.number().int().min(1).max(99),
+          })
+          .strict(),
+        note: z.string().trim().max(500).nullable(),
+        requestedAt: isoDate,
+      })
+      .strict(),
+  })
+  .strict();
+
 export const FoundryCommandInputSchema = z.discriminatedUnion("type", [
   ActorSyncCommandSchema,
   ChatMessageCommandSchema,
+  MerchantPurchaseRequestCommandSchema,
 ]);
 
 export const FoundryCommandCreateRequestSchema = z
