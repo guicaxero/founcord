@@ -64,9 +64,9 @@ import {
   revokeFoundryWorld,
   startFoundryCaptureSession,
 } from "./repository";
+import { HEARTBEAT_SECONDS } from "./presence";
 import type { FoundryEnv } from "./types";
 
-const HEARTBEAT_SECONDS = 30;
 const POLL_SECONDS = 5;
 const PAIRING_TTL_SECONDS = 10 * 60;
 const uuid = z.string().uuid();

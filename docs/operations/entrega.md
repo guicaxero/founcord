@@ -126,15 +126,23 @@ Fontes conferidas em 28 de agosto de 2026:
 - [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
 - [GitHub deployment environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)
 
-## Foundry permanentemente online
+## Cadência do Foundry
 
-O módulo atual envia heartbeat a cada 30 segundos e consulta comandos a cada
-5 segundos. Um único mundo com o navegador do mestre ativo durante 24 horas pode
-gerar aproximadamente 20.160 requisições diárias, sem contar sincronizações.
+O mundo só fica online enquanto o mestre conector está no Foundry; sem ele o
+módulo não faz nenhuma requisição. A partir do módulo `0.6.0`:
 
-A correção pertence ao repositório do módulo e deve ser entregue em PR própria:
+| Rotina | Cadência | Requisições por hora com o mestre ocioso |
+| --- | --- | --- |
+| Heartbeat | 60 s, definido pelo Bridge em `nextHeartbeatSeconds` | 60 |
+| Poll de comandos | 5 s após receber comandos, dobrando até 30 s | ~120 |
+| Sincronizações | somente quando atores ou itens mudam | variável |
 
-- polling rápido enquanto houver atividade;
-- backoff progressivo até 30–60 segundos quando ocioso;
-- sincronização de personagens e itens por eventos e deltas;
-- retorno imediato ao intervalo rápido quando houver comandos ou sessão ativa.
+Isso dá cerca de 180 requisições por hora, contra ~840 no módulo `0.5.0`.
+Uma sessão de quatro horas fica perto de 720 requisições, muito abaixo do
+limite diário do plano gratuito. Um pedido do Mercador chega ao mestre em até
+30 segundos.
+
+Evolução futura: sincronização de personagens e itens por deltas em vez de
+snapshots integrais.
+
+

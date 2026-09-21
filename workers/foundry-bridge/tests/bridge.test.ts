@@ -181,6 +181,7 @@ test("Marcos 3, 4.1 e Mercador: conexão, projeções e captura pública do Foun
       },
     });
     assert.equal(heartbeat.status, 200, JSON.stringify(heartbeat.data));
+    assert.equal(heartbeat.data.nextHeartbeatSeconds, 60);
 
     const worlds = await api(mf, `/internal/foundry/campaigns/${campaignId}/worlds`, {
       token: serviceToken,

@@ -40,7 +40,7 @@ módulo são entregues em PRs independentes.
 
 Uma campanha pode possuir mais de um mundo conectado. A vitrine seleciona o
 catálogo do mundo ativo mais recente, priorizando mundo online e depois o
-snapshot mais novo. Um heartbeat observado nos últimos 90 segundos caracteriza
+snapshot mais novo. Um heartbeat observado nos últimos 150 segundos caracteriza
 o mundo como online.
 
 - `fresh`: mundo online e catálogo sincronizado nos últimos 15 minutos;
