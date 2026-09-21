@@ -32,15 +32,15 @@ O binding do portal permanece `DB`. O Integration Worker usa apenas
 Renove a sessão do Wrangler e crie o banco uma única vez:
 
 ```bash
-npx wrangler login
-npx wrangler d1 create ordem-integration-db
+bunx wrangler login
+bunx wrangler d1 create ordem-integration-db
 ```
 
 Registre o `database_id` retornado em
 `services/integration/wrangler.jsonc` e aplique a migration própria:
 
 ```bash
-npm run db:migrate:integration:remote
+bun run db:migrate:integration:remote
 ```
 
 ## Migração dos dados
@@ -51,13 +51,13 @@ na origem e não exporta sessões, usuários, títulos ou corpos de posts.
 Primeiro simule:
 
 ```bash
-npm run db:migrate:integration-data
+bun run db:migrate:integration-data
 ```
 
 Depois copie de forma idempotente:
 
 ```bash
-npm run db:migrate:integration-data:apply
+bun run db:migrate:integration-data:apply
 ```
 
 O script usa `INSERT OR REPLACE`, pode ser repetido e compara as contagens no
@@ -72,7 +72,7 @@ deploy da integração, quando o banco legado já não receber novas gravações
 4. Publicar o Integration Worker com `INTEGRATION_DB`.
 5. Repetir a cópia para capturar o delta anterior ao corte.
 6. Validar `/health`, `/post`, revisão, publicação e ausência de duplicidade.
-7. Aplicar `npm run db:migrate:remote` para remover as tabelas legadas do banco
+7. Aplicar `bun run db:migrate:remote` para remover as tabelas legadas do banco
    do portal somente depois da validação.
 
 ## Rollback

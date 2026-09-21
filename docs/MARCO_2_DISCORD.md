@@ -67,15 +67,15 @@ somente por contratos internos autenticados e idempotentes.
 Antes do primeiro deploy, criar as filas:
 
 ```bash
-npx wrangler queues create ordem-discord-publications
-npx wrangler queues create ordem-discord-publications-dlq
+bunx wrangler queues create ordem-discord-publications
+bunx wrangler queues create ordem-discord-publications-dlq
 ```
 
 Aplicar as migrations remotas somente no pipeline de implantação aprovado:
 
 ```bash
-npm run db:migrate:remote
-npm run db:migrate:integration:remote
+bun run db:migrate:remote
+bun run db:migrate:integration:remote
 ```
 
 ## Configuração e segredos
@@ -85,9 +85,9 @@ deve ser cadastrado nos dois Workers. Cada comando abaixo solicita o valor sem
 versioná-lo:
 
 ```bash
-npx wrangler secret put INTEGRATION_SERVICE_TOKEN
-npx wrangler secret put INTEGRATION_SERVICE_TOKEN --config services/integration/wrangler.jsonc
-npx wrangler secret put DISCORD_BOT_TOKEN --config services/integration/wrangler.jsonc
+bunx wrangler secret put INTEGRATION_SERVICE_TOKEN
+bunx wrangler secret put INTEGRATION_SERVICE_TOKEN --config services/integration/wrangler.jsonc
+bunx wrangler secret put DISCORD_BOT_TOKEN --config services/integration/wrangler.jsonc
 ```
 
 `DISCORD_PUBLIC_KEY` é pública e fica declarada em `wrangler.jsonc`.
@@ -102,7 +102,7 @@ Depois de testes, revisão e merge na `main`:
 
 1. Aplicar as migrations do portal e da integração conforme o runbook do corte.
 2. Publicar o portal para ativar o producer da Queue.
-3. Publicar a integração com `npm run deploy:integration`.
+3. Publicar a integração com `bun run deploy:integration`.
 4. No Discord Developer Portal, definir a Interactions Endpoint URL como
    `https://ordem-discord-integration.<subdominio>.workers.dev/interactions`.
 5. Convidar o bot ao servidor com acesso ao canal e permissões para visualizar o
@@ -110,7 +110,7 @@ Depois de testes, revisão e merge na `main`:
    **Gerenciar webhooks**. Sem esta última permissão, a publicação continua pelo
    bot e mantém a autoria no corpo do texto.
 6. Definir `DISCORD_BOT_TOKEN` em `.env.local` e executar
-   `npm run discord:register`. O script carrega esse arquivo ignorado pelo Git e
+   `bun run discord:register`. O script carrega esse arquivo ignorado pelo Git e
    registra o comando diretamente na guild oficial.
 
 O registro por guild aparece imediatamente e é indicado durante o

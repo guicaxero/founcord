@@ -4,7 +4,7 @@ Descreva o resultado entregue e o problema que motivou a mudança.
 
 ## Validação
 
-- [ ] `npm run ci` foi executado com sucesso.
+- [ ] `bun run ci` foi executado com sucesso.
 - [ ] Contratos e migrações são retrocompatíveis durante o deploy.
 - [ ] Autorização continua validada no backend.
 - [ ] Alterações no módulo Foundry, quando necessárias, estão em PR independente.

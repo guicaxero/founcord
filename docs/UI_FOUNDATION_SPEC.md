@@ -245,7 +245,7 @@ Os diálogos:
    conteúdo específico e não dependem apenas de cor.
 9. A navegação por teclado alcança cabeçalho, navegação, conteúdo e ações em
    ordem previsível, com foco sempre visível.
-10. `npm run ci` passa sem alterar contratos, RBAC ou dados existentes.
+10. `bun run ci` passa sem alterar contratos, RBAC ou dados existentes.
 
 ## 9. Validação obrigatória
 

@@ -25,13 +25,17 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 22.13.0
-          cache: npm
+
+      - name: Configure Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
 
       - name: Install locked dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Validate repository
-        run: npm run ci
+        run: bun run ci
 
   deploy:
     name: Migrate and deploy
@@ -52,34 +56,38 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 22.13.0
-          cache: npm
+
+      - name: Configure Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
 
       - name: Install locked dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Apply portal migrations
-        run: npm run db:migrate:remote
+        run: bun run db:migrate:remote
 
       - name: Apply integration migrations
-        run: npm run db:migrate:integration:remote
+        run: bun run db:migrate:integration:remote
 
       - name: Apply automation migrations
-        run: npm run db:migrate:automation:remote
+        run: bun run db:migrate:automation:remote
 
       - name: Deploy portal provider
-        run: npm run deploy
+        run: bun run deploy
 
       - name: Deploy Discord integration
-        run: npm run deploy:integration
+        run: bun run deploy:integration
 
       - name: Deploy Foundry bridge
-        run: npm run deploy:foundry
+        run: bun run deploy:foundry
 
       - name: Deploy automation
-        run: npm run deploy:automation
+        run: bun run deploy:automation
 
       - name: Verify production services
-        run: npm run smoke:production
+        run: bun run smoke:production
         env:
           SMOKE_PORTAL_URL: ${{ vars.SMOKE_PORTAL_URL }}
           SMOKE_INTEGRATION_URL: ${{ vars.SMOKE_INTEGRATION_URL }}
