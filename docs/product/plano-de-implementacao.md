@@ -132,8 +132,10 @@ segurança, escala ou ciclo de release em uma separação adicional.
   para as primitivas do design system.
 - Compra no Mercador, edição completa de ficha e criador de criaturas ainda não
   existem.
-- Compra automática depende de confirmar a estrutura de atores e moedas do
-  sistema Shadow of the Demon Lord no Foundry.
+- A estrutura de moedas foi confirmada: o saldo fica em `actor.system.wealth`
+  (`gc`, `ss`, `cp`, `bits`) e o preço dos itens é texto livre em
+  `item.system.value`. O portal interpreta os preços e exibe o saldo; a compra
+  automática ainda depende de uma escrita segura e idempotente no Foundry.
 - Captura atual usa apenas chat público do Foundry; Discord é referência, não
   fonte importada para automação.
 
@@ -240,9 +242,7 @@ Entregas:
 Evoluções necessárias antes de considerar o domínio completo:
 
 - sincronização por eventos/deltas para reduzir polling;
-- backoff progressivo quando o Foundry estiver ocioso;
 - projeções de itens e inventários;
-- confirmação da estrutura real de atores, moedas e itens do sistema Demon Lord;
 - testes com mais de um mundo e mais de uma campanha.
 
 ### Fase 4 — Automações editoriais — primeiro corte concluído
@@ -340,6 +340,11 @@ Primeiro incremento da Etapa B:
 
 Esse incremento está especificado em `docs/product/specs/vinculo-jogador-ator.md` e não
 realiza escrita em moedas ou inventário.
+
+Segundo incremento (concluído): preços interpretados nas quatro moedas do
+sistema, custo total do pedido e saldo informativo do personagem, conforme
+`docs/product/specs/mercador-moedas-e-saldo.md`. Nenhum pedido é bloqueado
+por saldo.
 
 Fallback caso a escrita segura não seja possível:
 

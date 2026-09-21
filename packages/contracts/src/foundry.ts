@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CampaignSchema } from "./campaigns";
+import { DemonLordCoinsSchema } from "./currency";
 
 const foundryIdentifier = z
   .string()
@@ -131,6 +132,8 @@ export const FoundryCharacterProjectionSchema = z
         corruption: z.number().int().min(0).max(100_000),
       })
       .strict(),
+    /** Opcional para aceitar o módulo 0.5.x, que não envia o saldo. */
+    wealth: DemonLordCoinsSchema.optional(),
     sourceUpdatedAt: isoDate,
   })
   .strict();

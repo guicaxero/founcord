@@ -138,9 +138,10 @@ function characterUpsert(
         id, campaign_id, world_id, foundry_actor_id, name,
         owner_user_ids_json, level, ancestry, novice_path, expert_path,
         master_path, legendary_path, health_max, damage, healing_rate,
-        insanity, corruption, source_updated_at, last_synced_at, is_active
+        insanity, corruption, wealth_gc, wealth_ss, wealth_cp, wealth_bits,
+        source_updated_at, last_synced_at, is_active
       )
-      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1
       WHERE EXISTS (
         SELECT 1 FROM foundry_sync_cursors
         WHERE world_id = ? AND last_sync_id = ?
@@ -160,6 +161,10 @@ function characterUpsert(
         healing_rate = excluded.healing_rate,
         insanity = excluded.insanity,
         corruption = excluded.corruption,
+        wealth_gc = excluded.wealth_gc,
+        wealth_ss = excluded.wealth_ss,
+        wealth_cp = excluded.wealth_cp,
+        wealth_bits = excluded.wealth_bits,
         source_updated_at = excluded.source_updated_at,
         last_synced_at = excluded.last_synced_at,
         is_active = 1,
@@ -184,6 +189,10 @@ function characterUpsert(
       character.statistics.healingRate,
       character.statistics.insanity,
       character.statistics.corruption,
+      character.wealth?.gc ?? null,
+      character.wealth?.ss ?? null,
+      character.wealth?.cp ?? null,
+      character.wealth?.bits ?? null,
       character.sourceUpdatedAt,
       capturedAt,
       worldId,

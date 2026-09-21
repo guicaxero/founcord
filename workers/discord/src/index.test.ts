@@ -242,7 +242,10 @@ describe("Discord integration Worker", () => {
     };
     expect(response.status).toBe(200);
     expect(body.data.embeds[0]?.fields).toEqual([
-      expect.objectContaining({ name: "Tocha" }),
+      expect.objectContaining({
+        name: "Tocha",
+        value: expect.stringContaining("**Preço:** 1 centavo de cobre"),
+      }),
     ]);
     expect(JSON.stringify(body.data.components)).toContain("https://ordem.example/mercador");
   });

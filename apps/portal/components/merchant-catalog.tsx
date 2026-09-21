@@ -2,18 +2,24 @@
 
 import { useDeferredValue, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type {
-  CurrentUserResponse,
-  MerchantCatalogResponse,
-  MerchantItemProjection,
-  MerchantPurchaseDecisionInput,
-  MerchantPurchaseListResponse,
-  MerchantPurchaseRequest,
-  MerchantPurchaseRequestInput,
-  MerchantPurchaseStatus,
-  PlayerCharacterListResponse,
+import {
+  assessWealth,
+  formatCoins,
+  multiplyCoins,
+  parseDemonLordPrice,
+  type CurrentUserResponse,
+  type DemonLordCoins,
+  type MerchantCatalogResponse,
+  type MerchantItemProjection,
+  type MerchantPurchaseDecisionInput,
+  type MerchantPurchaseListResponse,
+  type MerchantPurchaseRequest,
+  type MerchantPurchaseRequestInput,
+  type MerchantPurchaseStatus,
+  type PlayerCharacterListResponse,
 } from "@ordem/contracts";
 import Link from "next/link";
+import { CoinPurse, MerchantPrice, priceLabel, totalCostLabel } from "@/components/coins";
 import { FeedbackState } from "@/components/ui/feedback-state";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { hasCapability } from "@/lib/capabilities";
@@ -302,6 +308,7 @@ export function MerchantCatalog({
         dialogRef={purchaseDialogRef}
         item={selectedItem}
         characterName={linkedCharacter?.actorName ?? null}
+        characterWealth={linkedCharacter?.character?.wealth ?? null}
         requestId={requestId}
         busy={createPurchase.isPending}
         error={createPurchase.isError ? errorMessage(createPurchase.error) : null}
@@ -459,7 +466,7 @@ function MerchantRow({
           </details>
         ) : <span className="merchant-unavailable">Descrição não informada</span>}
       </td>
-      <td data-label="Preço"><Price price={item.price} /></td>
+      <td data-label="Preço"><MerchantPrice price={item.price} /></td>
       <td data-label="Estoque"><Stock quantity={item.quantity} /></td>
       <td data-label="Pedido">
         {canRequest && available ? (
@@ -519,6 +526,7 @@ function PurchaseDialog({
   dialogRef,
   item,
   characterName,
+  characterWealth,
   requestId,
   busy,
   error,
@@ -528,26 +536,13 @@ function PurchaseDialog({
   dialogRef: React.RefObject<HTMLDialogElement | null>;
   item: MerchantItemProjection | null;
   characterName: string | null;
+  characterWealth: DemonLordCoins | null;
   requestId: string;
   busy: boolean;
   error: string | null;
   onClose: () => void;
   onSubmit: (input: MerchantPurchaseRequestInput) => void;
 }>) {
-  if (!item) return null;
-  const maxQuantity = Math.min(item.quantity ?? 1, 99);
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    onSubmit({
-      requestId,
-      itemId: item!.itemId,
-      quantity: Number(form.get("quantity")),
-      note: String(form.get("note") ?? "").trim() || null,
-    });
-  }
-
   return (
     <dialog
       className="merchant-purchase-dialog"
@@ -556,38 +551,152 @@ function PurchaseDialog({
       aria-describedby="merchant-purchase-dialog-description"
       onClose={() => { if (!busy) onClose(); }}
     >
-      <form onSubmit={submit}>
-        <header>
-          <span className="section-index">PEDIDO ASSISTIDO</span>
-          <h2 id="merchant-purchase-dialog-title">Solicitar {item.name}</h2>
-          <p id="merchant-purchase-dialog-description">Revise o pedido que será enviado aos mestres da campanha.</p>
-        </header>
-        <dl className="merchant-purchase-summary">
-          <div><dt>Personagem</dt><dd>{characterName}</dd></div>
-          <div><dt>Preço registrado</dt><dd>{item.price}</dd></div>
-        </dl>
-        <label>
-          <span>Quantidade</span>
-          <input name="quantity" type="number" min="1" max={maxQuantity} defaultValue="1" required />
-          <small>Até {maxQuantity} unidade{maxQuantity === 1 ? "" : "s"} no estoque atual.</small>
-        </label>
-        <label>
-          <span>Observação para o mestre <small>(opcional)</small></span>
-          <textarea name="note" rows={4} maxLength={500} placeholder="Exemplo: gostaria de retirar antes da próxima missão." />
-        </label>
-        <div className="merchant-no-mutation" role="note">
-          <strong>Nenhuma moeda ou item será alterado agora.</strong>
-          <span>O mestre receberá o pedido e confirmará o acerto depois de realizá-lo no Foundry.</span>
-        </div>
-        {error ? <p className="merchant-dialog-error" role="alert">{error}</p> : null}
-        <footer>
-          <button className="secondary-action" type="button" onClick={onClose} disabled={busy}>Voltar ao catálogo</button>
-          <button className="merchant-request-primary" type="submit" disabled={busy}>
-            {busy ? "Enviando pedido…" : "Enviar pedido ao mestre"}
-          </button>
-        </footer>
-      </form>
+      {item ? (
+        <PurchaseForm
+          key={requestId}
+          item={item}
+          characterName={characterName}
+          characterWealth={characterWealth}
+          requestId={requestId}
+          busy={busy}
+          error={error}
+          onClose={onClose}
+          onSubmit={onSubmit}
+        />
+      ) : null}
     </dialog>
+  );
+}
+
+function PurchaseForm({
+  item,
+  characterName,
+  characterWealth,
+  requestId,
+  busy,
+  error,
+  onClose,
+  onSubmit,
+}: Readonly<{
+  item: MerchantItemProjection;
+  characterName: string | null;
+  characterWealth: DemonLordCoins | null;
+  requestId: string;
+  busy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSubmit: (input: MerchantPurchaseRequestInput) => void;
+}>) {
+  const maxQuantity = Math.min(item.quantity ?? 1, 99);
+  // Última quantidade válida; valores fora do intervalo não alteram o custo exibido.
+  const [quantity, setQuantity] = useState(1);
+  const price = item.price ?? "";
+  const parsedPrice = parseDemonLordPrice(price);
+  const cost = parsedPrice ? multiplyCoins(parsedPrice.coins, quantity) : null;
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    onSubmit({
+      requestId,
+      itemId: item.itemId,
+      quantity: Number(form.get("quantity")),
+      note: String(form.get("note") ?? "").trim() || null,
+    });
+  }
+
+  return (
+    <form onSubmit={submit}>
+      <header>
+        <span className="section-index">PEDIDO ASSISTIDO</span>
+        <h2 id="merchant-purchase-dialog-title">Solicitar {item.name}</h2>
+        <p id="merchant-purchase-dialog-description">Revise o pedido que será enviado aos mestres da campanha.</p>
+      </header>
+      <dl className="merchant-purchase-summary">
+        <div><dt>Personagem</dt><dd>{characterName}</dd></div>
+        <div><dt>Preço por unidade</dt><dd>{priceLabel(price)}</dd></div>
+      </dl>
+      <label>
+        <span>Quantidade</span>
+        <input
+          name="quantity"
+          type="number"
+          min="1"
+          max={maxQuantity}
+          defaultValue="1"
+          required
+          onChange={(event) => {
+            const next = Number(event.target.value);
+            if (Number.isInteger(next) && next >= 1 && next <= maxQuantity) setQuantity(next);
+          }}
+        />
+        <small>Até {maxQuantity} unidade{maxQuantity === 1 ? "" : "s"} no estoque atual.</small>
+      </label>
+      <div className="merchant-purchase-cost" aria-live="polite" aria-atomic="true">
+        <span>Custo total</span>
+        {cost ? (
+          <strong>{formatCoins(cost)}</strong>
+        ) : (
+          <p>O custo depende do acerto com o mestre.</p>
+        )}
+      </div>
+      <section className="merchant-purchase-wealth" aria-labelledby="merchant-purchase-wealth-title">
+        <h3 id="merchant-purchase-wealth-title">
+          Saldo registrado{characterName ? ` de ${characterName}` : ""}
+        </h3>
+        {characterWealth ? (
+          <CoinPurse wealth={characterWealth} label="Moedas registradas no Foundry" />
+        ) : null}
+        <div aria-live="polite">
+          <WealthAssessment
+            wealth={characterWealth}
+            costBits={parsedPrice ? parsedPrice.totalBits * quantity : null}
+          />
+        </div>
+      </section>
+      <label>
+        <span>Observação para o mestre <small>(opcional)</small></span>
+        <textarea name="note" rows={4} maxLength={500} placeholder="Exemplo: gostaria de retirar antes da próxima missão." />
+      </label>
+      <div className="merchant-no-mutation" role="note">
+        <strong>Nenhuma moeda ou item será alterado agora.</strong>
+        <span>O mestre receberá o pedido e confirmará o acerto depois de realizá-lo no Foundry.</span>
+      </div>
+      {error ? <p className="merchant-dialog-error" role="alert">{error}</p> : null}
+      <footer>
+        <button className="secondary-action" type="button" onClick={onClose} disabled={busy}>Voltar ao catálogo</button>
+        <button className="merchant-request-primary" type="submit" disabled={busy}>
+          {busy ? "Enviando pedido…" : "Enviar pedido ao mestre"}
+        </button>
+      </footer>
+    </form>
+  );
+}
+
+/** Avaliação informativa do saldo; nunca impede o envio do pedido. */
+function WealthAssessment({
+  wealth,
+  costBits,
+}: Readonly<{ wealth: DemonLordCoins | null; costBits: number | null }>) {
+  if (!wealth) {
+    return (
+      <p className="wealth-assessment is-unknown">
+        O saldo deste personagem ainda não foi sincronizado pelo Foundry.
+      </p>
+    );
+  }
+  if (costBits === null) return null;
+  const assessment = assessWealth(wealth, costBits);
+  if (assessment.kind === "insufficient") {
+    return (
+      <p className="wealth-assessment is-insufficient">
+        <strong>O saldo registrado parece insuficiente: faltam {formatCoins(assessment.shortfall)}.</strong>
+        Você ainda pode enviar o pedido; o mestre decide o acerto.
+      </p>
+    );
+  }
+  return (
+    <p className="wealth-assessment is-sufficient">O saldo registrado cobre este pedido.</p>
   );
 }
 
@@ -646,7 +755,8 @@ export function PurchaseCard({ purchase, children }: Readonly<{
       <header><div><span>{purchase.character.actorName}</span><h3>{purchase.item.name}</h3></div><span className="merchant-purchase-status">{status.label}</span></header>
       <dl>
         <div><dt>Quantidade</dt><dd>{purchase.item.quantity}</dd></div>
-        <div><dt>Preço registrado</dt><dd>{purchase.item.price}</dd></div>
+        <div><dt>Preço por unidade</dt><dd>{priceLabel(purchase.item.price)}</dd></div>
+        <PurchaseTotal price={purchase.item.price} quantity={purchase.item.quantity} />
         <div><dt>Solicitado em</dt><dd><FormattedDateTime value={purchase.createdAt} /></dd></div>
       </dl>
       <p className="merchant-purchase-state-copy">{status.description}</p>
@@ -656,6 +766,11 @@ export function PurchaseCard({ purchase, children }: Readonly<{
       {children ? <footer>{children}</footer> : null}
     </article>
   );
+}
+
+function PurchaseTotal({ price, quantity }: Readonly<{ price: string; quantity: number }>) {
+  const total = totalCostLabel(price, quantity);
+  return total ? <div><dt>Custo total</dt><dd>{total}</dd></div> : null;
 }
 
 export const purchaseStatusContent: Readonly<Record<MerchantPurchaseStatus, Readonly<{ label: string; description: string }>>> = {
@@ -681,11 +796,6 @@ function ItemImage({ item }: Readonly<{ item: MerchantItemProjection }>) {
     // eslint-disable-next-line @next/next/no-img-element
     <img className="merchant-item-image" src={item.imageUrl} alt="" width="64" height="64" loading="lazy" />
   );
-}
-
-function Price({ price }: Readonly<{ price: string | null }>) {
-  if (!price) return <span className="merchant-unavailable">Preço não informado</span>;
-  return <span className="merchant-price"><strong>{price}</strong></span>;
 }
 
 function Stock({ quantity }: Readonly<{ quantity: number | null }>) {

@@ -5,6 +5,7 @@ export * from "./characters";
 export * from "./campaign-sessions";
 export * from "./session-summaries";
 export * from "./common";
+export * from "./currency";
 export * from "./events";
 export * from "./foundry";
 export * from "./missions";

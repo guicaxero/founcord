@@ -3,6 +3,8 @@ import {
   CreateDiscordPostDraftSchema,
   DiscordInteractionSchema,
   DiscordPostPublicationSchema,
+  formatCoins,
+  parseDemonLordPrice,
   type DiscordInteraction,
   type DiscordPostPublication,
   type MerchantCatalogResponse,
@@ -477,8 +479,11 @@ function commandStringOption(
   return typeof option?.value === "string" ? option.value : null;
 }
 
+/** Mesma formatação do portal: nomes completos das moedas ou o texto especial do mestre. */
 function merchantPrice(price: string | null): string {
-  return price ?? "Preço não informado";
+  if (!price) return "Preço não informado";
+  const parsed = parseDemonLordPrice(price);
+  return parsed ? formatCoins(parsed.coins) : `${price} (combinado com o mestre)`;
 }
 
 function merchantStock(quantity: number | null): string {

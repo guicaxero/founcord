@@ -1,0 +1,161 @@
+/* Moedas do Shadow of the Demon Lord: preço do Mercador, custo do pedido e saldo. */
+
+.merchant-price-source {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.coin-purse {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border: 1px solid var(--ink-200);
+  border-radius: var(--radius-sm);
+  background: var(--paper-100);
+}
+
+.coin-purse div {
+  display: grid;
+  /* Rótulos com duas linhas não desalinham os valores entre as colunas. */
+  grid-template-rows: 1fr auto;
+  align-items: start;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  text-align: center;
+}
+
+.coin-purse div + div {
+  border-left: 1px solid var(--ink-200);
+}
+
+.coin-purse dt {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.coin-purse dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+/* Marca metálica discreta por moeda; o rótulo continua sendo a informação. */
+.coin-purse dt::before {
+  content: "";
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-right: var(--space-1);
+  border: 1px solid var(--ink-500);
+  border-radius: 50%;
+  vertical-align: -0.05rem;
+}
+
+.coin-purse-gc dt::before { background: var(--gold-400); }
+.coin-purse-ss dt::before { background: var(--ink-200); }
+.coin-purse-cp dt::before { background: var(--copper-400); }
+.coin-purse-bits dt::before { background: var(--ink-400); }
+
+.merchant-purchase-cost {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  border: 1px solid var(--ink-700);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  background: var(--paper-50);
+}
+
+.merchant-purchase-cost span {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.merchant-purchase-cost strong {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.merchant-purchase-cost p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.merchant-purchase-wealth {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.merchant-purchase-wealth h3 {
+  margin: 0;
+  color: var(--ink-800);
+  font-size: var(--text-sm);
+  font-weight: 750;
+}
+
+.wealth-assessment {
+  margin: 0;
+  border-left: 3px solid var(--info-700);
+  padding: var(--space-3) var(--space-4);
+  background: var(--info-100);
+  color: var(--ink-800);
+  font-size: var(--text-sm);
+}
+
+.wealth-assessment strong {
+  display: block;
+}
+
+.wealth-assessment.is-sufficient {
+  border-left-color: var(--moss-700);
+  background: var(--moss-100);
+}
+
+.wealth-assessment.is-insufficient {
+  border-left-color: var(--warning-700);
+  background: var(--warning-100);
+}
+
+.player-character-wealth {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+/* Mesmo rótulo de seção usado em "Caminhos conhecidos". */
+.player-character-wealth > span {
+  color: var(--ember-700);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.player-character-wealth > p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 520px) {
+  .coin-purse {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .coin-purse div:nth-child(3) {
+    border-left: 0;
+  }
+
+  .coin-purse div:nth-child(n + 3) {
+    border-top: 1px solid var(--ink-200);
+  }
+}

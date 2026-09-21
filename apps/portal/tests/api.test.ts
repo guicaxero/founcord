@@ -446,6 +446,7 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
               insanity: 1,
               corruption: 0,
             },
+            wealth: { gc: 1, ss: 2, cp: 3, bits: 4 },
             sourceUpdatedAt: "2026-08-23T01:59:00.000Z",
           },
         ],
@@ -510,7 +511,8 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
 
       const projection = await db
         .prepare(
-          `SELECT name, level, health_max, damage, is_active
+          `SELECT name, level, health_max, damage, is_active,
+                  wealth_gc, wealth_ss, wealth_cp, wealth_bits
            FROM foundry_character_projections
            WHERE world_id = ? AND foundry_actor_id = ?`,
         )
@@ -522,6 +524,10 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
         health_max: 18,
         damage: 3,
         is_active: 1,
+        wealth_gc: 1,
+        wealth_ss: 2,
+        wealth_cp: 3,
+        wealth_bits: 4,
       });
       const auditCount = await db
         .prepare(
@@ -574,6 +580,10 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.equal(
         ownCharacters.data.data.find((entry: Json) => entry.campaign.id === defaultCampaignId).link.actorId,
         "aster-001",
+      );
+      assert.deepEqual(
+        ownCharacters.data.data.find((entry: Json) => entry.campaign.id === defaultCampaignId).link.character.wealth,
+        { gc: 1, ss: 2, cp: 3, bits: 4 },
       );
       assert.equal(JSON.stringify(ownCharacters.data).includes(identities.playerTwo.id), false);
 

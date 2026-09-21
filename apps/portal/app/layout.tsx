@@ -5,6 +5,7 @@ import "./styles/base.css";
 import "./styles/public-portal.css";
 import "./styles/merchant.css";
 import "./styles/characters.css";
+import "./styles/coins.css";
 import "./styles/order-document.css";
 import "./styles/admin.css";
 import "./styles/responsive.css";

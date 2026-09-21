@@ -30,6 +30,10 @@ type CharacterRow = Readonly<{
   healing_rate: number;
   insanity: number;
   corruption: number;
+  wealth_gc: number | null;
+  wealth_ss: number | null;
+  wealth_cp: number | null;
+  wealth_bits: number | null;
   source_updated_at: string;
   last_synced_at: string;
   is_active: number;
@@ -58,6 +62,10 @@ type LinkRow = Readonly<{
   healing_rate: number | null;
   insanity: number | null;
   corruption: number | null;
+  wealth_gc: number | null;
+  wealth_ss: number | null;
+  wealth_cp: number | null;
+  wealth_bits: number | null;
   source_updated_at: string | null;
   last_synced_at: string | null;
   is_active: number | null;
@@ -84,6 +92,7 @@ export async function listCampaignCharacterLinks(
         `SELECT world_id, foundry_actor_id, name, level, ancestry,
                 novice_path, expert_path, master_path, legendary_path,
                 health_max, damage, healing_rate, insanity, corruption,
+                wealth_gc, wealth_ss, wealth_cp, wealth_bits,
                 source_updated_at, last_synced_at, is_active
          FROM foundry_character_projections
          WHERE campaign_id = ? AND is_active = 1
@@ -348,7 +357,8 @@ function linkSelect(suffix: string): string {
                  p.name AS projection_name, p.level, p.ancestry,
                  p.novice_path, p.expert_path, p.master_path, p.legendary_path,
                  p.health_max, p.damage, p.healing_rate, p.insanity,
-                 p.corruption, p.source_updated_at, p.last_synced_at, p.is_active
+                 p.corruption, p.wealth_gc, p.wealth_ss, p.wealth_cp, p.wealth_bits,
+                 p.source_updated_at, p.last_synced_at, p.is_active
           FROM campaign_character_links l
           LEFT JOIN foundry_character_projections p
             ON p.campaign_id = l.campaign_id
@@ -386,6 +396,10 @@ function mapLink(row: LinkRow): CampaignCharacterLink {
           healing_rate: row.healing_rate,
           insanity: row.insanity,
           corruption: row.corruption,
+          wealth_gc: row.wealth_gc,
+          wealth_ss: row.wealth_ss,
+          wealth_cp: row.wealth_cp,
+          wealth_bits: row.wealth_bits,
           source_updated_at: row.source_updated_at,
           last_synced_at: row.last_synced_at,
           is_active: row.is_active,
@@ -424,9 +438,28 @@ function mapCharacter(row: CharacterRow): CampaignCharacterProjection {
       insanity: row.insanity,
       corruption: row.corruption,
     },
+    wealth: mapWealth(row),
     sourceUpdatedAt: requiredIsoDateTime(row.source_updated_at),
     lastSyncedAt: requiredIsoDateTime(row.last_synced_at),
     active: Boolean(row.is_active),
+  };
+}
+
+/** O saldo só é exibido quando as quatro moedas vieram da mesma sincronização. */
+function mapWealth(row: CharacterRow): CampaignCharacterProjection["wealth"] {
+  if (
+    row.wealth_gc === null ||
+    row.wealth_ss === null ||
+    row.wealth_cp === null ||
+    row.wealth_bits === null
+  ) {
+    return null;
+  }
+  return {
+    gc: row.wealth_gc,
+    ss: row.wealth_ss,
+    cp: row.wealth_cp,
+    bits: row.wealth_bits,
   };
 }
 
