@@ -1,0 +1,17 @@
+{
+  "name": "@ordem/foundry-bridge-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "bundle": "wrangler deploy --dry-run --outdir .wrangler/bundle",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ordem/contracts": "workspace:*",
+    "hono": "^4.13.3",
+    "zod": "^4.4.3"
+  }
+}

@@ -1,151 +1,94 @@
 # Ordem da Última Luz
 
 Portal comunitário para uma campanha West Marches de **Shadow of the Demon
-Lord**, com quadro de missões, publicação editorial e integrações com Discord e
-Foundry VTT.
-
-## Fundamentos
-
-- Next.js oficial, React e TailwindCSS no portal.
-- OpenNext como adaptador de produção para Cloudflare Workers.
-- TypeScript estrito em toda a base Node.
-- Hono e OpenAPI nos serviços de domínio.
-- Zod como validação dos contratos em runtime.
-- D1/SQLite para estado estruturado e Drizzle para migrations.
-- RBAC com escopo global ou por campanha; o backend é sempre autoritativo.
-- Server Components para a primeira renderização e TanStack Query para estado remoto no navegador.
-
-## Estrutura
+Lord**. O núcleo tem três pilares: o **portal web**, o **bot do Discord** e o
+**Foundry VTT**. Tudo roda na Cloudflare, no plano gratuito e sem custos.
 
 ```text
-app/                    portal Next.js e BFF fino
-db/                     schema D1 da primeira fase
-packages/contracts/     contratos compartilhados e schemas Zod
-packages/authz/         vocabulário de permissões e policies
-services/identity/      autenticação, sessões e autorização
-services/campaign/      missões, inscrições, posts e campanha
-services/integration/   integração HTTP e Queue do Discord
-services/foundry/       Bridge HTTPS, presença, sync e comandos Foundry
-services/automation/    jobs editoriais, Queue, cota e Workers AI
-docs/                   arquitetura, ADRs e matriz de acesso
+Navegador ─► Portal Worker (Next.js + OpenNext) ─► D1 ordem-da-ultima-luz
+Discord   ─► Discord Worker ──┐
+Foundry   ─► Foundry Bridge ──┴─► D1 ordem-integration-db ─► Portal (Service Binding)
+Portal    ─► Automation Worker ─► D1 ordem-automation-db ─► Workers AI ─► Portal
 ```
 
-O módulo cliente do Foundry possui ciclo de vida e releases independentes no
-repositório público
+O módulo cliente do Foundry é mantido no repositório separado
 [`guicaxero/founcord-module-foundryVTT`](https://github.com/guicaxero/founcord-module-foundryVTT).
-Este monorepo mantém somente o portal, os serviços, os contratos e a
-documentação da integração.
 
-Os três serviços possuem entradas Hono independentes. Na primeira fase, o
-portal e o banco são implantados juntos para caber no plano gratuito; os
-limites de código e dados já permitem separar os Workers sem mudar os contratos.
+## Estrutura do repositório
+
+| Pasta | Propósito |
+| --- | --- |
+| `apps/portal/` | Portal Next.js e BFF. É o Worker `ordem-da-ultima-luz`, que hospeda os módulos Identity e Campaign. |
+| `apps/portal/app/` | Rotas do App Router: páginas públicas, área do jogador, painel e `app/api/*`. |
+| `apps/portal/components/` | Componentes React do portal (`admin/` para o painel de gestão). |
+| `apps/portal/server/` | Regras de negócio do portal, organizadas por domínio (tabela abaixo). |
+| `apps/portal/tests/` | Testes de integração do portal com Miniflare (HTML renderizado e API). |
+| `workers/discord/` | Worker `ordem-discord-integration`: bot HTTP do Discord e consumidor da fila de publicações. |
+| `workers/foundry-bridge/` | Worker `ordem-foundry-bridge`: pareamento, heartbeat, projeções e fila de comandos do Foundry. |
+| `workers/automation/` | Worker `ordem-automation`: jobs editoriais com Workers AI, fila, cota e retenção. |
+| `packages/contracts/` | `@ordem/contracts`: contratos Zod compartilhados por portal e Workers. |
+| `packages/authz/` | `@ordem/authz`: papéis, permissões e policies RBAC. |
+| `packages/database/` | `@ordem/database`: schema Drizzle e migrations de cada D1 (`portal/`, `integration/`, `automation/`). |
+| `scripts/` | Scripts operacionais em TypeScript, executados com Bun. |
+| `tests/` | Políticas do repositório (workflows, gerenciador de pacotes, limites). |
+| `docs/` | Arquitetura, operação, produto e design. Veja o [índice](docs/README.md). |
+
+Organização de `apps/portal/server/`:
+
+| Pasta | Conteúdo |
+| --- | --- |
+| `identity/` | Discord OAuth com PKCE, cookies, sessões e capabilities. |
+| `campaign/` | Campanhas, membros, missões, posts, sessões, diário, personagens, pedidos do Mercador e auditoria. |
+| `automation/` | Cliente do Automation Worker e materialização de rascunhos. |
+| `integrations/` | Clientes e callbacks do Discord e do Foundry Bridge e a autenticação entre serviços. |
+| `shared/` | HTTP, D1, auditoria/outbox, datas e constantes. |
+
+## Stack
+
+- **Portal:** Next.js 16 (App Router), React 19, Tailwind CSS 4 e TanStack Query. É publicado com OpenNext.
+- **Workers:** Hono em Cloudflare Workers.
+- **Linguagem e validação:** TypeScript estrito em todo o código e Zod nos contratos.
+- **Dados e filas:** D1 com migrations Drizzle, Queues e Workers AI.
+- **Ferramentas:** Bun como gerenciador de pacotes e executor de scripts, e Vitest para testes. Next, OpenNext e Wrangler rodam sobre o Node.js.
 
 ## Desenvolvimento
 
-Requer Node.js `>=22.13.0`.
+Requer [Bun](https://bun.sh) `>=1.4` e Node.js `>=22.13`.
 
 ```bash
 bun install
 bun run dev
-bun run typecheck
-bun run test
 ```
 
-Para gerar uma migration após alterar `db/schema.ts`:
+Na primeira execução, copie `apps/portal/.env.example` para `apps/portal/.env.local`
+e `apps/portal/.dev.vars.example` para `apps/portal/.dev.vars`. Cadastre também
+`http://localhost:3000/api/auth/discord/callback` como redirect URI na aplicação
+Discord e rode `bun run db:migrate:portal:local`.
 
-```bash
-bun run db:generate
-```
+| Comando | O que faz |
+| --- | --- |
+| `bun run dev` | Portal em `http://localhost:3000`. |
+| `bun run dev:discord` / `dev:foundry` / `dev:automation` | Worker local com `wrangler dev`. |
+| `bun run preview` | Build OpenNext e execução do portal no runtime Workers. |
+| `bun run typecheck` | `tsc` em todos os workspaces. |
+| `bun run lint` | ESLint no monorepo. |
+| `bun run test:unit` | Testes unitários (rápidos). |
+| `bun run test` | Quality gate completo: typecheck, build, bundles e todos os testes. |
+| `bun run ci` | Lint seguido do quality gate, igual ao GitHub Actions. |
+| `bun run db:generate:<portal\|integration\|automation>` | Gera uma migration após alterar o schema correspondente. |
+| `bun run db:migrate:<banco>:local` | Aplica migrations no D1 local. |
+| `bun run discord:register` | Registra os comandos de guild do bot. |
 
-Consulte [a arquitetura](docs/ARCHITECTURE.md) e
-[a matriz RBAC](docs/RBAC.md) antes de ampliar um domínio.
+## Entrega
 
-## Marco 1
+Toda mudança chega à `main` por Pull Request, e o CI executa `bun run ci`. A
+produção é publicada somente pelo workflow manual `Deploy production`, que
+aplica as migrations, publica o portal e depois os Workers, e encerra com smoke
+tests. Detalhes em [docs/operations/entrega.md](docs/operations/entrega.md).
 
-- Discord OAuth 2 com PKCE e sessão opaca em cookie HTTP-only;
-- RBAC global e por campanha aplicado no servidor;
-- campanhas, membros e atribuição de papéis;
-- missões com revisão, publicação, inscrições e lista de espera;
-- posts com revisão humana e publicação no portal;
-- trilha de auditoria e outbox;
-- Next.js, TypeScript estrito, Tailwind CSS e TanStack Query;
-- persistência Cloudflare D1 com migrations Drizzle.
+## Onde continuar
 
-## Configuração local
-
-Copie `.env.example` para `.env.local`, preencha a aplicação Discord e cadastre
-`http://localhost:3000/api/auth/discord/callback` como redirect URI. Para usar
-os bindings D1 durante `next dev`, mantenha também uma `.dev.vars` baseada no
-arquivo de exemplo. A produção usa o mesmo caminho sob o domínio publicado.
-
-Para testar o runtime Cloudflare localmente, copie `.dev.vars.example` para
-`.dev.vars`, aplique as migrations locais e execute `bun run preview`.
-
-## Marco 1.5 — Cloudflare
-
-O portal é publicado como um único Worker Next.js no plano gratuito, com D1
-como banco. Os limites de Identity, Campaign e Integration continuam separados
-por contratos e módulos; a divisão em Workers independentes só será feita
-quando houver ganho operacional real.
-
-Consulte [o runbook do Marco 1.5](docs/MARCO_1_5_CLOUDFLARE.md) para criação do
-banco, secrets, migrations, OAuth, publicação e rollback.
-
-## Marco 2 — Discord
-
-O Discord recebe interações em um Worker HTTP separado. O comando `/post` abre
-um modal, associa o autor à identidade Discord já vinculada no portal e cria um
-post em `pending_review`. A aprovação e a publicação continuam exclusivamente
-humanas no painel; depois da publicação no portal, uma Queue cria o tópico no
-fórum do Discord de forma assíncrona e idempotente.
-
-Consulte [o runbook do Marco 2](docs/MARCO_2_DISCORD.md) para arquitetura,
-segredos, provisionamento, registro do comando e validação ponta a ponta.
-
-## Marco 2.5 — Persistência isolada
-
-Discord e Foundry usam um D1 próprio para inbox, entregas, jobs e referências
-externas. O Integration Worker não recebe acesso ao banco do portal; identidade,
-RBAC, conteúdo e auditoria permanecem sob responsabilidade exclusiva do Portal
-Worker.
-
-Consulte [o runbook do Marco 2.5](docs/MARCO_2_5_STORAGE.md) para ownership,
-migração idempotente, ordem do corte e rollback.
-
-## Marco 3 — Foundry VTT
-
-O primeiro corte vertical do Marco 3 adiciona um Worker próprio para Foundry,
-pareamento por código temporário, troca one-shot por credencial operacional,
-heartbeat, estado online/offline, sincronização sanitizada de personagens e uma
-fila de comandos com lease e idempotência. O módulo suporta exclusivamente o
-sistema `demonlord` e inicia somente conexões HTTPS de saída.
-
-Consulte [o runbook do Marco 3](docs/MARCO_3_FOUNDRY.md) para segurança,
-contratos, migrations, instalação do módulo e validação.
-
-## Marco 4 — Automações editoriais
-
-O portal cria jobs autorizados em um Worker e D1 independentes. Workers AI
-produz resumos, crônicas ou extrações a partir de texto fornecido; a saída é
-validada e materializada exclusivamente como post `pending_review`. Queue,
-leases, idempotência, cota diária e retenção de 30 dias protegem o fluxo e o
-plano gratuito.
-
-O corte 4.1 acrescenta um registro de sessões no portal e captura sanitizada do
-chat público pelo módulo Foundry `v0.3.0`. Iniciar e encerrar a captura são
-operações separadas da geração: a pessoa revisa as fontes antes de criar um
-rascunho, e o Discord permanece explicitamente como referência não importada.
-
-Consulte [o runbook do Marco 4](docs/MARCO_4_AUTOMATIONS.md) para segurança,
-custos, recursos, secrets, migrations, deploy e rollback.
-
-## Mercador — vitrine somente leitura
-
-O Foundry publica um snapshot sanitizado do ator configurado como Mercador no
-banco de integração. O portal expõe a página pública `/mercador` e o Discord
-oferece `/mercador`, ambos com busca, disponibilidade, estado online/offline e
-data da última sincronização. Este corte nunca altera moedas, inventário ou
-quantidade; o Foundry continua sendo a fonte de verdade.
-
-Consulte [a especificação do Mercador](docs/MERCADOR_SOMENTE_LEITURA_SPEC.md)
-para contrato, estados, acessibilidade, deploy e limites desta etapa.
+- [Arquitetura](docs/architecture/arquitetura.md) e [matriz RBAC](docs/architecture/rbac.md)
+- [Plano de implementação e estado atual](docs/product/plano-de-implementacao.md)
+- [Padrão de UI/UX](docs/design/padrao-de-ui-ux.md), obrigatório para mudanças de interface
+- [Runbooks de operação](docs/operations/runbooks/)

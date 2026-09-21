@@ -1,0 +1,37 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ordem-da-ultima-luz",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-21",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ordem-da-ultima-luz",
+      "database_id": "88493218-9d07-4649-98d4-2df515c724e4",
+      "migrations_dir": "../../packages/database/portal/migrations"
+    }
+  ],
+  "vars": {
+    "DISCORD_CLIENT_ID": "1540460545558323250",
+    "DISCORD_REDIRECT_URI": "https://ordem-da-ultima-luz.ordem-da-ultima-luz.workers.dev/api/auth/discord/callback",
+    "SITE_URL": "https://ordem-da-ultima-luz.ordem-da-ultima-luz.workers.dev",
+    "FOUNDRY_BRIDGE_URL": "https://ordem-foundry-bridge.ordem-da-ultima-luz.workers.dev",
+    "AUTOMATION_WORKER_URL": "https://ordem-automation.ordem-da-ultima-luz.workers.dev"
+  },
+  "queues": {
+    "producers": [
+      {
+        "binding": "DISCORD_PUBLICATIONS",
+        "queue": "ordem-discord-publications"
+      }
+    ]
+  },
+  "observability": {
+    "enabled": true
+  }
+}
