@@ -1,0 +1,23 @@
+import { MerchantCatalogResponseSchema } from "@ordem/contracts";
+import { getOptionalSession } from "@/server/identity/session";
+import { jsonResponse, withApiHandler } from "@/server/shared/http";
+import { getMerchantCatalog } from "@/server/integrations/merchant";
+
+type RouteContext = Readonly<{ params: Promise<{ campaignId: string }> }>;
+
+export async function GET(request: Request, context: RouteContext) {
+  const { campaignId } = await context.params;
+  return withApiHandler(async ({ correlationId }) =>
+    jsonResponse(
+      MerchantCatalogResponseSchema.parse(
+        await getMerchantCatalog(
+          campaignId,
+          await getOptionalSession(request),
+          correlationId,
+        ),
+      ),
+      {},
+      correlationId,
+    ),
+  )(request);
+}

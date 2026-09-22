@@ -1,0 +1,18 @@
+{
+  "name": "@ordem/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate:portal": "drizzle-kit generate --config portal/drizzle.config.ts",
+    "generate:integration": "drizzle-kit generate --config integration/drizzle.config.ts",
+    "generate:automation": "drizzle-kit generate --config automation/drizzle.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.2"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.10"
+  }
+}

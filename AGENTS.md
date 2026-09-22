@@ -4,11 +4,11 @@
 
 Antes de criar, alterar ou revisar qualquer tela, componente visual, fluxo de navegação, formulário ou texto de interface, leia integralmente:
 
-1. [`PADRAO_DE_UI_UX.md`](./PADRAO_DE_UI_UX.md);
+1. [`docs/design/padrao-de-ui-ux.md`](./docs/design/padrao-de-ui-ux.md);
 2. [`.agents/AGENTE_ESPECIALISTA_UI_UX.md`](./.agents/AGENTE_ESPECIALISTA_UI_UX.md);
 3. [`.agents/AGENTE_ESPECIALISTA_FRONTEND.md`](./.agents/AGENTE_ESPECIALISTA_FRONTEND.md).
 
-`PADRAO_DE_UI_UX.md` continua sendo a fonte de verdade para decisões visuais e de experiência do produto; os perfis em `.agents/` definem como especificar, implementar e revisar essas decisões. Nenhuma alteração de frontend deve ser considerada concluída sem revisar hierarquia, clareza, acessibilidade, responsividade, estados, feedback e consistência conforme o padrão.
+`docs/design/padrao-de-ui-ux.md` continua sendo a fonte de verdade para decisões visuais e de experiência do produto; os perfis em `.agents/` definem como especificar, implementar e revisar essas decisões. Nenhuma alteração de frontend deve ser considerada concluída sem revisar hierarquia, clareza, acessibilidade, responsividade, estados, feedback e consistência conforme o padrão.
 
 ### Pipeline obrigatório de interface
 
@@ -27,7 +27,7 @@ Mudanças exclusivamente de backend, infraestrutura, banco, contratos sem interf
 ### Hierarquia das instruções
 
 - Este `AGENTS.md` define escopo, produto e processo obrigatório.
-- `PADRAO_DE_UI_UX.md` define o padrão visual e de experiência da Ordem da Última Luz.
+- `docs/design/padrao-de-ui-ux.md` define o padrão visual e de experiência da Ordem da Última Luz.
 - Os perfis em `.agents/` definem responsabilidades, entregáveis e critérios de revisão dos especialistas.
 - Em caso de conflito, preserve as regras de produto e o padrão do repositório e registre a decisão; nenhum especialista deve alterar silenciosamente a intenção relevante do outro.
 
