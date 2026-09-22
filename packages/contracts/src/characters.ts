@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { EntityIdSchema, IsoDateTimeSchema } from "./common";
+import { DemonLordCoinsSchema } from "./currency";
 
 const FoundryReferenceSchema = z.string().min(1).max(128);
 
@@ -31,6 +32,8 @@ export const CampaignCharacterProjectionSchema = z
     ancestry: z.string().nullable(),
     paths: CharacterPathSummarySchema,
     statistics: CharacterStatisticsSummarySchema,
+    /** Saldo registrado no Foundry; `null` até o módulo 0.6.0 sincronizá-lo. */
+    wealth: DemonLordCoinsSchema.nullable(),
     sourceUpdatedAt: IsoDateTimeSchema,
     lastSyncedAt: IsoDateTimeSchema,
     active: z.boolean(),

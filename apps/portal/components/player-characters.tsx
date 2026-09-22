@@ -6,6 +6,7 @@ import type {
   PlayerCharacterListResponse,
 } from "@ordem/contracts";
 import Link from "next/link";
+import { CoinPurse } from "@/components/coins";
 import { FeedbackState } from "@/components/ui/feedback-state";
 import { ApiClientError, apiFetch, errorMessage } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
@@ -114,6 +115,7 @@ function CharacterSheetSummary({ character }: Readonly<{ character: CampaignChar
     character.paths.master,
     character.paths.legendary,
   ].filter(Boolean);
+  const wealthTitleId = `player-character-wealth-${character.worldId}-${character.actorId}`;
 
   return (
     <article className="player-character-sheet">
@@ -139,6 +141,15 @@ function CharacterSheetSummary({ character }: Readonly<{ character: CampaignChar
         <div><dt>Corrupção</dt><dd>{character.statistics.corruption}</dd></div>
       </dl>
 
+      <section className="player-character-wealth" aria-labelledby={wealthTitleId}>
+        <span id={wealthTitleId}>Moedas</span>
+        {character.wealth ? (
+          <CoinPurse wealth={character.wealth} label={`Moedas de ${character.name}`} />
+        ) : (
+          <p>Saldo ainda não sincronizado. Ele aparece após a próxima sincronização do Foundry.</p>
+        )}
+      </section>
+
       <div className="player-character-details">
         <div>
           <span>Caminhos conhecidos</span>
@@ -152,7 +163,7 @@ function CharacterSheetSummary({ character }: Readonly<{ character: CampaignChar
 
       <footer>
         <p>
-          Esta é uma projeção segura e somente para consulta. Edição de ficha e compras serão liberadas em etapas posteriores.
+          Esta é uma projeção segura e somente para consulta. Moedas, itens e ficha continuam sendo alterados pelo mestre no Foundry.
         </p>
         <Link className="text-action" href="/mercador">Consultar o Mercador <span aria-hidden="true">→</span></Link>
       </footer>

@@ -381,6 +381,11 @@ export const foundryCharacterProjections = sqliteTable(
     healingRate: integer("healing_rate").notNull().default(0),
     insanity: integer("insanity").notNull().default(0),
     corruption: integer("corruption").notNull().default(0),
+    // Saldo do personagem (moedas do sistema demonlord); nulo até o módulo 0.6.0.
+    wealthGc: integer("wealth_gc"),
+    wealthSs: integer("wealth_ss"),
+    wealthCp: integer("wealth_cp"),
+    wealthBits: integer("wealth_bits"),
     sourceUpdatedAt: text("source_updated_at").notNull(),
     lastSyncedAt: text("last_synced_at").notNull(),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),

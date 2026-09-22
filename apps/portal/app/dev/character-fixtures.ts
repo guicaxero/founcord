@@ -29,6 +29,7 @@ const alaric = {
     insanity: 2,
     corruption: 1,
   },
+  wealth: { gc: 2, ss: 7, cp: 14, bits: 3 },
   sourceUpdatedAt: "2026-09-07T15:00:00.000Z",
   lastSyncedAt: "2026-09-07T15:01:00.000Z",
   active: true,
@@ -53,6 +54,8 @@ const vesper = {
     insanity: 3,
     corruption: 2,
   },
+  // Personagem sincronizado por um módulo anterior à 0.6.0: saldo desconhecido.
+  wealth: null,
   sourceUpdatedAt: "2026-09-07T15:00:00.000Z",
   lastSyncedAt: "2026-09-07T15:01:00.000Z",
   active: true,
@@ -126,6 +129,17 @@ export const previewPlayerCharacters: PlayerCharacterListResponse = {
     {
       campaign: { id: previewCampaignId, name: "Ordem da Última Luz" },
       link,
+    },
+    {
+      campaign: { id: "44444444-4444-4444-8444-444444444444", name: "Expedição do Inverno Cinzento" },
+      link: {
+        ...link,
+        id: "55555555-5555-4555-8555-555555555555",
+        campaignId: "44444444-4444-4444-8444-444444444444",
+        actorId: vesper.actorId,
+        actorName: vesper.name,
+        character: vesper,
+      },
     },
   ],
 };
