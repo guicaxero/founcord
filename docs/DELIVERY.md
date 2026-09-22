@@ -57,8 +57,8 @@ Executado em toda Pull Request para `main`:
 
 1. checkout;
 2. Node fixado na versão suportada;
-3. `npm ci`;
-4. lint, tipos, builds e testes por `npm run ci`.
+3. `bun install --frozen-lockfile`;
+4. lint, tipos, builds e testes por `bun run ci`.
 
 ### Produção
 
@@ -88,7 +88,7 @@ substituto.
 2. Identifique a versão anterior com `wrangler deployments list` usando o Wrangler
    correspondente ao serviço.
 3. Execute `wrangler rollback <version-id>` com o mesmo arquivo de configuração.
-4. Rode `npm run smoke:production`.
+4. Rode `bun run smoke:production`.
 5. Registre o correlation ID, serviço, versão e causa na auditoria operacional.
 
 Rollback de Worker não desfaz D1. Por isso migrações precisam permanecer

@@ -96,16 +96,16 @@ Após seis leases expirados, o comando falha de forma persistida.
 ## Migrations locais
 
 ```bash
-npm run db:migrate:integration:local
-npm run db:migrate:local
+bun run db:migrate:integration:local
+bun run db:migrate:local
 ```
 
 As migrations de produção só devem ser aplicadas antes do primeiro deploy do
 Bridge e depois de um backup/Time Travel confirmado:
 
 ```bash
-npm run db:migrate:integration:remote
-npm run db:migrate:remote
+bun run db:migrate:integration:remote
+bun run db:migrate:remote
 ```
 
 ## Secrets e deploy
@@ -113,15 +113,15 @@ npm run db:migrate:remote
 Cadastre o secret de comunicação interna sem colocá-lo em arquivos versionados:
 
 ```bash
-npx wrangler secret put INTEGRATION_SERVICE_TOKEN --config services/foundry/wrangler.jsonc
+bunx wrangler secret put INTEGRATION_SERVICE_TOKEN --config services/foundry/wrangler.jsonc
 ```
 
 `INTEGRATION_SERVICE_TOKEN` deve ser o mesmo já usado pelo Portal Worker.
 Publique o portal compatível antes do Bridge:
 
 ```bash
-npm run deploy
-npm run deploy:foundry
+bun run deploy
+bun run deploy:foundry
 ```
 
 ## Instalação do módulo
@@ -149,11 +149,11 @@ a credencial operacional no armazenamento local do navegador do mestre.
 ## Verificação
 
 ```bash
-npm run typecheck
-npm run lint
-npm run bundle:foundry
-npm run bundle:foundry:test
-npm run test:unit
+bun run typecheck
+bun run lint
+bun run bundle:foundry
+bun run bundle:foundry:test
+bun run test:unit
 node --test tests/foundry-bridge.test.mjs
 ```
 

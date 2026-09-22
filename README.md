@@ -45,16 +45,16 @@ limites de código e dados já permitem separar os Workers sem mudar os contrato
 Requer Node.js `>=22.13.0`.
 
 ```bash
-npm install
-npm run dev
-npm run typecheck
-npm test
+bun install
+bun run dev
+bun run typecheck
+bun run test
 ```
 
 Para gerar uma migration após alterar `db/schema.ts`:
 
 ```bash
-npm run db:generate
+bun run db:generate
 ```
 
 Consulte [a arquitetura](docs/ARCHITECTURE.md) e
@@ -79,7 +79,7 @@ os bindings D1 durante `next dev`, mantenha também uma `.dev.vars` baseada no
 arquivo de exemplo. A produção usa o mesmo caminho sob o domínio publicado.
 
 Para testar o runtime Cloudflare localmente, copie `.dev.vars.example` para
-`.dev.vars`, aplique as migrations locais e execute `npm run preview`.
+`.dev.vars`, aplique as migrations locais e execute `bun run preview`.
 
 ## Marco 1.5 — Cloudflare
 

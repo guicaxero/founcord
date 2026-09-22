@@ -39,17 +39,17 @@ operacional.
 
 1. Copiar `.env.example` para `.env.local` para `next dev`.
 2. Copiar `.dev.vars.example` para `.dev.vars` para a prévia Cloudflare.
-3. Executar `npm run db:migrate:local`.
-4. Executar `npm run dev` para desenvolvimento rápido.
-5. Executar `npm run preview` antes de uma publicação.
+3. Executar `bun run db:migrate:local`.
+4. Executar `bun run dev` para desenvolvimento rápido.
+5. Executar `bun run preview` antes de uma publicação.
 
 ## Provisionamento inicial
 
-1. Autenticar com `npx wrangler login`.
-2. Criar o D1 com `npx wrangler d1 create ordem-da-ultima-luz`.
+1. Autenticar com `bunx wrangler login`.
+2. Criar o D1 com `bunx wrangler d1 create ordem-da-ultima-luz`.
 3. Registrar o `database_id` retornado em `wrangler.jsonc`.
-4. Gerar os tipos com `npm run cf-typegen`.
-5. Aplicar as migrations com `npm run db:migrate:remote`.
+4. Gerar os tipos com `bun run cf-typegen`.
+5. Aplicar as migrations com `bun run db:migrate:remote`.
 
 As migrations criam a campanha padrão e o conteúdo oficial. O primeiro usuário
 que concluir o OAuth na nova base recebe `owner` global; usuários seguintes
@@ -76,7 +76,7 @@ SESSION_SECRET
 Para cadastrar ou rotacionar o segredo do Discord:
 
 ```bash
-npx wrangler secret put DISCORD_CLIENT_SECRET
+bunx wrangler secret put DISCORD_CLIENT_SECRET
 ```
 
 `DISCORD_REDIRECT_URI` deve ser a URL pública exata seguida de
@@ -95,8 +95,8 @@ sem barra final. O `SESSION_SECRET` deve ter ao menos 32 bytes aleatórios.
 
 ## Publicação
 
-1. Executar `npm test`.
-2. Executar `npm run deploy`.
+1. Executar `bun run test`.
+2. Executar `bun run deploy`.
 3. Confirmar respostas `200` em `/`, `/ordem`, `/dashboard`, `/api/me` e
    `/api/campaigns`.
 4. Atualizar o redirect URI no Discord Developer Portal.

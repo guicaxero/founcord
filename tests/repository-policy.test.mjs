@@ -16,8 +16,8 @@ test("pull requests to main execute the repository quality gate", async () => {
 
   assert.match(workflow, /pull_request:\s*\n\s+branches:\s*\n\s+- main/u);
   assert.match(workflow, /permissions:\s*\n\s+contents: read/u);
-  assert.match(workflow, /run: npm ci/u);
-  assert.match(workflow, /run: npm run ci/u);
+  assert.match(workflow, /run: bun install --frozen-lockfile/u);
+  assert.match(workflow, /run: bun run ci/u);
 });
 
 test("production only deploys main after validation and manual dispatch", async () => {
@@ -29,20 +29,20 @@ test("production only deploys main after validation and manual dispatch", async 
   assert.match(workflow, /needs:\s*\n\s+- quality/u);
   assert.match(workflow, /secrets\.CLOUDFLARE_API_TOKEN/u);
   assert.match(workflow, /secrets\.CLOUDFLARE_ACCOUNT_ID/u);
-  assert.match(workflow, /run: npm run smoke:production/u);
+  assert.match(workflow, /run: bun run smoke:production/u);
 });
 
 test("production migration and deployment order preserves providers first", async () => {
   const workflow = await readWorkflow(deploymentPath);
   const orderedCommands = [
-    "npm run db:migrate:remote",
-    "npm run db:migrate:integration:remote",
-    "npm run db:migrate:automation:remote",
-    "npm run deploy\n",
-    "npm run deploy:integration",
-    "npm run deploy:foundry",
-    "npm run deploy:automation",
-    "npm run smoke:production",
+    "bun run db:migrate:remote",
+    "bun run db:migrate:integration:remote",
+    "bun run db:migrate:automation:remote",
+    "bun run deploy\n",
+    "bun run deploy:integration",
+    "bun run deploy:foundry",
+    "bun run deploy:automation",
+    "bun run smoke:production",
   ];
   let previousIndex = -1;
 

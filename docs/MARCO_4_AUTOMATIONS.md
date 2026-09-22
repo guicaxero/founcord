@@ -195,8 +195,8 @@ $rng.Dispose()
 Cadastre exatamente o mesmo valor no Portal e no Automation Worker:
 
 ```powershell
-$token | npx wrangler secret put AUTOMATION_SERVICE_TOKEN
-$token | npx wrangler secret put AUTOMATION_SERVICE_TOKEN --config services/automation/wrangler.jsonc
+$token | bunx wrangler secret put AUTOMATION_SERVICE_TOKEN
+$token | bunx wrangler secret put AUTOMATION_SERVICE_TOKEN --config services/automation/wrangler.jsonc
 Remove-Variable token
 ```
 
@@ -205,9 +205,9 @@ Não reutilize `INTEGRATION_SERVICE_TOKEN`.
 ## Migrations locais
 
 ```bash
-npm run db:migrate:local
-npm run db:migrate:integration:local
-npm run db:migrate:automation:local
+bun run db:migrate:local
+bun run db:migrate:integration:local
+bun run db:migrate:automation:local
 ```
 
 ## Publicação
@@ -226,22 +226,22 @@ Depois do merge na `main`:
 10. confirme que o post nasceu em revisão e que um sussurro não foi capturado.
 
 ```bash
-npm run db:migrate:remote
-npm run db:migrate:integration:remote
-npm run deploy:foundry
-npm run db:migrate:automation:remote
-npm run deploy
-npm run deploy:automation
+bun run db:migrate:remote
+bun run db:migrate:integration:remote
+bun run deploy:foundry
+bun run db:migrate:automation:remote
+bun run deploy
+bun run deploy:automation
 ```
 
 ## Verificação
 
 ```bash
-npm run typecheck
-npm run lint
-npm run bundle:automation
-npm run bundle:automation:test
-npm run test:unit
+bun run typecheck
+bun run lint
+bun run bundle:automation
+bun run bundle:automation:test
+bun run test:unit
 node --test tests/automation-worker.test.mjs
 ```
 
