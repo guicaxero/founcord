@@ -73,9 +73,11 @@ no backend, independentemente dos controles visuais do portal.
 
 ## Presença
 
-O módulo envia heartbeat a cada 30 segundos. O Worker considera o mundo:
+O módulo envia heartbeat na cadência informada pelo Worker (`nextHeartbeatSeconds`,
+atualmente 60 segundos, em `workers/foundry-bridge/src/presence.ts`). O Worker
+considera o mundo:
 
-- `online`: heartbeat recebido nos últimos 90 segundos;
+- `online`: heartbeat recebido nos últimos 150 segundos;
 - `offline`: sem heartbeat recente;
 - `revoked`: credencial invalidada administrativamente.
 

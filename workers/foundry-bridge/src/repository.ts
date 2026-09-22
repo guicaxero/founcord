@@ -25,6 +25,7 @@ import {
 } from "@ordem/contracts";
 import type { AuthenticatedWorld, FoundryEnv } from "./types";
 import { FoundryBridgeError } from "./auth";
+import { ONLINE_WINDOW_SECONDS } from "./presence";
 
 type WorldRow = Readonly<{
   id: string;
@@ -485,7 +486,7 @@ export async function listFoundryWorlds(
             CASE
               WHEN revoked_at IS NOT NULL THEN 'revoked'
               WHEN last_seen_at IS NOT NULL
-                AND (unixepoch('now') - unixepoch(last_seen_at)) <= 90 THEN 'online'
+                AND (unixepoch('now') - unixepoch(last_seen_at)) <= ${ONLINE_WINDOW_SECONDS} THEN 'online'
               ELSE 'offline'
             END AS connection_status
      FROM foundry_worlds
@@ -868,7 +869,7 @@ export async function getFoundryMerchantCatalog(
     `SELECT fw.campaign_id, fw.last_seen_at,
             CASE
               WHEN fw.last_seen_at IS NOT NULL
-                AND (unixepoch('now') - unixepoch(fw.last_seen_at)) <= 90
+                AND (unixepoch('now') - unixepoch(fw.last_seen_at)) <= ${ONLINE_WINDOW_SECONDS}
                 THEN 'online'
               ELSE 'offline'
             END AS connection_status,
@@ -880,7 +881,7 @@ export async function getFoundryMerchantCatalog(
        CASE WHEN mc.world_id IS NULL THEN 1 ELSE 0 END,
        CASE
          WHEN fw.last_seen_at IS NOT NULL
-           AND (unixepoch('now') - unixepoch(fw.last_seen_at)) <= 90
+           AND (unixepoch('now') - unixepoch(fw.last_seen_at)) <= ${ONLINE_WINDOW_SECONDS}
            THEN 0
          ELSE 1
        END,
@@ -936,7 +937,7 @@ export async function getFoundryMerchantPurchaseContext(
     `SELECT fw.id AS world_id, fw.campaign_id, fw.last_seen_at,
             CASE
               WHEN fw.last_seen_at IS NOT NULL
-                AND (unixepoch('now') - unixepoch(fw.last_seen_at)) <= 90
+                AND (unixepoch('now') - unixepoch(fw.last_seen_at)) <= ${ONLINE_WINDOW_SECONDS}
                 THEN 'online'
               ELSE 'offline'
             END AS connection_status,
@@ -1283,7 +1284,7 @@ function captureSessionQuery(env: FoundryEnv, whereClause: string) {
             CASE
               WHEN fw.revoked_at IS NOT NULL THEN 'revoked'
               WHEN fw.last_seen_at IS NOT NULL
-                AND (unixepoch('now') - unixepoch(fw.last_seen_at)) <= 90 THEN 'online'
+                AND (unixepoch('now') - unixepoch(fw.last_seen_at)) <= ${ONLINE_WINDOW_SECONDS} THEN 'online'
               ELSE 'offline'
             END AS connection_status,
             cs.status, cs.started_at, cs.ended_at,
