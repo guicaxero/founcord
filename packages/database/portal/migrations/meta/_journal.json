@@ -85,6 +85,34 @@
       "when": 1787598717824,
       "tag": "0011_boring_vargas",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1788187603000,
+      "tag": "0012_session_summaries",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1788799804000,
+      "tag": "0013_player_actor_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1789735628000,
+      "tag": "0014_merchant_purchase_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1790026468000,
+      "tag": "0015_character_wealth",
+      "breakpoints": true
     }
   ]
 }

@@ -82,6 +82,38 @@ Toda alteração incompatível usa expand/contract:
 Nunca renomeie ou remova uma coluna necessária no mesmo deploy que introduz seu
 substituto.
 
+### Geração sempre pelo drizzle-kit
+
+Os bancos Portal, Integration e Automation têm o esquema em
+`packages/database/<banco>/schema.ts` e as migrações em
+`packages/database/<banco>/migrations`. O Wrangler aplica, por ordem de nome,
+todo `.sql` dessa pasta e registra cada arquivo pelo nome em `d1_migrations`.
+Já o drizzle-kit calcula a próxima migração comparando `schema.ts` com o último
+snapshot em `migrations/meta`. Os dois precisam contar a mesma história.
+
+Regras:
+
+1. **Sempre gere migrações com o drizzle-kit.** Altere `schema.ts` e rode
+   `bun run db:generate:portal`, `db:generate:integration` ou
+   `db:generate:automation`. Versione juntos o `.sql`, o `_journal.json` e o
+   `NNNN_snapshot.json` gerados. Use `--name <descricao>` para um nome legível.
+2. **Nunca escreva uma migração à mão sem atualizar `meta`.** Para dados ou SQL
+   que o drizzle-kit não gera, crie o arquivo com
+   `bun run --cwd packages/database generate:<banco> --custom --name <descricao>`
+   e preencha o `.sql` vazio; assim o journal e o snapshot acompanham o arquivo.
+3. **Nunca renomeie, edite ou remova um `.sql` já aplicado em produção.** O
+   `d1_migrations` o identifica pelo nome; corrija com uma nova migração.
+4. **Antes de abrir a PR**, rode o `generate` do banco alterado mais uma vez: a
+   saída precisa ser `No schema changes, nothing to migrate`. Qualquer outra
+   saída indica que `schema.ts`, o SQL e `meta` divergiram.
+
+Se `meta` ficar para trás, não gere uma migração que recrie tabelas existentes.
+Gere para uma pasta temporária a partir de uma cópia de `meta`, confirme que o
+SQL resultante equivale às migrações escritas à mão e aproveite somente os
+snapshots e as entradas do journal, com as `tag`s iguais aos nomes dos arquivos
+existentes. Foi assim que as migrações Portal `0012`–`0015` e Automation `0001`
+voltaram a ter metadados.
+
 ## Rollback
 
 1. Não dispare uma nova execução do workflow de produção.
