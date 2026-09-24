@@ -92,6 +92,22 @@ test("renderiza a entrada protegida do painel", async () => {
   assert.match(html, /noindex/i);
 });
 
+test("cada área do produto tem rota própria, inclusive páginas de detalhe", async () => {
+  const routes = [
+    ["/missoes", /Chamados da Ordem/],
+    ["/missoes/11111111-1111-4111-8111-111111111111", /Voltar ao quadro|Consultando o chamado/],
+    ["/cronicas", /Crônicas/],
+    ["/cronicas/33333333-3333-4333-8333-333333333331", /Abrindo a crônica|Voltar ao arquivo/],
+    ["/diario", /Diário de Sessões/],
+    ["/diario/22222222-2222-4222-8222-222222222222", /Abrindo o registro|Voltar ao diário/],
+  ] as const;
+  for (const [path, content] of routes) {
+    const response = await render(path);
+    assert.equal(response.status, 200, path);
+    assert.match(await response.text(), content, path);
+  }
+});
+
 test("não publica a prévia visual de desenvolvimento", async () => {
   for (const path of ["/dev/ui-foundation", "/dev/player-character", "/dev/merchant-purchase"]) {
     const response = await render(path);
@@ -169,17 +185,16 @@ test("o portal usa tema escuro e não conserva os termos inventados", async () =
     render().then((response) => response.text()),
     render("/mercador").then((response) => response.text()),
   ]);
-  const [globals, publicPortal] = await Promise.all([
-    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
-    readFile(new URL("../app/styles/public-portal.css", import.meta.url), "utf8"),
-  ]);
+  const globals = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
   for (const html of [home, merchant]) {
     assert.doesNotMatch(html, /West Marches/i);
     assert.doesNotMatch(html, /vigília|vigilia/i);
   }
   assert.match(globals, /color-scheme: dark/);
-  assert.doesNotMatch(publicPortal, /VIGILIA/);
+  // CSS legado fica numa camada abaixo das utilidades; sem isso ele as sobrescreveria.
+  assert.match(globals, /@layer theme, base, legacy, components, utilities;/);
+  assert.doesNotMatch(globals, /VIGILIA/);
 });
 
 test("a área do jogador continua fora dos buscadores e o endereço antigo redireciona", async () => {

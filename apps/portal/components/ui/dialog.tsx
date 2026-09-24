@@ -2,7 +2,7 @@
 
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { AnimatePresence, motion } from "motion/react";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { cn } from "@/lib/cn";
 import { dialogContent, softTransition } from "./motion";
 
@@ -18,6 +18,7 @@ export function Dialog({
   children,
   footer,
   className,
+  returnFocusRef,
 }: Readonly<{
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -26,6 +27,11 @@ export function Dialog({
   children: ReactNode;
   footer?: ReactNode;
   className?: string;
+  /**
+   * Elemento que recebe o foco ao fechar. Necessário quando o diálogo é aberto
+   * por estado, sem um Trigger do Radix para devolver o foco sozinho.
+   */
+  returnFocusRef?: RefObject<HTMLElement | null> | undefined;
 }>) {
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
@@ -41,7 +47,15 @@ export function Dialog({
                 transition={softTransition}
               />
             </RadixDialog.Overlay>
-            <RadixDialog.Content asChild forceMount>
+            <RadixDialog.Content
+              asChild
+              forceMount
+              onCloseAutoFocus={(event) => {
+                if (!returnFocusRef?.current) return;
+                event.preventDefault();
+                returnFocusRef.current.focus();
+              }}
+            >
               <motion.div
                 className={cn(
                   "fixed inset-x-4 top-1/2 z-50 mx-auto w-auto max-w-2xl -translate-y-1/2",
@@ -55,11 +69,11 @@ export function Dialog({
                 exit="exit"
               >
                 <div className="mb-6 space-y-2">
-                  <RadixDialog.Title className="m-0 font-display text-2xl leading-tight">
+                  <RadixDialog.Title className="font-display text-2xl leading-tight">
                     {title}
                   </RadixDialog.Title>
                   {description ? (
-                    <RadixDialog.Description className="m-0 text-sm text-fg-muted">
+                    <RadixDialog.Description className="text-sm text-fg-muted">
                       {description}
                     </RadixDialog.Description>
                   ) : null}

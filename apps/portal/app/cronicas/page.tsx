@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { PageContainer } from "@/components/layout/page-container";
-import { PublishedPosts } from "@/components/published-posts";
+import { Chronicles } from "@/components/editorial/chronicles";
 import { PageHeader } from "@/components/ui/surface";
 import { DEFAULT_CAMPAIGN_ID } from "@/server/shared/constants";
 
@@ -19,7 +19,7 @@ export default function ChroniclesPage() {
         title="Crônicas"
         description="Relatos, lore e comunicados publicados após revisão humana."
       />
-      <PublishedPosts campaignId={DEFAULT_CAMPAIGN_ID} initialPosts={[]} />
+      <Chronicles campaignId={DEFAULT_CAMPAIGN_ID} />
     </PageContainer>
   );
 }

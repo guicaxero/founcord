@@ -10,7 +10,7 @@ import type {
 } from "@ordem/contracts";
 import { useState } from "react";
 import { MerchantPurchasesPanel } from "@/components/admin/merchant-purchases-panel";
-import { MerchantCatalog } from "@/components/merchant-catalog";
+import { MerchantCatalog } from "@/components/merchant/merchant-catalog";
 import { queryKeys } from "@/lib/query-keys";
 
 const campaignId = "11111111-1111-4111-8111-111111111111";
@@ -179,7 +179,7 @@ export function MerchantPurchasePreview() {
   return (
     <QueryClientProvider client={queryClient}>
       <main id="main-content">
-        <section className="page-frame merchant-page">
+        <section className="mx-auto w-full max-w-7xl space-y-12 px-4 py-10 sm:px-6">
           <MerchantCatalog campaignId={campaignId} pollingEnabled={false} />
         </section>
         <section className="admin-main merchant-preview-management" aria-labelledby="merchant-preview-management-title">

@@ -40,14 +40,15 @@ export function UrlTabs({
     >
       <RadixTabs.List
         aria-label={label}
-        className="flex w-full gap-1 overflow-x-auto rounded-lg border border-line-soft bg-surface p-1.5"
+        className="flex w-full gap-1 rounded-lg border border-line-soft bg-surface p-1.5"
       >
         {tabs.map((tab) => (
           <RadixTabs.Trigger
             key={tab.value}
             value={tab.value}
             className={cn(
-              "min-h-11 shrink-0 rounded-md px-4 text-sm font-semibold whitespace-nowrap",
+              // No celular as abas dividem a largura e quebram linha: nenhuma fica escondida.
+              "min-h-11 flex-1 rounded-md px-3 text-sm leading-tight font-semibold text-balance sm:flex-none sm:px-4 sm:whitespace-nowrap",
               "text-fg-muted transition-colors duration-150 hover:text-fg",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
               "data-[state=active]:bg-surface-3 data-[state=active]:text-fg",
