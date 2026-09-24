@@ -1,6 +1,6 @@
 # Plano de implementação — Ordem da Última Luz
 
-Documento de referência para evolução do portal comunitário West Marches de
+Documento de referência para evolução do portal comunitário de
 Shadow of the Demon Lord, suas integrações com Discord e Foundry VTT e as
 automações editoriais.
 
@@ -12,7 +12,7 @@ produção.
 ## 1. Objetivo do produto
 
 Construir uma plataforma gratuita e sem fins lucrativos para administrar uma
-campanha West Marches persistente:
+campanha persistente:
 
 - jogadores escolhem missões e participam quando puderem;
 - mestres e gestores administram missões, sessões, publicações e integrações;

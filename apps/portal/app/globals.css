@@ -1,1 +1,186 @@
 @import "tailwindcss";
+
+/*
+ * Tema escuro da Ordem da Última Luz.
+ *
+ * As superfícies são camadas de um cinza-carvão levemente quente; o texto usa
+ * um branco de pergaminho dessaturado; brasa e ouro são acentos, nunca a cor
+ * padrão de tudo que é interativo.
+ */
+@theme {
+  --color-canvas: #0b0d10;
+  --color-surface: #12151a;
+  --color-surface-2: #191d24;
+  --color-surface-sunken: #0e1116;
+  --color-surface-3: #1f242c;
+
+  --color-line-soft: #22272f;
+  --color-line: #2e343e;
+  --color-line-strong: #454d5a;
+
+  --color-fg: #f2efe7;
+  --color-fg-muted: #c2bcb0;
+  --color-fg-subtle: #8d877c;
+  --color-fg-inverse: #0b0d10;
+
+  --color-accent: #e0613f;
+  --color-accent-strong: #f07a55;
+  --color-accent-line: #7a2c1c;
+  --color-accent-soft: #2a1510;
+
+  --color-gold: #d9b26a;
+  --color-gold-soft: #2a2113;
+  --color-copper: #c78552;
+  --color-silver: #b9c0cb;
+
+  --color-success: #79c08a;
+  --color-success-soft: #12251a;
+  --color-warning: #e0b063;
+  --color-warning-soft: #2a2113;
+  --color-danger: #ef7365;
+  --color-danger-soft: #2c1512;
+  --color-info: #74b5d4;
+  --color-info-soft: #10232c;
+
+  --color-focus: #7cb7ff;
+
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 22%);
+  --shadow-md: 0 18px 50px rgb(0 0 0 / 45%);
+  --shadow-lg: 0 32px 90px rgb(0 0 0 / 55%);
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-pop-in: pop-in 140ms var(--ease-out-soft);
+  --animate-pop-out: pop-out 110ms ease-in;
+
+  @keyframes pop-in {
+    from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @keyframes pop-out {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  }
+}
+
+/*
+ * Ponte para as folhas legadas em app/styles/*.css, que ainda usam a escala
+ * antiga de pergaminho. `ink-*` continua significando texto e bordas, e
+ * `paper-*` continua significando superfície; só os valores viraram escuros.
+ * As fases 2 e 3 removem essas folhas e, com elas, este bloco.
+ */
+:root {
+  color-scheme: dark;
+
+  --ink-950: var(--color-fg);
+  --ink-900: #e6e2d9;
+  --ink-800: #d5d0c5;
+  --ink-700: var(--color-fg-muted);
+  --ink-600: var(--color-fg-subtle);
+  --ink-500: #6f6a61;
+  --ink-400: #4d525b;
+  --ink-300: var(--color-line-strong);
+  --ink-200: var(--color-line);
+  --ink-100: var(--color-line-soft);
+
+  --paper-50: var(--color-surface);
+  --paper-100: var(--color-surface-2);
+  --paper-200: var(--color-surface-sunken);
+  --paper-300: var(--color-surface-3);
+
+  --soot: var(--color-canvas);
+  --soot-soft: var(--color-surface);
+
+  --ember-700: var(--color-accent);
+  --ember-600: var(--color-accent);
+  --ember-500: var(--color-accent-strong);
+  --ember-100: var(--color-accent-soft);
+
+  --gold-600: var(--color-gold);
+  --gold-400: var(--color-gold);
+  --copper-400: var(--color-copper);
+
+  --moss-700: var(--color-success);
+  --moss-100: var(--color-success-soft);
+  --warning-700: var(--color-warning);
+  --warning-100: var(--color-warning-soft);
+  --danger-700: var(--color-danger);
+  --danger-100: var(--color-danger-soft);
+  --info-700: var(--color-info);
+  --info-100: var(--color-info-soft);
+  --focus: var(--color-focus);
+
+  --font-body: var(--font-sans);
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 22%);
+  --shadow-md: 0 18px 50px rgb(0 0 0 / 45%);
+
+  --surface-canvas: var(--color-canvas);
+  --surface-primary: var(--color-surface);
+  --surface-muted: var(--color-surface-2);
+  --surface-inverse: var(--color-surface-sunken);
+  --text-primary: var(--color-fg);
+  --text-secondary: var(--color-fg-muted);
+  --text-muted: var(--color-fg-subtle);
+  --text-inverse: var(--color-fg);
+  --border-default: var(--color-line);
+  --border-strong: var(--color-line-strong);
+  --action-primary: var(--color-accent);
+  --action-primary-hover: var(--color-accent-strong);
+  --accent: var(--color-accent);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    background: var(--color-canvas);
+  }
+
+  body {
+    min-width: 320px;
+    margin: 0;
+    background: var(--color-canvas);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-accent-line);
+    color: var(--color-fg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

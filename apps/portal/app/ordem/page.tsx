@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ResponsiveNavigation } from "@/components/responsive-navigation";
 import {
   fiveTruths,
   levelProgression,
@@ -25,25 +23,30 @@ export const metadata: Metadata = {
   },
 };
 
+const documentSections = [
+  { href: "#codigo", label: "Código" },
+  { href: "#progresso", label: "Progressão" },
+  { href: "#missoes", label: "Missões" },
+  { href: "#tesouros", label: "Tesouros" },
+];
+
 export default function OrderPage() {
   return (
-    <main className="order-page" id="main-content">
-      <header className="order-topbar">
-        <Link className="wordmark" href="/">
-          <span>Ordem da</span><strong>Última Luz</strong>
-        </Link>
-        <ResponsiveNavigation
-          label="Navegação do Código"
-          menuLabel="Neste documento"
-          items={[
-            { href: "#codigo", label: "Código", current: true },
-            { href: "#progresso", label: "Progressão" },
-            { href: "#missoes", label: "Missões" },
-            { href: "#tesouros", label: "Tesouros" },
-          ]}
-        />
-        <Link className="text-action" href="/">Voltar ao portal</Link>
-      </header>
+    <div className="order-page">
+      <nav aria-label="Seções do Código" className="sticky top-18 z-30 border-b border-line-soft bg-canvas/85 backdrop-blur-md">
+        <ul className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 py-2 sm:px-6">
+          {documentSections.map((section) => (
+            <li key={section.href}>
+              <a
+                className="flex min-h-11 items-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-fg-muted transition-colors hover:bg-surface-3 hover:text-fg"
+                href={section.href}
+              >
+                {section.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       <section className="order-hero">
         <p className="eyebrow">Documento oficial <span>•</span> Ordem da Última Luz</p>
@@ -193,6 +196,6 @@ export default function OrderPage() {
         <span>Documento oficial da campanha</span>
         <strong>Enquanto houver luz, haverá esperança.</strong>
       </footer>
-    </main>
+    </div>
   );
 }

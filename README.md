@@ -1,7 +1,7 @@
 # Ordem da Última Luz
 
-Portal comunitário para uma campanha West Marches de **Shadow of the Demon
-Lord**. O núcleo tem três pilares: o **portal web**, o **bot do Discord** e o
+Portal comunitário para a campanha de **Shadow of the Demon Lord** da Ordem da
+Última Luz. O núcleo tem três pilares: o **portal web**, o **bot do Discord** e o
 **Foundry VTT**. Tudo roda na Cloudflare, no plano gratuito e sem custos.
 
 ```text

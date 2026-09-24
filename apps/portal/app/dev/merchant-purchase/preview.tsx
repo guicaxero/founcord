@@ -92,7 +92,7 @@ const catalog: MerchantCatalogResponse = {
       {
         itemId: "lanterna-furta-fogo",
         name: "Lanterna furta-fogo",
-        description: "Lanterna de latão com obturador para ocultar a chama durante vigílias.",
+        description: "Lanterna de latão com obturador para ocultar a chama durante rondas noturnas.",
         category: "Equipamento",
         imageUrl: null,
         price: "1 gc 5 ss",

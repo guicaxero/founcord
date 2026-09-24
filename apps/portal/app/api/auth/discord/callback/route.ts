@@ -4,7 +4,11 @@ import { getAuthConfig } from "@/server/identity/config";
 import { clearCookie, readCookie } from "@/server/identity/cookies";
 import { decodeOAuthState } from "@/server/identity/oauth-state";
 import { createSession } from "@/server/identity/session";
-import { DEFAULT_CAMPAIGN_ID, OAUTH_COOKIE } from "@/server/shared/constants";
+import {
+  DEFAULT_CAMPAIGN_ID,
+  LEGACY_OAUTH_COOKIE,
+  OAUTH_COOKIE,
+} from "@/server/shared/constants";
 import { HttpError, withApiHandler } from "@/server/shared/http";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +35,8 @@ export const GET = withApiHandler(async ({ request, correlationId }) => {
     throw new HttpError(400, "missing_oauth_code", "A resposta do Discord está incompleta.");
   }
 
-  const stateCookie = readCookie(request, OAUTH_COOKIE);
+  const stateCookie =
+    readCookie(request, OAUTH_COOKIE) ?? readCookie(request, LEGACY_OAUTH_COOKIE);
   if (!stateCookie) {
     throw new HttpError(400, "missing_oauth_state", "A tentativa de login expirou.");
   }
@@ -138,6 +143,11 @@ export const GET = withApiHandler(async ({ request, correlationId }) => {
   headers.append(
     "set-cookie",
     clearCookie(request, OAUTH_COOKIE, "/api/auth/discord/callback"),
+  );
+  // Limpa também o cookie de estado anterior à renomeação do portal.
+  headers.append(
+    "set-cookie",
+    clearCookie(request, LEGACY_OAUTH_COOKIE, "/api/auth/discord/callback"),
   );
   headers.append("set-cookie", await createSession(request, user.id));
   return new Response(null, { status: 302, headers });

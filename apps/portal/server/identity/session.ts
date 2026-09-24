@@ -10,7 +10,11 @@ import {
 import type { User } from "@ordem/contracts";
 import { getD1 } from "@/server/shared/db";
 import { HttpError } from "@/server/shared/http";
-import { SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/server/shared/constants";
+import {
+  LEGACY_SESSION_COOKIE,
+  SESSION_COOKIE,
+  SESSION_TTL_SECONDS,
+} from "@/server/shared/constants";
 import { makeCookie, readCookie } from "./cookies";
 import { randomToken, sha256 } from "./crypto";
 
@@ -64,7 +68,7 @@ export async function createSession(
 export async function getOptionalSession(
   request: Request,
 ): Promise<AuthenticatedSession | null> {
-  const token = readCookie(request, SESSION_COOKIE);
+  const token = sessionToken(request);
   if (!token) return null;
   const sessionId = await sha256(token);
   const db = getD1();
@@ -172,12 +176,17 @@ export async function requireSession(
 }
 
 export async function destroySession(request: Request): Promise<void> {
-  const token = readCookie(request, SESSION_COOKIE);
+  const token = sessionToken(request);
   if (!token) return;
   await getD1()
     .prepare("DELETE FROM iam_sessions WHERE id = ?")
     .bind(await sha256(token))
     .run();
+}
+
+/** Aceita o cookie atual e, por compatibilidade, o nome anterior. */
+function sessionToken(request: Request): string | null {
+  return readCookie(request, SESSION_COOKIE) ?? readCookie(request, LEGACY_SESSION_COOKIE);
 }
 
 export function capabilitiesForSession(session: AuthenticatedSession) {

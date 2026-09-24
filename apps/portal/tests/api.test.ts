@@ -947,7 +947,7 @@ async function api(
   for (const [name, value] of Object.entries(options.headers ?? {})) {
     headers.set(name, value);
   }
-  if (options.token) headers.set("cookie", `vigilia_session=${options.token}`);
+  if (options.token) headers.set("cookie", `ordem_session=${options.token}`);
   if (options.body !== undefined) {
     headers.set("content-type", "application/json");
     headers.set("sec-fetch-site", "same-origin");

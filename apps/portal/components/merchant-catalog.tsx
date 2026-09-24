@@ -11,8 +11,6 @@ import {
   type DemonLordCoins,
   type MerchantCatalogResponse,
   type MerchantItemProjection,
-  type MerchantPurchaseDecisionInput,
-  type MerchantPurchaseListResponse,
   type MerchantPurchaseRequest,
   type MerchantPurchaseRequestInput,
   type MerchantPurchaseStatus,
@@ -20,6 +18,7 @@ import {
 } from "@ordem/contracts";
 import Link from "next/link";
 import { CoinPurse, MerchantPrice, priceLabel, totalCostLabel } from "@/components/coins";
+import { MyPurchaseRequests } from "@/components/merchant/my-purchases";
 import { FeedbackState } from "@/components/ui/feedback-state";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { hasCapability } from "@/lib/capabilities";
@@ -81,16 +80,6 @@ export function MerchantCatalog({
   const linkedCharacter = characters.data?.data.find(
     (entry) => entry.campaign.id === campaignId,
   )?.link ?? null;
-  const purchases = useQuery({
-    queryKey: [...queryKeys.merchantPurchases(campaignId), "self"],
-    queryFn: () => apiFetch<MerchantPurchaseListResponse>(
-      `/api/campaigns/${campaignId}/merchant/purchases?scope=self`,
-    ),
-    enabled: canRequest,
-    refetchInterval: pollingEnabled ? (query) => query.state.data?.data.some((purchase) =>
-      purchase.status === "pending_delivery" || purchase.status === "awaiting_master",
-    ) ? 10_000 : false : false,
-  });
   const createPurchase = useMutation({
     mutationFn: (input: MerchantPurchaseRequestInput) =>
       apiFetch<MerchantPurchaseRequest>(
@@ -110,19 +99,6 @@ export function MerchantCatalog({
         queryClient.invalidateQueries({ queryKey: queryKeys.merchantPurchases(campaignId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.audit(campaignId) }),
       ]);
-    },
-  });
-  const cancelPurchase = useMutation({
-    mutationFn: ({ purchaseId, input }: Readonly<{
-      purchaseId: string;
-      input: MerchantPurchaseDecisionInput;
-    }>) => apiFetch<MerchantPurchaseRequest>(
-      `/api/campaigns/${campaignId}/merchant/purchases/${purchaseId}`,
-      { method: "PATCH", body: JSON.stringify(input) },
-    ),
-    onSuccess: async () => {
-      setSuccessMessage("Pedido cancelado. A equipe verá o estado atualizado.");
-      await queryClient.invalidateQueries({ queryKey: queryKeys.merchantPurchases(campaignId) });
     },
   });
 
@@ -293,15 +269,15 @@ export function MerchantCatalog({
       {successMessage ? <p className="merchant-operation-success" role="status">{successMessage}</p> : null}
 
       {canRequest ? (
-        <MyPurchaseRequests
-          query={purchases}
-          cancellingId={cancelPurchase.isPending ? cancelPurchase.variables?.purchaseId ?? null : null}
-          cancelError={cancelPurchase.isError ? errorMessage(cancelPurchase.error) : null}
-          onCancel={(purchaseId) => cancelPurchase.mutate({
-            purchaseId,
-            input: { action: "cancel", resolutionNote: null },
-          })}
-        />
+        <section className="merchant-purchase-history" aria-labelledby="merchant-purchase-history-title">
+          <header className="merchant-heading">
+            <div>
+              <p className="section-index">03 / ACOMPANHAMENTO</p>
+              <h2 id="merchant-purchase-history-title">Meus pedidos</h2>
+            </div>
+          </header>
+          <MyPurchaseRequests campaignId={campaignId} pollingEnabled={pollingEnabled} />
+        </section>
       ) : null}
 
       <PurchaseDialog
@@ -700,51 +676,6 @@ function WealthAssessment({
   );
 }
 
-type PurchaseQuery = ReturnType<typeof useQuery<MerchantPurchaseListResponse>>;
-
-function MyPurchaseRequests({
-  query,
-  cancellingId,
-  cancelError,
-  onCancel,
-}: Readonly<{
-  query: PurchaseQuery;
-  cancellingId: string | null;
-  cancelError: string | null;
-  onCancel: (purchaseId: string) => void;
-}>) {
-  return (
-    <section className="merchant-purchase-history" aria-labelledby="merchant-purchase-history-title">
-      <header className="merchant-heading">
-        <div><p className="section-index">03 / ACOMPANHAMENTO</p><h2 id="merchant-purchase-history-title">Meus pedidos</h2></div>
-        {query.isFetching && query.data ? <span className="merchant-refreshing" role="status">Atualizando pedidos…</span> : null}
-      </header>
-      {query.isPending ? (
-        <p className="merchant-purchases-loading" role="status">Consultando seus pedidos…</p>
-      ) : query.isError ? (
-        <FeedbackState title="Não foi possível consultar seus pedidos" tone="error" role="alert" action={<button className="secondary-action" type="button" onClick={() => query.refetch()}>Tentar novamente</button>}>
-          {errorMessage(query.error)}
-        </FeedbackState>
-      ) : (query.data?.data.length ?? 0) === 0 ? (
-        <FeedbackState title="Nenhum pedido enviado">Quando você solicitar um item, o andamento aparecerá aqui.</FeedbackState>
-      ) : (
-        <div className="merchant-purchase-list">
-          {query.data!.data.map((purchase) => (
-            <PurchaseCard purchase={purchase} key={purchase.id}>
-              {canCancelPurchase(purchase.status) ? (
-                <button className="merchant-cancel-action" type="button" disabled={cancellingId === purchase.id} onClick={() => onCancel(purchase.id)}>
-                  {cancellingId === purchase.id ? "Cancelando…" : "Cancelar pedido"}
-                </button>
-              ) : null}
-            </PurchaseCard>
-          ))}
-        </div>
-      )}
-      {cancelError ? <p className="merchant-dialog-error" role="alert">{cancelError}</p> : null}
-    </section>
-  );
-}
-
 export function PurchaseCard({ purchase, children }: Readonly<{
   purchase: MerchantPurchaseRequest;
   children?: React.ReactNode;
@@ -782,9 +713,6 @@ export const purchaseStatusContent: Readonly<Record<MerchantPurchaseStatus, Read
   cancelled: { label: "Cancelado", description: "Você cancelou este pedido antes da decisão do mestre." },
 };
 
-function canCancelPurchase(status: MerchantPurchaseStatus): boolean {
-  return status === "pending_delivery" || status === "awaiting_master" || status === "delivery_failed";
-}
 
 function ItemImage({ item }: Readonly<{ item: MerchantItemProjection }>) {
   if (!item.imageUrl) {

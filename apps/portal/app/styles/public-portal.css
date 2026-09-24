@@ -242,18 +242,6 @@
     repeating-linear-gradient(90deg, transparent 0 119px, rgb(32 29 24 / 2.5%) 120px);
 }
 
-.hero::after {
-  content: "VIGILIA";
-  position: absolute;
-  right: -1.2rem;
-  bottom: -4rem;
-  color: rgb(33 31 26 / 3.5%);
-  font-family: var(--font-display);
-  font-size: clamp(7rem, 15vw, 14rem);
-  font-weight: 900;
-  letter-spacing: -0.08em;
-  pointer-events: none;
-}
 
 .hero-copy {
   position: relative;
