@@ -1,4 +1,16 @@
+/*
+ * A camada "legacy" guarda as folhas ainda não migradas. Declarar a ordem aqui
+ * é essencial: CSS sem camada vence qualquer @layer, e sem isso o estilo antigo
+ * sobrescreveria as utilidades do Tailwind nas telas novas.
+ */
+@layer theme, base, legacy, components, utilities;
+
 @import "tailwindcss";
+@import "./styles/base.css" layer(legacy);
+@import "./styles/merchant.css" layer(legacy);
+@import "./styles/characters.css" layer(legacy);
+@import "./styles/admin.css" layer(legacy);
+@import "./styles/responsive.css" layer(legacy);
 
 /*
  * Tema escuro da Ordem da Última Luz.

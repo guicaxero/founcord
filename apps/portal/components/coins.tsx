@@ -4,20 +4,42 @@ import {
   formatCoins,
   multiplyCoins,
   parseDemonLordPrice,
+  type DemonLordCoin,
   type DemonLordCoins,
 } from "@ordem/contracts";
+import { cn } from "@/lib/cn";
+
+/** Marca metálica de cada moeda; o rótulo continua carregando o significado. */
+const coinDot: Readonly<Record<DemonLordCoin, string>> = {
+  gc: "bg-gold",
+  ss: "bg-silver",
+  cp: "bg-copper",
+  bits: "bg-fg-subtle",
+};
 
 /** Saldo do personagem: as quatro moedas, sempre na mesma ordem, inclusive zeros. */
 export function CoinPurse({
   wealth,
   label,
-}: Readonly<{ wealth: DemonLordCoins; label: string }>) {
+  className,
+}: Readonly<{ wealth: DemonLordCoins; label: string; className?: string }>) {
   return (
-    <dl className="coin-purse" aria-label={label}>
+    <dl
+      aria-label={label}
+      className={cn(
+        "grid grid-cols-2 gap-px overflow-hidden rounded-md border border-line-soft bg-line-soft sm:grid-cols-4",
+        className,
+      )}
+    >
       {DEMON_LORD_COINS.map((coin) => (
-        <div className={`coin-purse-${coin}`} key={coin}>
-          <dt>{COIN_LABELS[coin]}</dt>
-          <dd>{wealth[coin].toLocaleString("pt-BR")}</dd>
+        <div className="grid grid-rows-[1fr_auto] gap-1 bg-surface p-3 text-center" key={coin}>
+          <dt className="flex items-center justify-center gap-1.5 text-xs font-bold text-fg-subtle">
+            <span aria-hidden="true" className={cn("size-2 rounded-full", coinDot[coin])} />
+            {COIN_LABELS[coin]}
+          </dt>
+          <dd className="font-display text-xl font-bold">
+            {wealth[coin].toLocaleString("pt-BR")}
+          </dd>
         </div>
       ))}
     </dl>
@@ -29,22 +51,24 @@ export function CoinPurse({
  * mestre como referência secundária. Preços especiais aparecem como escritos.
  */
 export function MerchantPrice({ price }: Readonly<{ price: string | null }>) {
-  if (!price) return <span className="merchant-unavailable">Preço não informado</span>;
+  if (!price) {
+    return <span className="text-sm text-fg-subtle italic">Preço não informado</span>;
+  }
   const parsed = parseDemonLordPrice(price);
   if (!parsed) {
     return (
-      <span className="merchant-price">
-        <strong>{price}</strong>
-        <span className="merchant-price-source">Preço combinado com o mestre</span>
+      <span className="grid gap-0.5">
+        <strong className="font-display text-base">{price}</strong>
+        <span className="text-xs text-fg-subtle">Preço combinado com o mestre</span>
       </span>
     );
   }
   const formatted = formatCoins(parsed.coins);
   return (
-    <span className="merchant-price">
-      <strong>{formatted}</strong>
+    <span className="grid gap-0.5">
+      <strong className="font-display text-base">{formatted}</strong>
       {formatted !== price ? (
-        <span className="merchant-price-source">Registrado como {price}</span>
+        <span className="text-xs text-fg-subtle">Registrado como {price}</span>
       ) : null}
     </span>
   );

@@ -1,8 +1,9 @@
 import { UpdatePostSchema } from "@ordem/contracts";
-import { requireSession } from "@/server/identity/session";
+import { getOptionalSession, requireSession } from "@/server/identity/session";
 import {
   archivePost,
   deletePostPermanently,
+  listPosts,
   updatePost,
 } from "@/server/campaign/posts";
 import { enqueueDiscordPublication } from "@/server/integrations/discord-publications";
@@ -13,8 +14,26 @@ import {
   parseJson,
   withApiHandler,
 } from "@/server/shared/http";
+import { DEFAULT_CAMPAIGN_ID } from "@/server/shared/constants";
 
 type RouteContext = Readonly<{ params: Promise<{ postId: string }> }>;
+
+/**
+ * Publicação avulsa, usada pela página de detalhe. A visibilidade é a mesma da
+ * listagem: o público vê apenas publicações publicadas.
+ */
+export async function GET(request: Request, context: RouteContext) {
+  const { postId } = await context.params;
+  return withApiHandler(async ({ correlationId }) => {
+    const session = await getOptionalSession(request);
+    const campaignId = new URL(request.url).searchParams.get("campaignId") ?? DEFAULT_CAMPAIGN_ID;
+    const post = (await listPosts(campaignId, session, true)).find((item) => item.id === postId);
+    if (!post) {
+      throw new HttpError(404, "post_not_found", "Publicação não encontrada.");
+    }
+    return jsonResponse(post, {}, correlationId);
+  })(request);
+}
 
 export async function PATCH(request: Request, context: RouteContext) {
   const { postId } = await context.params;

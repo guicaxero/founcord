@@ -1,19 +1,22 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type {
-  CampaignCharacterProjection,
-  PlayerCharacterListResponse,
-} from "@ordem/contracts";
-import Link from "next/link";
+import type { CampaignCharacterProjection, PlayerCharacterListResponse } from "@ordem/contracts";
+import { motion } from "motion/react";
+import { usePathname } from "next/navigation";
 import { CoinPurse } from "@/components/coins";
+import { Button, ButtonAnchor, ButtonLink } from "@/components/ui/button";
 import { FeedbackState } from "@/components/ui/feedback-state";
+import { listItem, staggerList } from "@/components/ui/motion";
+import { Badge, Card, Skeleton } from "@/components/ui/surface";
 import { ApiClientError, apiFetch, errorMessage } from "@/lib/api-client";
+import { formatDateTime } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 
 export function PlayerCharacters({
   initialCharacters,
 }: Readonly<{ initialCharacters?: PlayerCharacterListResponse }> = {}) {
+  const pathname = usePathname();
   const characters = useQuery({
     queryKey: queryKeys.myCharacters,
     queryFn: () => apiFetch<PlayerCharacterListResponse>("/api/me/characters"),
@@ -23,10 +26,9 @@ export function PlayerCharacters({
 
   if (characters.isPending) {
     return (
-      <section className="player-character-loading" role="status" aria-label="Carregando seus personagens">
-        <div><span /><span /><span /></div>
-        <p>Consultando seus vínculos com o Foundry…</p>
-      </section>
+      <div className="grid gap-4" role="status" aria-label="Consultando seus vínculos">
+        <Skeleton className="h-64" />
+      </div>
     );
   }
 
@@ -34,11 +36,14 @@ export function PlayerCharacters({
     return (
       <FeedbackState
         title="Entre para consultar seu personagem"
-        action={(
-          <a className="primary-action" href="/api/auth/discord?returnTo=/personagem">
+        action={
+          <ButtonAnchor
+            variant="accent"
+            href={`/api/auth/discord?returnTo=${encodeURIComponent(pathname)}`}
+          >
             Entrar com Discord
-          </a>
-        )}
+          </ButtonAnchor>
+        }
       >
         Sua conta do Discord identifica com segurança os vínculos feitos pela equipe da campanha.
       </FeedbackState>
@@ -51,11 +56,11 @@ export function PlayerCharacters({
         title="Não foi possível consultar seus personagens"
         tone="error"
         role="alert"
-        action={(
-          <button className="secondary-action" type="button" onClick={() => characters.refetch()}>
+        action={
+          <Button variant="secondary" onClick={() => characters.refetch()}>
             Tentar novamente
-          </button>
-        )}
+          </Button>
+        }
       >
         {errorMessage(characters.error)}
       </FeedbackState>
@@ -66,121 +71,146 @@ export function PlayerCharacters({
   if (entries.length === 0) {
     return (
       <FeedbackState title="Você ainda não participa de uma campanha ativa">
-        Quando sua entrada for confirmada pela equipe, os personagens vinculados aparecerão aqui.
+        Quando sua entrada for confirmada pela equipe, os personagens vinculados aparecem aqui.
       </FeedbackState>
     );
   }
 
   return (
-    <div className="player-character-list">
+    <motion.ul
+      className="grid list-none gap-6 p-0"
+      variants={staggerList}
+      initial="hidden"
+      animate="visible"
+    >
       {entries.map((entry) => (
-        <section className="player-campaign-character" key={entry.campaign.id}>
-          <header>
-            <div>
-              <span>Campanha</span>
-              <h2>{entry.campaign.name}</h2>
-            </div>
-            <CharacterAvailability active={entry.link?.character?.active === true} linked={Boolean(entry.link)} />
-          </header>
+        <motion.li key={entry.campaign.id} variants={listItem}>
+          <Card padding="lg" className="space-y-6">
+            <header className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-xs font-bold tracking-wider text-fg-subtle uppercase">
+                  Campanha
+                </p>
+                <h3 className="font-display text-2xl leading-tight">{entry.campaign.name}</h3>
+              </div>
+              <CharacterAvailability
+                active={entry.link?.character?.active === true}
+                linked={Boolean(entry.link)}
+              />
+            </header>
 
-          {!entry.link ? (
-            <div className="player-character-empty">
-              <span className="player-character-mark" aria-hidden="true">◇</span>
-              <div>
-                <h3>Nenhum personagem vinculado</h3>
-                <p>Peça a um mestre ou gestor da campanha para associar seu ator do Foundry.</p>
-              </div>
-            </div>
-          ) : entry.link.character ? (
-            <CharacterSheetSummary character={entry.link.character} />
-          ) : (
-            <div className="player-character-empty is-warning">
-              <span className="player-character-mark" aria-hidden="true">!</span>
-              <div>
-                <h3>{entry.link.actorName} está temporariamente indisponível</h3>
-                <p>O vínculo foi preservado, mas o ator não apareceu na última sincronização do Foundry.</p>
-              </div>
-            </div>
-          )}
-        </section>
+            {!entry.link ? (
+              <FeedbackState title="Nenhum personagem vinculado">
+                Peça a um mestre ou gestor da campanha para associar seu ator do Foundry.
+              </FeedbackState>
+            ) : entry.link.character ? (
+              <CharacterSheet character={entry.link.character} />
+            ) : (
+              <FeedbackState title={`${entry.link.actorName} está temporariamente indisponível`}>
+                O vínculo foi preservado, mas o ator não apareceu na última sincronização do
+                Foundry.
+              </FeedbackState>
+            )}
+          </Card>
+        </motion.li>
       ))}
-    </div>
+    </motion.ul>
   );
 }
 
-function CharacterSheetSummary({ character }: Readonly<{ character: CampaignCharacterProjection }>) {
+function CharacterSheet({ character }: Readonly<{ character: CampaignCharacterProjection }>) {
   const paths = [
     character.paths.novice,
     character.paths.expert,
     character.paths.master,
     character.paths.legendary,
-  ].filter(Boolean);
-  const wealthTitleId = `player-character-wealth-${character.worldId}-${character.actorId}`;
+  ].filter((path): path is string => Boolean(path));
+
+  const statistics = [
+    { label: "Vida", value: character.statistics.healthMax },
+    { label: "Dano", value: character.statistics.damage },
+    { label: "Cura", value: character.statistics.healingRate },
+    { label: "Insanidade", value: character.statistics.insanity },
+    { label: "Corrupção", value: character.statistics.corruption },
+  ];
 
   return (
-    <article className="player-character-sheet">
-      <div className="player-character-identity">
-        <span className="player-character-monogram" aria-hidden="true">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-4">
+        <span
+          aria-hidden="true"
+          className="grid size-16 shrink-0 place-items-center rounded-full border border-accent-line bg-accent-soft font-display text-2xl text-accent"
+        >
           {character.name.slice(0, 1).toUpperCase()}
         </span>
-        <div>
-          <p>Personagem vinculado</p>
-          <h3>{character.name}</h3>
-          <span>
+        <div className="min-w-0">
+          <p className="text-xs font-bold tracking-wider text-fg-subtle uppercase">
+            Personagem vinculado
+          </p>
+          <h4 className="font-display text-3xl leading-tight break-words">{character.name}</h4>
+          <p className="text-sm text-fg-muted">
             Nível {character.level}
             {character.ancestry ? ` · ${character.ancestry}` : ""}
-          </span>
+          </p>
         </div>
       </div>
 
-      <dl className="player-character-statistics">
-        <div><dt>Vida</dt><dd>{character.statistics.healthMax}</dd></div>
-        <div><dt>Dano</dt><dd>{character.statistics.damage}</dd></div>
-        <div><dt>Cura</dt><dd>{character.statistics.healingRate}</dd></div>
-        <div><dt>Insanidade</dt><dd>{character.statistics.insanity}</dd></div>
-        <div><dt>Corrupção</dt><dd>{character.statistics.corruption}</dd></div>
+      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-line-soft bg-line-soft sm:grid-cols-5">
+        {statistics.map((statistic) => (
+          <div className="bg-surface p-3 text-center" key={statistic.label}>
+            <dt className="text-xs font-bold text-fg-subtle uppercase">{statistic.label}</dt>
+            <dd className="mt-1 font-display text-2xl font-bold">{statistic.value}</dd>
+          </div>
+        ))}
       </dl>
 
-      <section className="player-character-wealth" aria-labelledby={wealthTitleId}>
-        <span id={wealthTitleId}>Moedas</span>
+      <section className="space-y-3">
+        <h5 className="text-xs font-extrabold tracking-[0.14em] text-accent uppercase">
+          Moedas
+        </h5>
         {character.wealth ? (
           <CoinPurse wealth={character.wealth} label={`Moedas de ${character.name}`} />
         ) : (
-          <p>Saldo ainda não sincronizado. Ele aparece após a próxima sincronização do Foundry.</p>
+          <p className="text-sm text-fg-muted">
+            Saldo ainda não sincronizado. Ele aparece após a próxima sincronização do Foundry.
+          </p>
         )}
       </section>
 
-      <div className="player-character-details">
+      <div className="grid gap-6 sm:grid-cols-2">
         <div>
-          <span>Caminhos conhecidos</span>
-          <p>{paths.length > 0 ? paths.join(" · ") : "Nenhum caminho informado na ficha."}</p>
+          <h5 className="text-xs font-extrabold tracking-[0.14em] text-accent uppercase">
+            Caminhos conhecidos
+          </h5>
+          <p className="mt-2 font-display text-fg-muted">
+            {paths.length > 0 ? paths.join(" · ") : "Nenhum caminho informado na ficha."}
+          </p>
         </div>
         <div>
-          <span>Última sincronização</span>
-          <p>{formatDateTime(character.lastSyncedAt)}</p>
+          <h5 className="text-xs font-extrabold tracking-[0.14em] text-accent uppercase">
+            Última sincronização
+          </h5>
+          <p className="mt-2 font-display text-fg-muted">
+            {formatDateTime(character.lastSyncedAt)}
+          </p>
         </div>
       </div>
 
-      <footer>
-        <p>
-          Esta é uma projeção segura e somente para consulta. Moedas, itens e ficha continuam sendo alterados pelo mestre no Foundry.
+      <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-line-soft pt-4">
+        <p className="max-w-[60ch] text-xs text-fg-subtle">
+          Esta é uma projeção somente para consulta. Moedas, itens e ficha continuam sendo alterados
+          pelo mestre no Foundry.
         </p>
-        <Link className="text-action" href="/mercador">Consultar o Mercador <span aria-hidden="true">→</span></Link>
+        <ButtonLink variant="link" href="/mercador">
+          Consultar o Mercador →
+        </ButtonLink>
       </footer>
-    </article>
+    </div>
   );
 }
 
 function CharacterAvailability({ active, linked }: Readonly<{ active: boolean; linked: boolean }>) {
-  if (!linked) return <span className="player-character-status is-unlinked">Aguardando vínculo</span>;
-  if (!active) return <span className="player-character-status is-warning">Sincronização pendente</span>;
-  return <span className="player-character-status is-active">Sincronizado</span>;
-}
-
-function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "America/Sao_Paulo",
-  }).format(new Date(value));
+  if (!linked) return <Badge>Aguardando vínculo</Badge>;
+  if (!active) return <Badge tone="warning">Sincronização pendente</Badge>;
+  return <Badge tone="success">Sincronizado</Badge>;
 }

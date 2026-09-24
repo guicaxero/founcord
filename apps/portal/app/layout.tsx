@@ -1,14 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
-import "./styles/base.css";
-import "./styles/public-portal.css";
-import "./styles/merchant.css";
-import "./styles/characters.css";
-import "./styles/coins.css";
-import "./styles/order-document.css";
-import "./styles/admin.css";
-import "./styles/responsive.css";
 import { AppShell } from "@/components/layout/app-shell";
 import { MotionProvider } from "@/components/ui/motion";
 import { Providers } from "./providers";

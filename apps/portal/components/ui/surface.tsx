@@ -52,7 +52,7 @@ export function Badge({
 export function Eyebrow({ className, ...props }: ComponentProps<"p">) {
   return (
     <p
-      className={cn("m-0 text-xs font-extrabold tracking-[0.14em] text-accent uppercase", className)}
+      className={cn("text-xs font-extrabold tracking-[0.14em] text-accent uppercase", className)}
       {...props}
     />
   );
@@ -75,10 +75,10 @@ export function PageHeader({
     <header className={cn("flex flex-wrap items-end justify-between gap-6", className)}>
       <div className="min-w-0 max-w-[68ch] space-y-2">
         {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
-        <h1 className="m-0 font-display text-4xl leading-tight text-balance sm:text-5xl">
+        <h1 className="font-display text-4xl leading-tight text-balance sm:text-5xl">
           {title}
         </h1>
-        {description ? <p className="m-0 text-fg-muted text-pretty">{description}</p> : null}
+        {description ? <p className="text-fg-muted text-pretty">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-3">{actions}</div> : null}
     </header>

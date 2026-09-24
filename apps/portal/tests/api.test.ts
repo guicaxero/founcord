@@ -787,6 +787,29 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.equal(afterDelete.data.data.some((post: Json) => post.id === created.data.id), false);
     });
 
+    test("abre uma crônica publicada sem expor rascunhos nem campanhas privadas", async () => {
+      const published = await api(mf, "/api/posts/33333333-3333-4333-8333-333333333331");
+      assert.equal(published.status, 200, JSON.stringify(published.data));
+      assert.equal(published.data.title, "A Chama que Permaneceu");
+      assert.equal(published.data.status, "published");
+
+      const missing = await api(mf, "/api/posts/00000000-0000-4000-8000-00000000abcd");
+      assert.equal(missing.status, 404);
+
+      // Publicação de campanha privada não aparece para quem está fora dela.
+      const privatePost = await api(
+        mf,
+        `/api/posts/${privateCampaign.postId}?campaignId=${privateCampaign.id}`,
+      );
+      assert.notEqual(privatePost.status, 200);
+      const privatePostForMember = await api(
+        mf,
+        `/api/posts/${privateCampaign.postId}?campaignId=${privateCampaign.id}`,
+        { token: identities.playerOne.token },
+      );
+      assert.equal(privatePostForMember.status, 200);
+    });
+
     test("registra as mutações na auditoria", async () => {
       const audit = await api(mf, `/api/campaigns/${defaultCampaignId}/audit`, {
         token: identities.owner.token,

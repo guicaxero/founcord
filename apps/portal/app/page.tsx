@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { PageContainer, Section } from "@/components/layout/page-container";
-import { MissionBoard } from "@/components/mission-board";
+import { Chronicles } from "@/components/editorial/chronicles";
+import { SessionDiary } from "@/components/editorial/diary";
+import { MissionBoard } from "@/components/missions/mission-board";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, Eyebrow } from "@/components/ui/surface";
 import { fiveTruths, orderMotto } from "@/content/ordem-da-ultima-luz";
@@ -44,12 +46,12 @@ export default function Home() {
         />
         <div className="relative max-w-3xl space-y-6">
           <Eyebrow>Shadow of the Demon Lord</Eyebrow>
-          <h1 className="m-0 font-display text-5xl leading-[1.05] text-balance sm:text-7xl">
+          <h1 className="font-display text-5xl leading-[1.05] text-balance sm:text-7xl">
             Enquanto houver luz,{" "}
             <br className="hidden lg:block" />
             haverá <em className="text-accent not-italic">esperança.</em>
           </h1>
-          <p className="m-0 max-w-[60ch] text-lg text-fg-muted text-pretty">
+          <p className="max-w-[60ch] text-lg text-fg-muted text-pretty">
             Uma Ordem para aqueles dispostos a enfrentar a escuridão — qualquer que
             seja sua origem — e proteger o que ainda merece permanecer de pé.
           </p>
@@ -61,7 +63,7 @@ export default function Home() {
               Conhecer a Ordem
             </ButtonLink>
           </div>
-          <p className="m-0 border-l-2 border-accent-line pl-4 font-display text-fg-muted italic">
+          <p className="border-l-2 border-accent-line pl-4 font-display text-fg-muted italic">
             {orderMotto}
           </p>
         </div>
@@ -105,14 +107,40 @@ export default function Home() {
           </ButtonLink>
         }
       >
-        <MissionBoard campaignId={DEFAULT_CAMPAIGN_ID} initialMissions={[]} />
+        <MissionBoard campaignId={DEFAULT_CAMPAIGN_ID} limit={3} />
+      </Section>
+
+      <Section
+        eyebrow="Arquivo"
+        title="Últimas crônicas"
+        description="Os textos que a Ordem revisou e publicou."
+        action={
+          <ButtonLink href="/cronicas" variant="ghost">
+            Ver todas
+          </ButtonLink>
+        }
+      >
+        <Chronicles campaignId={DEFAULT_CAMPAIGN_ID} limit={2} />
+      </Section>
+
+      <Section
+        eyebrow="Registro"
+        title="Diário de Sessões"
+        description="O que aconteceu nas últimas noites de jogo."
+        action={
+          <ButtonLink href="/diario" variant="ghost">
+            Ver todos
+          </ButtonLink>
+        }
+      >
+        <SessionDiary campaignId={DEFAULT_CAMPAIGN_ID} limit={2} />
       </Section>
 
       {truth ? (
         <Card padding="lg" className="bg-surface-2">
           <Eyebrow>Uma das cinco verdades de Rûl</Eyebrow>
           <h2 className="mt-2 mb-3 font-display text-3xl leading-tight">{truth.title}</h2>
-          <p className="m-0 max-w-[70ch] text-fg-muted text-pretty">{truth.body}</p>
+          <p className="max-w-[70ch] text-fg-muted text-pretty">{truth.body}</p>
         </Card>
       ) : null}
     </PageContainer>

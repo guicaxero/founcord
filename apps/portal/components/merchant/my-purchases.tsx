@@ -13,7 +13,7 @@ import { listItem, staggerList } from "@/components/ui/motion";
 import { Skeleton } from "@/components/ui/surface";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
-import { PurchaseCard } from "@/components/merchant-catalog";
+import { PurchaseCard } from "./purchase-card";
 
 /**
  * Pedidos do próprio jogador. Usado tanto na página do Mercador quanto na área
@@ -92,14 +92,14 @@ export function MyPurchaseRequests({
 
   return (
     <>
-      <motion.div
-        className="merchant-purchase-list"
+      <motion.ul
+        className="grid list-none gap-4 p-0 sm:grid-cols-2"
         variants={staggerList}
         initial="hidden"
         animate="visible"
       >
         {data.map((purchase) => (
-          <motion.div key={purchase.id} variants={listItem}>
+          <motion.li key={purchase.id} variants={listItem}>
             <PurchaseCard purchase={purchase}>
               {canCancelPurchase(purchase) ? (
                 <Button
@@ -119,11 +119,11 @@ export function MyPurchaseRequests({
                 </Button>
               ) : null}
             </PurchaseCard>
-          </motion.div>
+          </motion.li>
         ))}
-      </motion.div>
+      </motion.ul>
       {cancelPurchase.isError ? (
-        <p className="merchant-dialog-error" role="alert">
+        <p className="mt-4 text-sm text-danger" role="alert">
           {errorMessage(cancelPurchase.error)}
         </p>
       ) : null}

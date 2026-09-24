@@ -8,7 +8,7 @@ import type {
   MerchantPurchaseStatus,
 } from "@ordem/contracts";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { PurchaseCard } from "@/components/merchant-catalog";
+import { PurchaseCard } from "@/components/merchant/purchase-card";
 import { FeedbackState } from "@/components/ui/feedback-state";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
