@@ -9,11 +9,13 @@ import "./styles/coins.css";
 import "./styles/order-document.css";
 import "./styles/admin.css";
 import "./styles/responsive.css";
+import { AppShell } from "@/components/layout/app-shell";
+import { MotionProvider } from "@/components/ui/motion";
 import { Providers } from "./providers";
 
 const siteTitle = "Ordem da Última Luz";
 const siteDescription =
-  "Portal da campanha West Marches da Ordem da Última Luz em Shadow of the Demon Lord.";
+  "Portal da campanha da Ordem da Última Luz em Shadow of the Demon Lord: missões, crônicas, diário de sessões e Mercador.";
 const siteOrigin = process.env.SITE_URL ?? "http://localhost:3000";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -51,8 +53,11 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" data-scroll-behavior="smooth">
       <body>
-        <a className="skip-link" href="#main-content">Ir para o conteúdo principal</a>
-        <Providers>{children}</Providers>
+        <Providers>
+          <MotionProvider>
+            <AppShell>{children}</AppShell>
+          </MotionProvider>
+        </Providers>
       </body>
     </html>
   );

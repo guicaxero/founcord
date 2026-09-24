@@ -22,9 +22,10 @@ const mf = new Miniflare(convertV4MiniflareOptions({
 
 afterAll(() => mf.dispose());
 
-async function render(path = "/") {
+async function render(path = "/", init: { redirect?: "manual" | "follow" } = {}) {
   return mf.dispatchFetch(`http://localhost${path}`, {
     headers: { accept: "text/html" },
+    ...init,
   });
 }
 
@@ -49,6 +50,7 @@ test("renderiza a primeira superfície do portal", async () => {
   assert.match(html, /Chamados da Ordem/);
   assert.match(html, /Diário de Sessões/);
   assert.match(html, /O Império está em crise/);
+  assert.match(html, /Mercador/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|Your site is taking shape/i);
 });
 
@@ -72,13 +74,12 @@ test("renderiza a vitrine pública do Mercador", async () => {
   assert.match(html, /Carregando|Consultando o catálogo/i);
 });
 
-test("renderiza a área autenticada de personagem sem expor uma ficha no HTML", async () => {
-  const response = await render("/personagem");
+test("renderiza a área autenticada do jogador sem expor uma ficha no HTML", async () => {
+  const response = await render("/eu");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /Meu personagem/i);
+  assert.match(html, /Minha área/i);
   assert.match(html, /Área do jogador/i);
-  assert.match(html, /Carregando seus personagens|Consultando seus vínculos/i);
   assert.match(html, /noindex/i);
   assert.doesNotMatch(html, /foundry_actor_id|owner_user_ids/i);
 });
@@ -126,22 +127,24 @@ test("mantém a navegação essencial acessível nas superfícies públicas", as
   ]);
 
   for (const html of [home, order]) {
-    assert.match(html, /class="skip-link"[^>]*href="#main-content"/i);
+    assert.match(html, /href="#main-content"[^>]*>Pular para o conteúdo/i);
     assert.match(html, /id="main-content"/i);
-    assert.match(html, /responsive-navigation-wide/i);
-    assert.match(html, /responsive-navigation-compact/i);
-    assert.match(html, /<summary>/i);
+    assert.match(html, /aria-label="Navegação principal"/i);
+    // As rotas do produto aparecem na navegação de toda superfície pública.
+    for (const route of ["/missoes", "/cronicas", "/diario", "/mercador", "/ordem"]) {
+      assert.match(html, new RegExp(`href="${route}"`, "i"));
+    }
+    assert.match(html, /aria-label="Abrir navegação"/i);
   }
 
-  assert.match(home, /Explorar portal/i);
-  assert.match(order, /Neste documento/i);
+  assert.match(order, /aria-label="Seções do Código"/i);
 });
 
 test("o shell de gestão usa navegação compatível com teclado e RBAC", async () => {
-  const [dashboard, summaries, accountMenu, responsiveCss] = await Promise.all([
+  const [dashboard, summaries, navigation, responsiveCss] = await Promise.all([
     readFile(new URL("../components/admin/dashboard-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/admin/session-summaries-panel.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../components/account-menu.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/layout/navigation.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/styles/responsive.css", import.meta.url), "utf8"),
   ]);
 
@@ -157,6 +160,34 @@ test("o shell de gestão usa navegação compatível com teclado e RBAC", async 
   assert.doesNotMatch(dashboard, /role="tab(list|panel)?"/);
   assert.match(responsiveCss, /\.admin-navigation\s*{\s*display:\s*none/s);
   assert.match(responsiveCss, /\.admin-mobile-navigation\s*{\s*display:\s*grid/s);
-  assert.match(accountMenu, /foundry:world:manage/);
-  assert.match(accountMenu, /session:manage/);
+  assert.match(navigation, /foundry:world:manage/);
+  assert.match(navigation, /session:manage/);
+});
+
+test("o portal usa tema escuro e não conserva os termos inventados", async () => {
+  const [home, merchant] = await Promise.all([
+    render().then((response) => response.text()),
+    render("/mercador").then((response) => response.text()),
+  ]);
+  const [globals, publicPortal] = await Promise.all([
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/styles/public-portal.css", import.meta.url), "utf8"),
+  ]);
+
+  for (const html of [home, merchant]) {
+    assert.doesNotMatch(html, /West Marches/i);
+    assert.doesNotMatch(html, /vigília|vigilia/i);
+  }
+  assert.match(globals, /color-scheme: dark/);
+  assert.doesNotMatch(publicPortal, /VIGILIA/);
+});
+
+test("a área do jogador continua fora dos buscadores e o endereço antigo redireciona", async () => {
+  const playerArea = await render("/eu");
+  assert.equal(playerArea.status, 200);
+  assert.match(await playerArea.text(), /noindex/i);
+
+  const legacy = await render("/personagem", { redirect: "manual" });
+  assert.ok([307, 308].includes(legacy.status), `status inesperado: ${legacy.status}`);
+  assert.match(legacy.headers.get("location") ?? "", new RegExp("/eu"));
 });

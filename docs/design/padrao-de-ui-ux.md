@@ -1,213 +1,146 @@
 # PADRÃO DE UI/UX
 
-Este documento é a fonte de verdade para todo trabalho de frontend da Ordem da Última Luz. Deve ser lido integralmente antes de criar, alterar ou revisar telas, componentes, navegação, formulários e textos de interface.
+Fonte de verdade para todo trabalho de frontend do portal. Deve ser lido
+integralmente antes de criar, alterar ou revisar telas, componentes, navegação,
+formulários e textos de interface.
 
 ## Objetivo
 
-Construir interfaces com qualidade comparável a produtos digitais profissionais, priorizando clareza, usabilidade, consistência, acessibilidade, hierarquia visual e percepção de qualidade. Cada decisão deve possuir uma justificativa de experiência do usuário, hierarquia de informação ou comportamento esperado.
+Interfaces com qualidade de produto digital profissional: claras, consistentes,
+acessíveis e com hierarquia evidente. Cada decisão precisa de uma justificativa
+de experiência, hierarquia de informação ou comportamento esperado.
 
-## 1. Prioridades fundamentais
+## 1. Prioridades, nesta ordem
 
-Priorize, nesta ordem:
+1. Clareza. 2. Usabilidade. 3. Hierarquia visual. 4. Consistência.
+5. Feedback. 6. Acessibilidade. 7. Eficiência. 8. Estética.
 
-1. Clareza.
-2. Usabilidade.
-3. Hierarquia visual.
-4. Consistência.
-5. Feedback ao usuário.
-6. Acessibilidade.
-7. Eficiência.
-8. Estética.
+A interface deve ser compreensível sem tentativa e erro. Remova complexidade
+visual ou funcional que não agregue valor.
 
-A interface deve ser compreensível sem exigir descoberta por tentativa e erro. Remova complexidade visual ou funcional que não agregue valor.
+## 2. Sistema visual
 
-## 2. Hierarquia visual
+O tema é **escuro por padrão**. Os tokens vivem em `apps/portal/app/globals.css`,
+dentro do `@theme` do Tailwind, e são a única origem de cor, raio, sombra e
+tipografia. Nenhuma tela declara cor literal.
 
-Use escala e peso tipográfico, espaçamento, contraste, agrupamento, posicionamento, proximidade, repetição e alinhamento para deixar evidente:
+| Papel | Token | Uso |
+| --- | --- | --- |
+| Fundo da página | `canvas` | Plano de fundo geral. |
+| Superfície | `surface`, `surface-2`, `surface-3` | Cartões, camadas e estado de hover. |
+| Superfície rebaixada | `surface-sunken` | Rodapé e áreas de apoio. |
+| Linhas | `line-soft`, `line`, `line-strong` | Separação por ênfase crescente. |
+| Texto | `fg`, `fg-muted`, `fg-subtle` | Primário, secundário e de apoio. |
+| Acento | `accent`, `accent-strong`, `accent-line`, `accent-soft` | Brasa da campanha: destaque, nunca a cor padrão de tudo que é clicável. |
+| Estado | `success`, `warning`, `danger`, `info` e seus `-soft` | Situação, sempre acompanhada de texto. |
+| Foco | `focus` | Contorno de foco com 2 px e deslocamento. |
 
-- O que é mais importante.
-- O que pode ser acionado.
-- Qual é a ação principal.
-- Qual informação é secundária.
-- Em que seção o usuário está.
-- O que aconteceu depois de uma interação.
+Regras:
 
-Não dê a todos os elementos a mesma importância visual.
+- Profundidade vem de camada e borda, não de sombra pesada.
+- O acento marca no máximo uma ação por bloco.
+- Ouro, cobre e prata existem apenas para representar as moedas do sistema.
+- A atmosfera da campanha aparece na tipografia editorial dos títulos
+  (`font-display`) e no acento; o texto funcional usa a fonte de leitura.
 
-## 3. Layout e composição
+## 3. Componentes
 
-- Use grid consistente, alinhamentos precisos, espaçamento sistemático, ritmo visual e margens equilibradas.
-- Mantenha largura de leitura e densidade apropriadas.
-- Use espaço negativo deliberadamente para criar respiração, agrupamento e hierarquia.
-- Evite desalinhamento, espaçamento arbitrário, containers excessivamente largos, congestionamento e decoração sem propósito.
+As primitivas em `apps/portal/components/ui/` são obrigatórias: `button`,
+`surface` (cartão, selo, cabeçalho de página, esqueleto), `dialog`, `menu`,
+`tabs` e `feedback-state`. Diálogos, menus e abas usam Radix, que já entrega foco
+preso, retorno de foco, `Esc`, rolagem travada e semântica correta.
 
-## 4. Sistema visual
+- Não recrie um componente existente nem crie variante visual sem necessidade
+  funcional.
+- Toda área interativa tem no mínimo 44 px de altura.
+- Ícone sozinho exige nome acessível.
 
-Mantenha uma linguagem coerente em tipografia, escalas, bordas, raios, sombras, ícones, botões, campos, cartões, estados, espaçamentos e cores. Elementos com a mesma função devem compartilhar aparência e comportamento. Não crie variantes visuais sem necessidade funcional.
+## 4. Movimento
 
-## 5. Tipografia
+As variantes compartilhadas ficam em `components/ui/motion.tsx`.
 
-- Estabeleça hierarquia clara entre títulos, subtítulos, rótulos e corpo.
-- Preserve comprimento de linha confortável e altura de linha adequada.
-- Use peso, tamanho e estilo com propósito semântico, não apenas para criar variedade.
-- Prefira legibilidade a efeitos decorativos.
+- Durações entre 140 ms e 250 ms, com curva de saída suave.
+- A animação mostra causalidade: entrada de conteúdo, mudança de estado,
+  abertura de camada. Nada decorativo, nada em laço.
+- Listas entram em cascata curta, com no máximo ~45 ms entre itens.
+- Nunca anime o layout da página inteira nem atrase uma ação.
+- `prefers-reduced-motion` zera tudo, pelo `MotionProvider` e pelo reset global.
 
-## 6. Cores
+## 5. Hierarquia, layout e tipografia
 
-As cores devem distinguir fundo, superfícies, texto primário e secundário, elementos interativos, ações, sucesso, erro, alerta, informação e estados desabilitados. Não dependa exclusivamente da cor para comunicar significado.
+- Uma tarefa principal evidente por tela, no primeiro viewport.
+- Largura de leitura controlada: texto corrido em torno de 68 caracteres.
+- Escala tipográfica pequena e consistente; peso e tamanho têm função.
+- Conteúdo dinâmico não pode quebrar o layout: nomes longos, números grandes e
+  traduções precisam caber.
 
-## 7. Contraste e acessibilidade
+## 6. Estados
 
-- Garanta contraste adequado, legibilidade e áreas de interação confortáveis.
-- Ofereça foco perceptível, navegação previsível e erros identificáveis.
-- Use HTML semântico e rótulos acessíveis.
-- Toda informação visual relevante deve possuir alternativa textual ou estrutural.
-- Não sacrifique contraste em nome da estética.
+Projete explicitamente: inicial, carregando, conteúdo, vazio, sem resultado para
+filtro, dados parciais, erro recuperável, indisponível, sucesso, processando,
+desabilitado, selecionado e permissão insuficiente.
 
-## 8. Interações e feedback
+- Carregamento usa esqueleto com a forma do conteúdo, não indicador solto.
+- Estado vazio explica o que aparece ali, por que está vazio e qual é o próximo
+  passo.
+- Erro explica o que houve, por quê e como corrigir, preservando o que a pessoa
+  já preencheu.
 
-Todo componente interativo deve considerar estados `default`, `hover`, `focus`, `active`, `disabled`, `loading`, `success`, `error`, `empty` e `selected` quando aplicáveis. O fluxo deve comunicar claramente: ação → processamento → resultado.
+## 7. Acessibilidade
 
-## 9. Microinterações
+Conformidade com WCAG 2.2 AA.
 
-Animações devem reforçar causalidade, orientar atenção, mostrar mudança de estado, manter continuidade ou reduzir sensação de espera. Devem ser rápidas, discretas e respeitar `prefers-reduced-motion`. Evite animações lentas ou puramente decorativas.
+- Estrutura semântica, rótulos associados e ordem de foco igual à ordem visual.
+- Foco sempre visível e operação completa por teclado.
+- Nenhuma informação apenas por cor.
+- Mudanças relevantes anunciadas por região viva, sem excesso.
+- Texto funcional com no mínimo 12 px.
 
-## 10. Formulários
+## 8. Navegação e arquitetura de informação
 
-- Use labels claros e persistentes, agrupamento lógico e ordem natural.
-- Indique obrigatoriedade, preserve valores preenchidos e forneça valores padrão quando úteis.
-- Mostre processamento, sucesso e erro próximos do contexto da ação.
-- Mensagens de erro devem explicar o que aconteceu, por que aconteceu e como corrigir.
-- Botões devem descrever a ação concreta.
+Superfícies separadas:
 
-## 11. Estados da interface
+- **Portal público:** início, missões, crônicas, diário, Mercador e o Código.
+- **Área do jogador (`/eu`):** personagem, inscrições e pedidos.
+- **Painel de gestão (`/dashboard`):** criação, revisão, publicação, pessoas,
+  integrações e auditoria.
 
-Projete explicitamente estados de carregamento, vazio, erro, sucesso, dados parciais, sem resultados, indisponibilidade, desabilitado, primeiro uso, conteúdo longo e conteúdo curto. Nenhum desses estados deve parecer improvisado.
+Regras:
 
-## 12. Comunicação
+- A navegação é única e consciente de papel: a entrada de gestão só aparece para
+  quem tem ao menos uma permissão de gestão.
+- Toda funcionalidade do produto é alcançável pela navegação, sem depender de
+  âncora dentro de uma página longa.
+- A rota atual é marcada com `aria-current="page"`, incluindo rotas filhas.
+- Ocultar controle no frontend nunca substitui RBAC no backend.
 
-Use mensagens inline, indicadores de progresso, confirmações, toasts e feedback contextual de acordo com a importância e a duração da ação. Evite modais e confirmações desnecessárias.
+## 9. Papéis e permissões
 
-## 13. Navegação
+- Papéis globais e de campanha aparecem em grupos separados.
+- `owner` é papel global protegido e nunca aparece como item removível.
+- Papéis são cumulativos, não modos alternáveis.
 
-A navegação deve ser previsível, consistente, hierárquica e contextual. O usuário deve responder facilmente:
+## 10. UX writing
 
-- Onde estou?
-- De onde vim?
-- Onde posso ir?
-- Como volto?
+- Texto claro, curto e orientado à ação: "Enviar pedido ao mestre", não "OK".
+- Use os termos reais do produto e da campanha. "West Marches" e "Vigília" não
+  fazem parte do sistema e não devem voltar.
+- Nada de jargão técnico ou nome de tabela na interface.
 
-Não esconda tarefas principais em padrões pouco intuitivos.
-
-## 14. Responsividade e adaptação
-
-A experiência móvel deve ser repensada, não apenas reduzida. Conforme o espaço muda, reavalie hierarquia, densidade, navegação, tamanho dos controles, agrupamento, ordem e prioridade das ações. Evite overflow, conteúdo cortado, sobreposição, controles pequenos, tabelas inutilizáveis e dimensões rígidas.
-
-## 15. Componentes
-
-Cada componente deve ter responsabilidade clara, comportamento previsível, estados definidos, consistência e reutilização coerente. Não crie componentes visualmente diferentes para resolver a mesma tarefa.
-
-## 16. UX Writing
-
-Textos devem ser claros, curtos, humanos, objetivos, contextuais e orientados à ação. Evite jargão técnico. Prefira “Publicar missão” a “OK” ou “Enviar”.
-
-## 17. Prevenção e recuperação de erros
-
-Antecipe erros com restrições, validação, feedback contextual e desabilitação de ações impossíveis. Confirme apenas ações destrutivas ou difíceis de reverter. Sempre ofereça um caminho claro de recuperação.
-
-## 18. Performance percebida
-
-Use feedback imediato, carregamento contextual, preservação de contexto e atualizações previsíveis. Nunca deixe o usuário esperando sem explicar o que está ocorrendo.
-
-## 19. Design emocional
-
-A interface deve transmitir confiança, refinamento, controle, clareza, modernidade e coerência. A identidade sombria e medieval da campanha pode aparecer em materiais, tipografia editorial e cores, mas nunca deve prejudicar leitura ou operação.
-
-## 20. Princípios de Gestalt
-
-Use conscientemente proximidade, similaridade, continuidade, fechamento, figura e fundo, região comum, conexão e hierarquia. Elementos relacionados devem parecer relacionados; elementos independentes precisam de separação suficiente.
-
-## 21. Lei de Hick e progressive disclosure
-
-Reduza decisões simultâneas. Quando houver muitas opções, agrupe, priorize, categorize e mostre primeiro o necessário para a tarefa atual. Revele controles secundários somente no contexto apropriado.
-
-## 22. Lei de Fitts
-
-Controles frequentes devem ter áreas clicáveis adequadas, distância segura entre ações e posicionamento previsível. A ação principal deve ser fácil de localizar e alcançar.
-
-## 23. Reconhecimento em vez de lembrança
-
-Use labels, indicadores, breadcrumbs, contexto, sugestões, histórico e padrões reconhecíveis. O usuário não deve memorizar códigos ou navegar entre telas para concluir uma tarefa simples.
-
-## 24. Consistência e padrões conhecidos
-
-Use padrões familiares quando resolvem o problema. A mesma ação deve ter a mesma aparência, posição relativa, terminologia e resultado em toda a experiência.
-
-## 25. Estados vazios
-
-Um estado vazio deve explicar:
-
-- O que aparecerá ali.
-- Por que ainda está vazio.
-- O que o usuário pode fazer.
-- Qual é a próxima ação recomendada.
-
-## 26. Arquitetura da informação
-
-Organize conteúdo segundo o modelo mental do usuário, não conforme tabelas, serviços ou estrutura interna. Priorize descoberta, escaneabilidade, agrupamento semântico, contexto e fluxos naturais.
-
-## 27. Menor esforço
-
-Sempre questione se o mesmo resultado pode ser alcançado com menos cliques, decisões, digitação, navegação e informação irrelevante.
-
-## 28. Qualidade percebida
-
-Antes de concluir uma interface, revise alinhamento, espaçamento, hierarquia, contraste, tipografia, consistência, responsividade, estados, feedback, acessibilidade, microinterações, erros, estados vazios e densidade visual. Corrija pequenas inconsistências.
-
-## 29. Regras específicas da Ordem da Última Luz
-
-### Separação de superfícies
-
-- **Portal público:** ambientação, quadro de missões publicadas, crônicas e Código da Ordem.
-- **Área do jogador:** inscrições, personagens e histórico pessoal quando essas funções existirem.
-- **Painel de gestão:** criação, revisão, publicação, membros, auditoria e configuração.
-- Visitantes e jogadores não devem ser direcionados para uma superfície chamada “administrativa”.
-- A entrada do painel de gestão só aparece para quem possui ao menos uma permissão de gestão.
-
-### Papéis e permissões
-
-- Papéis globais e de campanha devem ser exibidos em grupos separados.
-- `owner` deve aparecer como papel global protegido e nunca como chip removível.
-- Papéis são cumulativos, não modos entre os quais o usuário alterna.
-- Exiba nome humano, escopo e resumo da capacidade de cada papel.
-- Ações de concessão e remoção devem usar progressive disclosure e feedback explícito.
-- Não permita que a interface sugira que remover `player` remove `owner`.
-
-### Identidade visual
-
-- Preserve a atmosfera de pergaminho, fuligem, metal envelhecido e brasa.
-- Use texturas por contraste, camadas e gradientes discretos; não comprometa a leitura.
-- Tipografia editorial pode ser usada em títulos; texto funcional deve usar fonte de alta legibilidade.
-- Vermelho-brasa é cor de ênfase, não cor universal de interação.
-
-## 30. Checklist de conclusão
-
-Antes de entregar qualquer alteração de frontend, confirme:
+## 11. Checklist de conclusão
 
 - [ ] A tarefa principal está evidente no primeiro viewport.
-- [ ] A navegação informa localização e retorno.
-- [ ] Ações administrativas estão ocultas para usuários sem permissão.
-- [ ] Papéis globais e locais estão visualmente separados.
-- [ ] Loading, vazio, erro, sucesso e desabilitado foram tratados.
-- [ ] Foco por teclado está visível.
-- [ ] Contraste e áreas clicáveis são adequados.
-- [ ] A tela funciona em desktop, tablet e celular.
-- [ ] Textos descrevem ações concretas.
+- [ ] A navegação informa localização e caminho de volta.
+- [ ] Ações de gestão estão ocultas para quem não tem permissão.
+- [ ] Carregando, vazio, erro, sucesso e desabilitado foram tratados.
+- [ ] Foco visível e operação por teclado, inclusive em diálogos e menus.
+- [ ] Contraste e alvos de 44 px conferidos.
+- [ ] Funciona em 375, 768 e 1440 px, sem rolagem horizontal.
+- [ ] O movimento respeita `prefers-reduced-motion`.
 - [ ] A interface não depende apenas de cor.
-- [ ] A autorização continua protegida no backend.
+- [ ] A autorização continua validada no backend.
 
 ## Regra final
 
-Cada elemento deve resolver um problema, comunicar informação, facilitar uma ação, apoiar uma decisão ou fornecer feedback. Se não cumprir nenhuma dessas funções, considere removê-lo.
-
-O resultado deve parecer maduro, profissional e cuidadosamente projetado por meio de hierarquia, consistência, clareza, precisão, acessibilidade e comportamento — nunca por excesso de decoração.
+Cada elemento resolve um problema, comunica informação, facilita uma ação, apoia
+uma decisão ou dá feedback. Se não faz nada disso, remova.

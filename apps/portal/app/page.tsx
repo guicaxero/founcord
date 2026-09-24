@@ -1,121 +1,120 @@
 import Link from "next/link";
-import { AccountMenu } from "@/components/account-menu";
+import { PageContainer, Section } from "@/components/layout/page-container";
 import { MissionBoard } from "@/components/mission-board";
-import { PublishedPosts } from "@/components/published-posts";
-import { SessionSummaries } from "@/components/session-summaries";
-import { ResponsiveNavigation } from "@/components/responsive-navigation";
+import { ButtonLink } from "@/components/ui/button";
+import { Card, Eyebrow } from "@/components/ui/surface";
+import { fiveTruths, orderMotto } from "@/content/ordem-da-ultima-luz";
 import { DEFAULT_CAMPAIGN_ID } from "@/server/shared/constants";
 
 export const dynamic = "force-dynamic";
 
+const destinations = [
+  {
+    href: "/missoes",
+    label: "Missões",
+    description: "Chamados publicados, inscrições e lista de espera.",
+  },
+  {
+    href: "/cronicas",
+    label: "Crônicas",
+    description: "O que a Ordem registrou sobre o mundo e seus mortos.",
+  },
+  {
+    href: "/diario",
+    label: "Diário de Sessões",
+    description: "Registros factuais de cada noite jogada.",
+  },
+  {
+    href: "/mercador",
+    label: "Mercador",
+    description: "Estoque sincronizado do Foundry e pedidos ao mestre.",
+  },
+];
+
 export default function Home() {
+  // A crise imperial é o gancho principal da campanha nesta fase.
+  const truth = fiveTruths.find((entry) => entry.title.includes("Império")) ?? fiveTruths[0];
+
   return (
-    <main className="site-shell" id="main-content">
-      <aside className="brand-rail" aria-label="Identidade da campanha">
-        <div className="sigil" aria-hidden="true">O</div>
-        <span>WM</span>
-        <div className="rail-line" />
-        <span>SDL</span>
-      </aside>
-      <div className="page-frame">
-        <header className="topbar">
-          <a className="wordmark" href="#inicio" aria-label="Ir para o início">
-            <span>Ordem da</span><strong>Última Luz</strong>
-          </a>
-          <ResponsiveNavigation
-            label="Navegação principal"
-            menuLabel="Explorar portal"
-            items={[
-              { href: "#quadro", label: "Missões", current: true },
-              { href: "/ordem", label: "Código da Ordem" },
-              { href: "#cronicas", label: "Crônicas" },
-              { href: "#diario", label: "Diário de Sessões" },
-              { href: "/mercador", label: "Mercador" },
-            ]}
-          />
-          <AccountMenu />
-        </header>
+    <PageContainer>
+      <section className="relative isolate overflow-hidden rounded-xl border border-line-soft bg-surface px-6 py-16 sm:px-12 sm:py-24">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-40 -right-24 size-96 rounded-full bg-accent/12 blur-3xl"
+        />
+        <div className="relative max-w-3xl space-y-6">
+          <Eyebrow>Shadow of the Demon Lord</Eyebrow>
+          <h1 className="m-0 font-display text-5xl leading-[1.05] text-balance sm:text-7xl">
+            Enquanto houver luz,{" "}
+            <br className="hidden lg:block" />
+            haverá <em className="text-accent not-italic">esperança.</em>
+          </h1>
+          <p className="m-0 max-w-[60ch] text-lg text-fg-muted text-pretty">
+            Uma Ordem para aqueles dispostos a enfrentar a escuridão — qualquer que
+            seja sua origem — e proteger o que ainda merece permanecer de pé.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <ButtonLink href="/missoes" variant="accent" size="lg">
+              Ver chamados abertos
+            </ButtonLink>
+            <ButtonLink href="/ordem" variant="secondary" size="lg">
+              Conhecer a Ordem
+            </ButtonLink>
+          </div>
+          <p className="m-0 border-l-2 border-accent-line pl-4 font-display text-fg-muted italic">
+            {orderMotto}
+          </p>
+        </div>
+      </section>
 
-        <section className="hero" id="inicio">
-          <div className="hero-copy">
-            <p className="eyebrow">West Marches <span>•</span> Shadow of the Demon Lord</p>
-            <h1>Enquanto houver luz,<br />haverá <em>esperança.</em></h1>
-            <p className="hero-description">
-              Uma Ordem para aqueles dispostos a enfrentar a escuridão — qualquer
-              que seja sua origem — e proteger o que ainda merece permanecer de pé.
-            </p>
-            <div className="hero-actions">
-              <a className="primary-action" href="#quadro">
-                Ver chamados <span aria-hidden="true">→</span>
-              </a>
-              <span className="world-status"><i aria-hidden="true" /> A chama permanece</span>
-            </div>
-          </div>
-          <div className="campaign-seal" aria-hidden="true">
-            <span className="seal-kicker">Ano imperial</span>
-            <strong>888</strong>
-            <span>Depois da Fundação</span>
-          </div>
-        </section>
+      <nav aria-label="Áreas do portal">
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {destinations.map((destination) => (
+            <li key={destination.href}>
+              <Link
+                href={destination.href}
+                className="group block h-full rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus"
+              >
+                <Card
+                  interactive
+                  className="flex h-full flex-col gap-2 transition-transform duration-200 group-hover:-translate-y-0.5 motion-reduce:group-hover:translate-y-0"
+                >
+                  <strong className="font-display text-xl">{destination.label}</strong>
+                  <span className="text-sm text-fg-muted">{destination.description}</span>
+                  <span
+                    aria-hidden="true"
+                    className="mt-auto pt-3 text-sm font-semibold text-accent"
+                  >
+                    Abrir →
+                  </span>
+                </Card>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
-        <section className="content-grid" id="quadro">
-          <div className="mission-board">
-            <div className="section-heading">
-              <div><p className="section-index">01 / QUADRO</p><h2>Chamados da Ordem</h2></div>
-              <span className="filter-button">Missões publicadas</span>
-            </div>
-            <MissionBoard campaignId={DEFAULT_CAMPAIGN_ID} initialMissions={[]} />
-          </div>
-          <aside className="campaign-panel" id="campanha">
-            <div className="section-heading compact">
-              <div><p className="section-index">02 / URTH</p><h2>O mundo agora</h2></div>
-            </div>
-            <div className="world-card">
-              <p className="world-card-label">Uma das cinco verdades de Rûl</p>
-              <h3>O Império está em crise</h3>
-              <p>
-                A morte do imperador espalhou revoltas, guerras e disputas por poder.
-                Muitos acreditam que uma grande mudança está por vir.
-              </p>
-            </div>
-            <dl className="campaign-stats">
-              <div><dt>Sessões planejadas</dt><dd>1×</dd><small>por semana</small></div>
-              <div><dt>Grupo mínimo</dt><dd>3</dd><small>integrantes</small></div>
-              <div><dt>Duração mínima</dt><dd>3h</dd><small>por sessão</small></div>
-            </dl>
-            <div className="chronicle">
-              <span>Crônica da fundação</span><p>“A Chama que Permaneceu”</p>
-              <span>Guardião da Chama AP</span>
-            </div>
-          </aside>
-        </section>
+      <Section
+        id="chamados"
+        eyebrow="Quadro"
+        title="Chamados da Ordem"
+        description="Missões publicadas para a campanha. Entre com o Discord para se inscrever."
+        action={
+          <ButtonLink href="/missoes" variant="ghost">
+            Ver todas
+          </ButtonLink>
+        }
+      >
+        <MissionBoard campaignId={DEFAULT_CAMPAIGN_ID} initialMissions={[]} />
+      </Section>
 
-        <section className="order-preview" id="ordem">
-          <div className="order-preview-heading">
-            <div>
-              <p className="section-index">03 / A ORDEM</p>
-              <h2>Uma história compartilhada.<br />Consequências reais.</h2>
-            </div>
-            <blockquote>
-              “A última luz não pertence a um homem. Ela pertence àqueles que
-              decidiram mantê-la acesa.”
-            </blockquote>
-          </div>
-          <div className="order-preview-grid">
-            <article><span>I—VII</span><h3>Código da Ordem</h3><p>Conduta à mesa, compromisso com missões, respeito e responsabilidade coletiva.</p></article>
-            <article><span>GRAUS</span><h3>Progressão</h3><p>Níveis, missões realizadas, promoções e a origem narrativa de cada nova Trilha.</p></article>
-            <article><span>PROTOCOLO</span><h3>Antes e depois</h3><p>Inscrições, chamadas, grupos mínimos e a distribuição transparente de tesouros.</p></article>
-          </div>
-          <Link className="text-action" href="/ordem">Consultar o Código completo <span aria-hidden="true">→</span></Link>
-        </section>
-
-        <PublishedPosts campaignId={DEFAULT_CAMPAIGN_ID} initialPosts={[]} />
-        <SessionSummaries campaignId={DEFAULT_CAMPAIGN_ID} initialSummaries={[]} />
-        <footer>
-          <span>Uma campanha comunitária, sem fins lucrativos.</span>
-          <span>Enquanto houver luz, haverá esperança.</span>
-        </footer>
-      </div>
-    </main>
+      {truth ? (
+        <Card padding="lg" className="bg-surface-2">
+          <Eyebrow>Uma das cinco verdades de Rûl</Eyebrow>
+          <h2 className="mt-2 mb-3 font-display text-3xl leading-tight">{truth.title}</h2>
+          <p className="m-0 max-w-[70ch] text-fg-muted text-pretty">{truth.body}</p>
+        </Card>
+      ) : null}
+    </PageContainer>
   );
 }

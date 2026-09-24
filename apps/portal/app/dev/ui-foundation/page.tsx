@@ -37,7 +37,7 @@ const previewCampaigns: CampaignListResponse = {
     id: campaignId,
     slug: "ordem-da-ultima-luz",
     name: "Ordem da Última Luz",
-    description: "Campanha comunitária West Marches em Shadow of the Demon Lord.",
+    description: "Campanha comunitária de Shadow of the Demon Lord.",
     status: "active",
     isPublic: true,
     version: 1,
