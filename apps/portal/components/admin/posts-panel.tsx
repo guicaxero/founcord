@@ -9,19 +9,49 @@ import type {
   PostStatus,
   UpdatePostInput,
 } from "@ordem/contracts";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DataTable, RowActions } from "@/components/ui/data-table";
+import { Dialog } from "@/components/ui/dialog";
+import { FeedbackState } from "@/components/ui/feedback-state";
+import { Field, FormGrid, Input, Textarea } from "@/components/ui/field";
+import { FilterChips } from "@/components/ui/filter-chips";
+import { Notice } from "@/components/ui/notice";
+import { Badge } from "@/components/ui/surface";
+import { useToast } from "@/components/ui/toast";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { hasCapability } from "@/lib/capabilities";
+import { formatDate, normalizeSearch } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
+import { PanelLoading, PermissionNote, SearchField } from "./kit";
+import { editorialOrder, editorialTone, timestamp } from "./status";
 
 const statusLabels: Readonly<Record<PostStatus, string>> = {
   draft: "Rascunho",
   pending_review: "Em revisão",
-  approved: "Aprovado",
-  published: "Publicado",
-  archived: "Arquivado",
-  rejected: "Rejeitado",
+  approved: "Aprovada",
+  published: "Publicada",
+  archived: "Arquivada",
+  rejected: "Rejeitada",
 };
+
+const sourceLabels: Readonly<Record<Post["source"], string>> = {
+  manual: "escrita manual",
+  discord: "Discord",
+  foundry: "Foundry",
+  automation: "automação",
+};
+
+const transitionToast: Partial<Record<PostStatus, string>> = {
+  pending_review: "Publicação enviada à revisão",
+  approved: "Publicação aprovada",
+  rejected: "Publicação rejeitada",
+  published: "Publicada no portal",
+  draft: "Restaurada como rascunho",
+};
+
+type Filter = "active" | "all" | PostStatus;
 
 export function PostsPanel({
   campaignId,
@@ -30,16 +60,19 @@ export function PostsPanel({
 }: Readonly<{
   campaignId: string;
   me: CurrentUserResponse;
-  initialPosts?: PostListResponse;
+  initialPosts?: PostListResponse | undefined;
 }>) {
   const queryClient = useQueryClient();
-  const [editing, setEditing] = useState<Post | null>(null);
+  const toast = useToast();
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const [editor, setEditor] = useState<{ post: Post | null } | null>(null);
+  const [archiving, setArchiving] = useState<Post | null>(null);
   const [deleting, setDeleting] = useState<Post | null>(null);
-  const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const [filter, setFilter] = useState<Filter>("active");
+  const [search, setSearch] = useState("");
   const posts = useQuery({
     queryKey: queryKeys.posts(campaignId, "editorial"),
-    queryFn: () =>
-      apiFetch<PostListResponse>(`/api/campaigns/${campaignId}/posts?scope=editorial`),
+    queryFn: () => apiFetch<PostListResponse>(`/api/campaigns/${campaignId}/posts?scope=editorial`),
     initialData: initialPosts,
     enabled: initialPosts === undefined,
   });
@@ -47,18 +80,13 @@ export function PostsPanel({
     mutationFn: (payload: CreatePostInput | (UpdatePostInput & { id: string })) => {
       if ("id" in payload) {
         const { id, ...body } = payload;
-        return apiFetch<Post>(`/api/posts/${id}`, {
-          method: "PATCH",
-          body: JSON.stringify(body),
-        });
+        return apiFetch<Post>(`/api/posts/${id}`, { method: "PATCH", body: JSON.stringify(body) });
       }
-      return apiFetch<Post>(`/api/campaigns/${campaignId}/posts`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+      return apiFetch<Post>(`/api/campaigns/${campaignId}/posts`, { method: "POST", body: JSON.stringify(payload) });
     },
-    onSuccess: async () => {
-      setEditing(null);
+    onSuccess: async (post, payload) => {
+      setEditor(null);
+      toast({ title: "id" in payload ? "Texto salvo" : "Rascunho criado", description: post.title });
       await invalidatePosts(queryClient, campaignId);
     },
   });
@@ -68,30 +96,30 @@ export function PostsPanel({
         method: "PATCH",
         body: JSON.stringify({ version: post.version, status }),
       }),
-    onSuccess: () => invalidatePosts(queryClient, campaignId),
+    onSuccess: async (post) => {
+      toast({ title: transitionToast[post.status] ?? "Publicação atualizada", description: post.title });
+      await invalidatePosts(queryClient, campaignId);
+    },
+    onError: (error) => toast({ title: "A publicação não foi alterada", description: errorMessage(error), tone: "danger" }),
   });
   const archive = useMutation({
     mutationFn: (post: Post) =>
-      apiFetch<void>(`/api/posts/${post.id}?version=${post.version}&mode=archive`, {
-        method: "DELETE",
-      }),
-    onSuccess: () => invalidatePosts(queryClient, campaignId),
-  });
-  const destroy = useMutation({
-    mutationFn: (post: Post) =>
-      apiFetch<void>(`/api/posts/${post.id}?version=${post.version}&mode=permanent`, {
-        method: "DELETE",
-      }),
-    onSuccess: async () => {
-      closeDeleteDialog();
+      apiFetch<void>(`/api/posts/${post.id}?version=${post.version}&mode=archive`, { method: "DELETE" }),
+    onSuccess: async (_, post) => {
+      setArchiving(null);
+      toast({ title: "Publicação arquivada", description: `${post.title} saiu da leitura pública.` });
       await invalidatePosts(queryClient, campaignId);
     },
   });
-
-  function closeDeleteDialog() {
-    setDeleting(null);
-    window.requestAnimationFrame(() => deleteTriggerRef.current?.focus());
-  }
+  const destroy = useMutation({
+    mutationFn: (post: Post) =>
+      apiFetch<void>(`/api/posts/${post.id}?version=${post.version}&mode=permanent`, { method: "DELETE" }),
+    onSuccess: async (_, post) => {
+      setDeleting(null);
+      toast({ title: "Publicação excluída", description: `${post.title} foi removida permanentemente.` });
+      await invalidatePosts(queryClient, campaignId);
+    },
+  });
 
   const canCreate = hasCapability(me, "post:create", campaignId);
   const canReview = hasCapability(me, "post:review", campaignId);
@@ -99,162 +127,213 @@ export function PostsPanel({
   const canDelete = hasCapability(me, "post:delete", campaignId);
   const canEditAll = canCreate && canReview;
 
-  return (
-    <div className="admin-two-column">
-      <div>
-        <div className="admin-section-title">
-          <div><span>MESA DE REVISÃO</span><h2>Posts</h2></div>
-          <b>{posts.data?.data.length ?? 0} registros</b>
-        </div>
-        {posts.isLoading ? <p>Reunindo os manuscritos…</p> : null}
-        {posts.isError ? <p className="inline-error">{errorMessage(posts.error)}</p> : null}
-        <div className="admin-list post-list">
-          {posts.data?.data.map((post) => (
-            <article key={post.id}>
-              <div className="admin-list-main">
-                <span className={`status-pill status-${post.status}`}>{statusLabels[post.status]}</span>
-                <h3>{post.title}</h3>
-                <p>{post.authorName} · origem {post.source}</p>
-              </div>
-              <div className="admin-row-actions">
-                {canCreate &&
-                (post.authorUserId === me.user?.id || canEditAll) &&
-                ["draft", "pending_review", "rejected"].includes(post.status) ? (
-                  <button type="button" onClick={() => setEditing(post)}>Editar</button>
-                ) : null}
-                {(post.status === "draft" || post.status === "rejected") && post.authorUserId === me.user?.id ? (
-                  <button type="button" onClick={() => transition.mutate({ post, status: "pending_review" })}>Enviar à revisão</button>
-                ) : null}
-                {post.status === "pending_review" && canReview ? (
-                  <>
-                    <button type="button" onClick={() => transition.mutate({ post, status: "approved" })}>Aprovar</button>
-                    <button type="button" onClick={() => transition.mutate({ post, status: "rejected" })}>Rejeitar</button>
-                  </>
-                ) : null}
-                {post.status === "approved" && canPublish ? (
-                  <button type="button" onClick={() => transition.mutate({ post, status: "published" })}>Publicar no portal</button>
-                ) : null}
-                {post.status === "archived" && canPublish ? (
-                  <button type="button" onClick={() => transition.mutate({ post, status: "draft" })}>Restaurar como rascunho</button>
-                ) : null}
-                {post.status !== "archived" && canPublish ? (
-                  <button className="danger-link" type="button" onClick={() => archive.mutate(post)}>Arquivar</button>
-                ) : null}
-                {post.status === "archived" && canDelete ? (
-                  <button
-                    className="danger-link"
-                    type="button"
-                    onClick={(event) => {
-                      deleteTriggerRef.current = event.currentTarget;
-                      setDeleting(post);
-                    }}
-                  >
-                    Excluir permanentemente
-                  </button>
-                ) : null}
-              </div>
-            </article>
-          ))}
-        </div>
-        {transition.isError ? <p className="inline-error">{errorMessage(transition.error)}</p> : null}
-        {archive.isError ? <p className="inline-error">{errorMessage(archive.error)}</p> : null}
-      </div>
-      {canCreate || editing ? (
-        <PostForm
-          campaignId={campaignId}
-          post={editing}
-          busy={save.isPending}
-          onCancel={() => setEditing(null)}
-          onSubmit={(payload) => save.mutate(payload)}
-          error={save.isError ? errorMessage(save.error) : null}
-        />
-      ) : (
-        <aside className="permission-note">Seu perfil não cria conteúdo editorial.</aside>
-      )}
-      {deleting ? (
-        <PermanentDeleteDialog
-          key={deleting.id}
-          post={deleting}
-          busy={destroy.isPending}
-          error={destroy.isError ? errorMessage(destroy.error) : null}
-          onCancel={closeDeleteDialog}
-          onConfirm={() => destroy.mutate(deleting)}
-        />
-      ) : null}
-    </div>
-  );
-}
+  if (posts.isPending) return <PanelLoading label="Reunindo as publicações" />;
+  if (posts.isError) {
+    return (
+      <FeedbackState
+        title="Não foi possível carregar as publicações"
+        tone="error"
+        role="alert"
+        action={<Button onClick={() => posts.refetch()}>Tentar novamente</Button>}
+      >
+        {errorMessage(posts.error)}
+      </FeedbackState>
+    );
+  }
 
-function PermanentDeleteDialog({
-  post,
-  busy,
-  error,
-  onCancel,
-  onConfirm,
-}: Readonly<{
-  post: Post;
-  busy: boolean;
-  error: string | null;
-  onCancel: () => void;
-  onConfirm: () => void;
-}>) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const confirmationRef = useRef<HTMLInputElement>(null);
-  const [confirmation, setConfirmation] = useState("");
-  const confirmed = confirmation === "EXCLUIR";
+  const data = posts.data?.data ?? [];
+  const query = normalizeSearch(search);
+  const visible = data.filter((post) => {
+    const matchesFilter =
+      filter === "all" ? true : filter === "active" ? post.status !== "archived" : post.status === filter;
+    return matchesFilter && (!query || normalizeSearch(`${post.title} ${post.authorName}`).includes(query));
+  });
+  const count = (status: PostStatus) => data.filter((post) => post.status === status).length;
 
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (dialog && !dialog.open) {
-      dialog.showModal();
-      confirmationRef.current?.focus();
-    }
-    return () => {
-      if (dialog?.open) dialog.close();
-    };
-  }, []);
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (confirmed && !busy) onConfirm();
+  function remember(event: { currentTarget: HTMLElement }) {
+    triggerRef.current = event.currentTarget;
   }
 
   return (
-    <dialog
-      ref={dialogRef}
-      className="destructive-dialog"
-      aria-labelledby="permanent-delete-title"
-      onCancel={(event) => {
-        event.preventDefault();
-        if (!busy) onCancel();
-      }}
-    >
-      <form className="destructive-dialog-card" onSubmit={submit}>
-        <span className="dialog-kicker">AÇÃO IRREVERSÍVEL</span>
-        <h2 id="permanent-delete-title">Excluir post permanentemente?</h2>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <SearchField label="Buscar publicação" value={search} onChange={setSearch} placeholder="Título ou autoria" className="max-w-md" />
+        {canCreate ? (
+          <Button variant="accent" onClick={(event) => { remember(event); save.reset(); setEditor({ post: null }); }}>
+            Nova publicação
+          </Button>
+        ) : null}
+      </div>
+      <FilterChips
+        label="Filtrar publicações por situação"
+        value={filter}
+        onChange={setFilter}
+        options={[
+          { value: "active", label: "Em andamento", count: data.filter((post) => post.status !== "archived").length },
+          { value: "pending_review", label: "Em revisão", count: count("pending_review") },
+          { value: "approved", label: "Aprovadas", count: count("approved") },
+          { value: "published", label: "Publicadas", count: count("published") },
+          { value: "archived", label: "Arquivadas", count: count("archived") },
+          { value: "all", label: "Todas", count: data.length },
+        ]}
+      />
+      {!canCreate ? <PermissionNote>Seu perfil revisa e publica, mas não cria textos.</PermissionNote> : null}
+
+      {data.length === 0 ? (
+        <FeedbackState
+          title="Nenhuma publicação ainda"
+          action={canCreate ? <Button variant="accent" onClick={() => setEditor({ post: null })}>Escrever a primeira</Button> : null}
+        >
+          Crônicas e comunicados passam por revisão humana antes de chegar ao portal.
+        </FeedbackState>
+      ) : (
+        <DataTable
+          caption="Publicações da campanha"
+          rows={visible}
+          rowKey={(post) => post.id}
+          initialSort={{ column: "status", direction: "ascending" }}
+          empty={
+            <FeedbackState title="Nenhuma publicação neste filtro" action={<Button onClick={() => { setFilter("all"); setSearch(""); }}>Mostrar todas</Button>}>
+              Ajuste a busca ou escolha outra situação.
+            </FeedbackState>
+          }
+          columns={[
+            {
+              id: "title",
+              header: "Publicação",
+              hideLabelOnMobile: true,
+              sortValue: (post) => post.title,
+              cell: (post) => (
+                <div className="min-w-0 space-y-1">
+                  <p className="font-semibold text-fg">{post.title}</p>
+                  <p className="text-xs text-fg-subtle">{post.authorName} · {sourceLabels[post.source]}</p>
+                </div>
+              ),
+            },
+            {
+              id: "status",
+              header: "Situação",
+              sortValue: (post) => editorialOrder[post.status],
+              className: "md:w-36",
+              cell: (post) => <Badge tone={editorialTone[post.status]}>{statusLabels[post.status]}</Badge>,
+            },
+            {
+              id: "updated",
+              header: "Atualizada",
+              sortValue: (post) => timestamp(post.updatedAt),
+              className: "md:w-36 text-fg-muted",
+              cell: (post) => formatDate(post.updatedAt),
+            },
+            {
+              id: "actions",
+              header: "Ações",
+              hideLabelOnMobile: true,
+              className: "lg:w-80",
+              cell: (post) => (
+                <RowActions>
+                  {canCreate && (post.authorUserId === me.user?.id || canEditAll) &&
+                  ["draft", "pending_review", "rejected"].includes(post.status) ? (
+                    <Button size="sm" variant="ghost" onClick={(event) => { remember(event); save.reset(); setEditor({ post }); }}>
+                      Editar
+                    </Button>
+                  ) : null}
+                  {(post.status === "draft" || post.status === "rejected") && post.authorUserId === me.user?.id ? (
+                    <Button size="sm" disabled={transition.isPending} onClick={() => transition.mutate({ post, status: "pending_review" })}>
+                      Enviar à revisão
+                    </Button>
+                  ) : null}
+                  {post.status === "pending_review" && canReview ? (
+                    <>
+                      <Button size="sm" variant="primary" disabled={transition.isPending} onClick={() => transition.mutate({ post, status: "approved" })}>
+                        Aprovar
+                      </Button>
+                      <Button size="sm" disabled={transition.isPending} onClick={() => transition.mutate({ post, status: "rejected" })}>
+                        Rejeitar
+                      </Button>
+                    </>
+                  ) : null}
+                  {post.status === "approved" && canPublish ? (
+                    <Button size="sm" variant="primary" disabled={transition.isPending} onClick={() => transition.mutate({ post, status: "published" })}>
+                      Publicar no portal
+                    </Button>
+                  ) : null}
+                  {post.status === "archived" && canPublish ? (
+                    <Button size="sm" disabled={transition.isPending} onClick={() => transition.mutate({ post, status: "draft" })}>
+                      Restaurar como rascunho
+                    </Button>
+                  ) : null}
+                  {post.status !== "archived" && canPublish ? (
+                    <Button size="sm" variant="ghost" className="text-danger" onClick={(event) => { remember(event); archive.reset(); setArchiving(post); }}>
+                      Arquivar
+                    </Button>
+                  ) : null}
+                  {post.status === "archived" && canDelete ? (
+                    <Button size="sm" variant="danger" onClick={(event) => { remember(event); destroy.reset(); setDeleting(post); }}>
+                      Excluir permanentemente
+                    </Button>
+                  ) : null}
+                </RowActions>
+              ),
+            },
+          ]}
+        />
+      )}
+
+      <Dialog
+        open={Boolean(editor)}
+        onOpenChange={(next) => {
+          if (!next && !save.isPending) setEditor(null);
+        }}
+        title={editor?.post ? "Editar publicação" : "Nova publicação"}
+        description={editor?.post ? editor.post.title : "O texto começa como rascunho. Nenhuma publicação vai ao portal sem revisão humana."}
+        returnFocusRef={triggerRef}
+        className="max-w-3xl"
+      >
+        {editor ? (
+          <PostForm
+            key={editor.post?.id ?? "new"}
+            campaignId={campaignId}
+            post={editor.post}
+            busy={save.isPending}
+            error={save.isError ? errorMessage(save.error) : null}
+            onCancel={() => setEditor(null)}
+            onSubmit={(payload) => save.mutate(payload)}
+          />
+        ) : null}
+      </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(archiving)}
+        title="Arquivar publicação?"
+        description={archiving ? `“${archiving.title}” sai da leitura pública, mas pode ser restaurada depois.` : undefined}
+        confirmLabel="Arquivar"
+        busyLabel="Arquivando…"
+        busy={archive.isPending}
+        error={archive.isError ? errorMessage(archive.error) : null}
+        onCancel={() => setArchiving(null)}
+        onConfirm={() => archiving && archive.mutate(archiving)}
+        returnFocusRef={triggerRef}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        title="Excluir publicação permanentemente?"
+        description="Esta ação não pode ser desfeita."
+        confirmLabel="Excluir permanentemente"
+        busyLabel="Excluindo…"
+        confirmationText="EXCLUIR"
+        busy={destroy.isPending}
+        error={destroy.isError ? errorMessage(destroy.error) : null}
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => deleting && destroy.mutate(deleting)}
+        returnFocusRef={triggerRef}
+      >
         <p>
-          O post <strong>{post.title}</strong> e seus registros internos serão removidos do
+          A publicação <strong className="text-fg">{deleting?.title}</strong> e seus registros internos serão removidos do
           portal. Uma publicação já enviada ao Discord continuará existindo no fórum.
         </p>
-        <label>
-          Digite <strong>EXCLUIR</strong> para confirmar
-          <input
-            ref={confirmationRef}
-            value={confirmation}
-            onChange={(event) => setConfirmation(event.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </label>
-        {error ? <p className="inline-error">{error}</p> : null}
-        <div className="dialog-actions">
-          <button type="button" disabled={busy} onClick={onCancel}>Cancelar</button>
-          <button className="danger-primary" disabled={!confirmed || busy}>
-            {busy ? "Excluindo…" : "Excluir permanentemente"}
-          </button>
-        </div>
-      </form>
-    </dialog>
+      </ConfirmDialog>
+    </div>
   );
 }
 
@@ -262,54 +341,48 @@ function PostForm({
   campaignId,
   post,
   busy,
+  error,
   onCancel,
   onSubmit,
-  error,
 }: Readonly<{
   campaignId: string;
   post: Post | null;
   busy: boolean;
+  error: string | null;
   onCancel: () => void;
   onSubmit: (value: CreatePostInput | (UpdatePostInput & { id: string })) => void;
-  error: string | null;
 }>) {
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    const fields = {
-      title: String(data.get("title")),
-      body: String(data.get("body")),
-    };
-    onSubmit(
-      post
-        ? { ...fields, id: post.id, version: post.version }
-        : { ...fields, campaignId, source: "manual" },
-    );
+    const fields = { title: String(data.get("title")), body: String(data.get("body")) };
+    onSubmit(post ? { ...fields, id: post.id, version: post.version } : { ...fields, campaignId, source: "manual" });
   }
 
   return (
-    <aside className="admin-editor">
-      <div className="admin-section-title">
-        <div><span>{post ? "EDIÇÃO" : "NOVO TEXTO"}</span><h2>{post ? post.title : "Criar post"}</h2></div>
+    <form className="space-y-6" onSubmit={submit}>
+      <FormGrid>
+        <Field label="Título" className="full">
+          {({ id }) => <Input id={id} name="title" required minLength={3} maxLength={140} defaultValue={post?.title} />}
+        </Field>
+        <Field label="Conteúdo" className="full" hint="Separe parágrafos com uma linha em branco.">
+          {({ id, describedBy }) => (
+            <Textarea id={id} name="body" required rows={14} maxLength={20_000} defaultValue={post?.body} aria-describedby={describedBy} />
+          )}
+        </Field>
+      </FormGrid>
+      {error ? <Notice tone="danger" role="alert">{error}</Notice> : null}
+      <div className="flex flex-col-reverse gap-3 border-t border-line-soft pt-4 sm:flex-row sm:justify-end">
+        <Button disabled={busy} onClick={onCancel}>Cancelar</Button>
+        <Button type="submit" variant="primary" disabled={busy}>
+          {busy ? "Salvando…" : post ? "Salvar texto" : "Criar rascunho"}
+        </Button>
       </div>
-      <form className="admin-form" key={post?.id ?? "new"} onSubmit={submit}>
-        <label className="full">Título<input name="title" required minLength={3} defaultValue={post?.title} /></label>
-        <label className="full">Conteúdo<textarea name="body" required rows={14} defaultValue={post?.body} /></label>
-        <div className="form-actions full">
-          <button className="admin-primary" disabled={busy}>{post ? "Salvar texto" : "Criar rascunho"}</button>
-          {post ? <button type="button" onClick={onCancel}>Cancelar</button> : null}
-        </div>
-      </form>
-      <p className="editorial-note">Nenhum post é publicado sem passar por revisão humana.</p>
-      {error ? <p className="inline-error">{error}</p> : null}
-    </aside>
+    </form>
   );
 }
 
-async function invalidatePosts(
-  queryClient: ReturnType<typeof useQueryClient>,
-  campaignId: string,
-) {
+async function invalidatePosts(queryClient: ReturnType<typeof useQueryClient>, campaignId: string) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.posts(campaignId, "editorial") }),
     queryClient.invalidateQueries({ queryKey: queryKeys.posts(campaignId) }),

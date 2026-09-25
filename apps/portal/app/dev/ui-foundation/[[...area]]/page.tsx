@@ -12,7 +12,7 @@ import {
   previewCharacterLinks,
   previewCharacterMembers,
   previewCharacterWorlds,
-} from "../character-fixtures";
+} from "../../character-fixtures";
 
 const campaignId = "11111111-1111-4111-8111-111111111111";
 
@@ -128,11 +128,17 @@ const previewSummaries: SessionSummaryListResponse = {
   ],
 };
 
-export default function UiFoundationPreviewPage() {
+/** Prévia do painel com dados locais; cada área abre em `/dev/ui-foundation/[area]`. */
+export default async function UiFoundationPreviewPage({
+  params,
+}: Readonly<{ params: Promise<{ area?: string[] }> }>) {
   if (process.env.NODE_ENV !== "development") notFound();
+  const [area = "personagens"] = (await params).area ?? [];
 
   return (
     <DashboardClient
+      area={area}
+      basePath="/dev/ui-foundation"
       initialMe={previewUser}
       initialCampaigns={previewCampaigns}
       initialEditorialPosts={previewPosts}
@@ -141,7 +147,6 @@ export default function UiFoundationPreviewPage() {
       initialCharacterMembers={previewCharacterMembers}
       initialCharacterLinks={previewCharacterLinks}
       initialCharacterWorlds={previewCharacterWorlds}
-      initialTab="characters"
     />
   );
 }

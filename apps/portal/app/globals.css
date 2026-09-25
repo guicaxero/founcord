@@ -1,16 +1,4 @@
-/*
- * A camada "legacy" guarda as folhas ainda não migradas. Declarar a ordem aqui
- * é essencial: CSS sem camada vence qualquer @layer, e sem isso o estilo antigo
- * sobrescreveria as utilidades do Tailwind nas telas novas.
- */
-@layer theme, base, legacy, components, utilities;
-
 @import "tailwindcss";
-@import "./styles/base.css" layer(legacy);
-@import "./styles/merchant.css" layer(legacy);
-@import "./styles/characters.css" layer(legacy);
-@import "./styles/admin.css" layer(legacy);
-@import "./styles/responsive.css" layer(legacy);
 
 /*
  * Tema escuro da Ordem da Última Luz.
@@ -84,71 +72,8 @@
   }
 }
 
-/*
- * Ponte para as folhas legadas em app/styles/*.css, que ainda usam a escala
- * antiga de pergaminho. `ink-*` continua significando texto e bordas, e
- * `paper-*` continua significando superfície; só os valores viraram escuros.
- * As fases 2 e 3 removem essas folhas e, com elas, este bloco.
- */
 :root {
   color-scheme: dark;
-
-  --ink-950: var(--color-fg);
-  --ink-900: #e6e2d9;
-  --ink-800: #d5d0c5;
-  --ink-700: var(--color-fg-muted);
-  --ink-600: var(--color-fg-subtle);
-  --ink-500: #6f6a61;
-  --ink-400: #4d525b;
-  --ink-300: var(--color-line-strong);
-  --ink-200: var(--color-line);
-  --ink-100: var(--color-line-soft);
-
-  --paper-50: var(--color-surface);
-  --paper-100: var(--color-surface-2);
-  --paper-200: var(--color-surface-sunken);
-  --paper-300: var(--color-surface-3);
-
-  --soot: var(--color-canvas);
-  --soot-soft: var(--color-surface);
-
-  --ember-700: var(--color-accent);
-  --ember-600: var(--color-accent);
-  --ember-500: var(--color-accent-strong);
-  --ember-100: var(--color-accent-soft);
-
-  --gold-600: var(--color-gold);
-  --gold-400: var(--color-gold);
-  --copper-400: var(--color-copper);
-
-  --moss-700: var(--color-success);
-  --moss-100: var(--color-success-soft);
-  --warning-700: var(--color-warning);
-  --warning-100: var(--color-warning-soft);
-  --danger-700: var(--color-danger);
-  --danger-100: var(--color-danger-soft);
-  --info-700: var(--color-info);
-  --info-100: var(--color-info-soft);
-  --focus: var(--color-focus);
-
-  --font-body: var(--font-sans);
-
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 22%);
-  --shadow-md: 0 18px 50px rgb(0 0 0 / 45%);
-
-  --surface-canvas: var(--color-canvas);
-  --surface-primary: var(--color-surface);
-  --surface-muted: var(--color-surface-2);
-  --surface-inverse: var(--color-surface-sunken);
-  --text-primary: var(--color-fg);
-  --text-secondary: var(--color-fg-muted);
-  --text-muted: var(--color-fg-subtle);
-  --text-inverse: var(--color-fg);
-  --border-default: var(--color-line);
-  --border-strong: var(--color-line-strong);
-  --action-primary: var(--color-accent);
-  --action-primary-hover: var(--color-accent-strong);
-  --accent: var(--color-accent);
 }
 
 @layer base {
@@ -170,6 +95,14 @@
     line-height: 1.5;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
+  }
+
+  /* O preflight do Tailwind 4 deixa o cursor padrão em botões; o portal sinaliza o clique. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary,
+  select:not(:disabled) {
+    cursor: pointer;
   }
 
   :focus-visible {

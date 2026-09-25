@@ -10,6 +10,7 @@ import type {
 } from "@ordem/contracts";
 import { useState } from "react";
 import { MerchantPurchasesPanel } from "@/components/admin/merchant-purchases-panel";
+import { PageContainer, Section } from "@/components/layout/page-container";
 import { MerchantCatalog } from "@/components/merchant/merchant-catalog";
 import { queryKeys } from "@/lib/query-keys";
 
@@ -178,23 +179,17 @@ export function MerchantPurchasePreview() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <main id="main-content">
-        <section className="mx-auto w-full max-w-7xl space-y-12 px-4 py-10 sm:px-6">
-          <MerchantCatalog campaignId={campaignId} pollingEnabled={false} />
-        </section>
-        <section className="admin-main merchant-preview-management" aria-labelledby="merchant-preview-management-title">
-          <header className="admin-page-heading">
-            <div>
-              <span className="admin-eyebrow">Prévia de gestão</span>
-              <h1 id="merchant-preview-management-title">Pedidos do Mercador</h1>
-              <p>Estado local usado para revisar a fila e as decisões do mestre.</p>
-            </div>
-          </header>
-          <div className="admin-workspace">
-            <MerchantPurchasesPanel campaignId={campaignId} pollingEnabled={false} />
-          </div>
-        </section>
-      </main>
+      <PageContainer>
+        <MerchantCatalog campaignId={campaignId} pollingEnabled={false} />
+        <Section
+          eyebrow="Prévia de gestão"
+          title="Pedidos do Mercador"
+          description="Estado local usado para revisar a fila e as decisões do mestre."
+          id="merchant-preview-management"
+        >
+          <MerchantPurchasesPanel campaignId={campaignId} pollingEnabled={false} />
+        </Section>
+      </PageContainer>
     </QueryClientProvider>
   );
 }

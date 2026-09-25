@@ -16,43 +16,38 @@ import type {
   GenerateCampaignSessionDraftInput,
   UpdateCampaignSessionInput,
 } from "@ordem/contracts";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type RefObject,
-} from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
+import { Button, ButtonAnchor } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Dialog } from "@/components/ui/dialog";
+import { FeedbackState } from "@/components/ui/feedback-state";
+import { Field, FormGrid, Input, Select, Textarea } from "@/components/ui/field";
+import { FilterChips } from "@/components/ui/filter-chips";
+import { listItem, riseIn, staggerList } from "@/components/ui/motion";
+import { Notice } from "@/components/ui/notice";
+import { Badge, Card } from "@/components/ui/surface";
+import { useToast } from "@/components/ui/toast";
 import { ApiClientError, apiFetch, errorMessage } from "@/lib/api-client";
 import { hasCapability } from "@/lib/capabilities";
+import { cn } from "@/lib/cn";
+import { formatDateTime } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
+import { DetailList, PanelHeader, PanelLoading } from "./kit";
+import type { Tone } from "./status";
 
 const sessionStatusContent: Readonly<
-  Record<CampaignSessionStatus, Readonly<{ label: string; description: string }>>
+  Record<CampaignSessionStatus, Readonly<{ label: string; description: string; tone: Tone }>>
 > = {
-  prepared: {
-    label: "Preparada",
-    description: "A sessão foi registrada e ainda não começou.",
-  },
-  starting: {
-    label: "Iniciando captura",
-    description: "O portal está preparando o registro do Foundry.",
-  },
-  active: {
-    label: "Em andamento",
-    description: "A sessão está aberta para receber registros e notas.",
-  },
-  ended: {
-    label: "Encerrada",
-    description: "A captura terminou e as fontes podem seguir para revisão.",
-  },
-  cancelled: {
-    label: "Cancelada",
-    description: "A sessão foi encerrada sem continuar o fluxo editorial.",
-  },
+  prepared: { label: "Preparada", description: "A sessão foi registrada e ainda não começou.", tone: "neutral" },
+  starting: { label: "Iniciando captura", description: "O portal está preparando o registro do Foundry.", tone: "info" },
+  active: { label: "Em andamento", description: "A sessão está aberta para receber registros e notas.", tone: "success" },
+  ended: { label: "Encerrada", description: "A captura terminou e as fontes podem seguir para revisão.", tone: "neutral" },
+  cancelled: { label: "Cancelada", description: "A sessão foi encerrada sem seguir para o fluxo editorial.", tone: "neutral" },
   capture_failed: {
     label: "Captura interrompida",
     description: "Os registros recebidos foram preservados e a captura pode ser retomada.",
+    tone: "danger",
   },
 };
 
@@ -74,8 +69,11 @@ export function SessionsPanel({
   onOpenReview: () => void;
 }>) {
   const queryClient = useQueryClient();
+  const toast = useToast();
+  const createTriggerRef = useRef<HTMLButtonElement>(null);
+  const contextTriggerRef = useRef<HTMLElement | null>(null);
   const endTriggerRef = useRef<HTMLButtonElement>(null);
-  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [editingContextId, setEditingContextId] = useState<string | null>(null);
   const [focusedSessionId, setFocusedSessionId] = useState<string | null>(null);
   const [endingSession, setEndingSession] = useState<CampaignSession | null>(null);
@@ -84,38 +82,21 @@ export function SessionsPanel({
 
   const sessions = useQuery({
     queryKey: queryKeys.campaignSessions(campaignId),
-    queryFn: () =>
-      apiFetch<CampaignSessionListResponse>(
-        `/api/campaigns/${campaignId}/sessions`,
-      ),
+    queryFn: () => apiFetch<CampaignSessionListResponse>(`/api/campaigns/${campaignId}/sessions`),
     refetchInterval: (query) =>
-      query.state.data?.data.some((item) =>
-        item.status === "active" || item.status === "starting",
-      )
-        ? 5_000
-        : false,
+      query.state.data?.data.some((item) => item.status === "active" || item.status === "starting") ? 5_000 : false,
   });
   const options = useQuery({
     queryKey: queryKeys.campaignSessionOptions(campaignId),
-    queryFn: () =>
-      apiFetch<CampaignSessionOptions>(
-        `/api/campaigns/${campaignId}/sessions/options`,
-      ),
+    queryFn: () => apiFetch<CampaignSessionOptions>(`/api/campaigns/${campaignId}/sessions/options`),
     enabled: canManage,
     staleTime: 30_000,
   });
   const automations = useQuery({
     queryKey: queryKeys.automations(campaignId),
-    queryFn: () =>
-      apiFetch<AutomationJobListResponse>(
-        `/api/campaigns/${campaignId}/automations`,
-      ),
+    queryFn: () => apiFetch<AutomationJobListResponse>(`/api/campaigns/${campaignId}/automations`),
     refetchInterval: (query) =>
-      query.state.data?.data.some((job) =>
-        job.status === "queued" || job.status === "processing",
-      )
-        ? 3_000
-        : false,
+      query.state.data?.data.some((job) => job.status === "queued" || job.status === "processing") ? 3_000 : false,
   });
 
   async function invalidateSessions() {
@@ -127,70 +108,66 @@ export function SessionsPanel({
 
   const create = useMutation({
     mutationFn: (input: CreateCampaignSessionInput) =>
-      apiFetch<CampaignSession>(`/api/campaigns/${campaignId}/sessions`, {
-        method: "POST",
-        body: JSON.stringify(input),
-      }),
+      apiFetch<CampaignSession>(`/api/campaigns/${campaignId}/sessions`, { method: "POST", body: JSON.stringify(input) }),
     onSuccess: async (created) => {
-      setShowCreate(false);
+      setCreating(false);
       setFocusedSessionId(created.id);
+      toast({
+        title: created.status === "prepared" ? "Sessão registrada" : "Sessão iniciada",
+        description: created.title,
+      });
       await invalidateSessions();
     },
     onError: invalidateSessions,
   });
   const update = useMutation({
-    mutationFn: ({
-      sessionId,
-      input,
-    }: Readonly<{ sessionId: string; input: UpdateCampaignSessionInput }>) =>
-      apiFetch<CampaignSession>(
-        `/api/campaigns/${campaignId}/sessions/${sessionId}`,
-        { method: "PATCH", body: JSON.stringify(input) },
-      ),
+    mutationFn: ({ sessionId, input }: Readonly<{ sessionId: string; input: UpdateCampaignSessionInput }>) =>
+      apiFetch<CampaignSession>(`/api/campaigns/${campaignId}/sessions/${sessionId}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
     onSuccess: async (updated) => {
       setEditingContextId(null);
       setFocusedSessionId(updated.id);
+      toast({ title: "Fontes da sessão salvas", description: updated.title });
       await invalidateSessions();
     },
   });
   const start = useMutation({
     mutationFn: (item: CampaignSession) =>
-      apiFetch<CampaignSession>(
-        `/api/campaigns/${campaignId}/sessions/${item.id}/start`,
-        { method: "POST", body: JSON.stringify({ version: item.version }) },
-      ),
+      apiFetch<CampaignSession>(`/api/campaigns/${campaignId}/sessions/${item.id}/start`, {
+        method: "POST",
+        body: JSON.stringify({ version: item.version }),
+      }),
     onSuccess: async (started) => {
       setFocusedSessionId(started.id);
+      toast({ title: "Captura iniciada", description: started.title, tone: "info" });
       await invalidateSessions();
     },
     onError: invalidateSessions,
   });
   const end = useMutation({
     mutationFn: (item: CampaignSession) =>
-      apiFetch<CampaignSession>(
-        `/api/campaigns/${campaignId}/sessions/${item.id}/end`,
-        { method: "POST", body: JSON.stringify({ version: item.version }) },
-      ),
+      apiFetch<CampaignSession>(`/api/campaigns/${campaignId}/sessions/${item.id}/end`, {
+        method: "POST",
+        body: JSON.stringify({ version: item.version }),
+      }),
     onSuccess: async (ended) => {
       setEndingSession(null);
       setFocusedSessionId(ended.id);
+      toast({ title: "Captura encerrada", description: "Revise as fontes e prepare o rascunho quando quiser." });
       await invalidateSessions();
     },
   });
   const generate = useMutation({
-    mutationFn: ({
-      sessionId,
-      input,
-    }: Readonly<{
-      sessionId: string;
-      input: GenerateCampaignSessionDraftInput;
-    }>) =>
-      apiFetch<CampaignSessionGenerationResponse>(
-        `/api/campaigns/${campaignId}/sessions/${sessionId}/draft`,
-        { method: "POST", body: JSON.stringify(input) },
-      ),
+    mutationFn: ({ sessionId, input }: Readonly<{ sessionId: string; input: GenerateCampaignSessionDraftInput }>) =>
+      apiFetch<CampaignSessionGenerationResponse>(`/api/campaigns/${campaignId}/sessions/${sessionId}/draft`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
     onSuccess: async (result) => {
       setFocusedSessionId(result.session.id);
+      toast({ title: "Rascunho solicitado", description: "O resultado chega à mesa de revisão." });
       await Promise.all([
         invalidateSessions(),
         queryClient.invalidateQueries({ queryKey: queryKeys.automations(campaignId) }),
@@ -199,10 +176,7 @@ export function SessionsPanel({
   });
   const retry = useMutation({
     mutationFn: (jobId: string) =>
-      apiFetch<AutomationJob>(
-        `/api/campaigns/${campaignId}/automations/${jobId}/retry`,
-        { method: "POST" },
-      ),
+      apiFetch<AutomationJob>(`/api/campaigns/${campaignId}/automations/${jobId}/retry`, { method: "POST" }),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.automations(campaignId) }),
@@ -211,238 +185,226 @@ export function SessionsPanel({
     },
   });
 
-  if (sessions.isLoading) {
-    return <SessionsLoading />;
-  }
+  if (sessions.isPending) return <PanelLoading label="Reunindo as sessões e suas fontes" />;
+  if (sessions.isError) return <SessionsQueryError error={sessions.error} onRetry={() => sessions.refetch()} />;
 
-  if (sessions.isError) {
-    return <SessionsQueryError error={sessions.error} onRetry={() => sessions.refetch()} />;
-  }
-
-  const data = sessions.data?.data ?? [];
-  const activeSession = data.find((item) =>
-    item.status === "active" ||
-    item.status === "starting" ||
-    item.status === "capture_failed",
+  const data = sessions.data.data;
+  const activeSession = data.find(
+    (item) => item.status === "active" || item.status === "starting" || item.status === "capture_failed",
   );
-  const focusedSession = focusedSessionId
-    ? data.find((item) => item.id === focusedSessionId) ?? null
-    : null;
-  const draftSession = focusedSession?.status === "ended"
-    ? focusedSession
-    : !activeSession
-      ? data.find((item) => item.status === "ended" && !item.automationJobId) ?? null
-      : null;
-  const jobsById = new Map(
-    (automations.data?.data ?? []).map((job) => [job.id, job] as const),
-  );
+  const focusedSession = focusedSessionId ? data.find((item) => item.id === focusedSessionId) ?? null : null;
+  const draftSession =
+    focusedSession?.status === "ended"
+      ? focusedSession
+      : !activeSession
+        ? data.find((item) => item.status === "ended" && !item.automationJobId) ?? null
+        : null;
+  const jobsById = new Map((automations.data?.data ?? []).map((job) => [job.id, job] as const));
   const recentSessions = data.filter((item) => item.id !== activeSession?.id);
+  const isOngoing = (item: CampaignSession) =>
+    item.status === "prepared" || item.status === "starting" || item.status === "active" || item.status === "capture_failed";
   const filteredSessions = recentSessions.filter((item) => {
     if (historyFilter === "all") return true;
-    if (historyFilter === "ended") {
-      return item.status === "ended" || item.status === "cancelled";
-    }
-    return item.status === "prepared" || item.status === "starting" ||
-      item.status === "active" || item.status === "capture_failed";
+    if (historyFilter === "ended") return item.status === "ended" || item.status === "cancelled";
+    return isOngoing(item);
   });
+  const editingContext = editingContextId ? data.find((item) => item.id === editingContextId) ?? null : null;
 
   async function openReview() {
-    await queryClient.invalidateQueries({
-      queryKey: queryKeys.posts(campaignId, "editorial"),
-    });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.posts(campaignId, "editorial") });
     onOpenReview();
   }
 
+  function openContext(sessionId: string, trigger: HTMLElement) {
+    contextTriggerRef.current = trigger;
+    update.reset();
+    setEditingContextId(sessionId);
+  }
+
   return (
-    <div className="sessions-panel">
-      <section className="sessions-overview" aria-labelledby="sessions-overview-title">
-        <div>
-          <span className="admin-eyebrow">Caderno da expedição</span>
-          <h2 id="sessions-overview-title">
-            {activeSession ? "Sessão em andamento" : "A memória da mesa começa aqui"}
-          </h2>
-          <p>
-            Registre o ciclo real da mesa, acompanhe o que chegou do Foundry e escolha
-            conscientemente quais fontes seguirão para a oficina editorial.
-          </p>
-        </div>
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <p className="max-w-[60ch] text-sm text-fg-muted">
+          Registre o ciclo real da mesa, acompanhe o que chegou do Foundry e escolha quais fontes seguem para a
+          revisão editorial.
+        </p>
         {canManage && !activeSession ? (
-          <button
-            className="admin-primary"
-            type="button"
+          <Button
+            ref={createTriggerRef}
+            variant="accent"
             onClick={() => {
               create.reset();
-              setShowCreate((current) => !current);
+              setCreating(true);
             }}
-            aria-expanded={showCreate}
-            aria-controls="session-registration"
           >
-            {showCreate ? "Fechar formulário" : "Registrar sessão"}
-          </button>
+            Registrar sessão
+          </Button>
         ) : null}
-      </section>
+      </div>
 
-      {sessions.isFetching ? (
-        <p className="sessions-refresh-note" aria-hidden="true">Atualizando registros…</p>
+      {data.length === 0 ? (
+        <FeedbackState
+          title="Nenhuma sessão registrada"
+          action={canManage ? <Button variant="accent" onClick={() => setCreating(true)}>Registrar a primeira sessão</Button> : null}
+        >
+          Registre uma sessão para reunir os acontecimentos do Foundry e as notas da mesa num só lugar.
+        </FeedbackState>
       ) : null}
 
-      {showCreate && canManage ? (
-        <SessionRegistrationForm
-          me={me}
-          options={options.data}
-          optionsLoading={options.isLoading}
-          optionsError={options.isError ? errorMessage(options.error) : null}
-          busy={create.isPending}
-          error={create.isError ? errorMessage(create.error) : null}
-          onRetryOptions={() => options.refetch()}
-          onCancel={() => {
-            create.reset();
-            setShowCreate(false);
-          }}
-          onSubmit={(input) => create.mutate(input)}
-          campaignId={campaignId}
-        />
-      ) : null}
-
-      {data.length === 0 && !showCreate ? (
-        <section className="sessions-empty admin-card">
-          <span className="sessions-empty-mark" aria-hidden="true">◇</span>
-          <h2>Nenhuma sessão registrada</h2>
-          <p>
-            Registre uma sessão para reunir acontecimentos do Foundry e notas da mesa
-            em um único lugar.
-          </p>
-          {canManage ? (
-            <button className="admin-primary" type="button" onClick={() => setShowCreate(true)}>
-              Registrar primeira sessão
-            </button>
-          ) : null}
-        </section>
-      ) : null}
-
-      {activeSession ? (
-        <ActiveSessionCard
-          item={activeSession}
-          canManage={canManage}
-          endTriggerRef={endTriggerRef}
-          starting={start.isPending}
-          startError={start.isError ? errorMessage(start.error) : null}
-          onStart={() => start.mutate(activeSession)}
-          onEditContext={() => {
-            update.reset();
-            setEditingContextId(activeSession.id);
-          }}
-          onEnd={() => {
-            end.reset();
-            setEndingSession(activeSession);
-          }}
-        />
-      ) : null}
-
-      {editingContextId ? (
-        <SessionContextEditor
-          item={data.find((candidate) => candidate.id === editingContextId) ?? null}
-          busy={update.isPending}
-          error={update.isError ? errorMessage(update.error) : null}
-          onCancel={() => {
-            update.reset();
-            setEditingContextId(null);
-          }}
-          onSubmit={(sessionId, input) => update.mutate({ sessionId, input })}
-        />
-      ) : null}
-
-      {draftSession ? (
-        <PrepareDraft
-          item={draftSession}
-          job={draftSession.automationJobId
-            ? jobsById.get(draftSession.automationJobId) ?? null
-            : null}
-          quotaRemaining={automations.data?.quota.remainingToday ?? null}
-          quotaError={automations.isError ? errorMessage(automations.error) : null}
-          busy={generate.isPending}
-          retrying={retry.isPending}
-          error={generate.isError ? errorMessage(generate.error) : null}
-          retryError={retry.isError ? errorMessage(retry.error) : null}
-          canManage={canManage}
-          onEditContext={() => {
-            update.reset();
-            setEditingContextId(draftSession.id);
-          }}
-          onGenerate={(input) => generate.mutate({ sessionId: draftSession.id, input })}
-          onRetry={(jobId) => retry.mutate(jobId)}
-          onOpenReview={openReview}
-          onClose={() => setFocusedSessionId(null)}
-        />
-      ) : null}
+      <AnimatePresence initial={false}>
+        {activeSession ? (
+          <motion.div key={`active-${activeSession.id}`} variants={riseIn} initial="hidden" animate="visible" exit={{ opacity: 0 }}>
+            <ActiveSessionCard
+              item={activeSession}
+              canManage={canManage}
+              endTriggerRef={endTriggerRef}
+              refreshing={sessions.isFetching}
+              starting={start.isPending}
+              startError={start.isError ? errorMessage(start.error) : null}
+              onStart={() => start.mutate(activeSession)}
+              onEditContext={(trigger) => openContext(activeSession.id, trigger)}
+              onEnd={() => {
+                end.reset();
+                setEndingSession(activeSession);
+              }}
+            />
+          </motion.div>
+        ) : null}
+        {draftSession ? (
+          <motion.div key={`draft-${draftSession.id}`} variants={riseIn} initial="hidden" animate="visible" exit={{ opacity: 0 }}>
+            <PrepareDraft
+              item={draftSession}
+              job={draftSession.automationJobId ? jobsById.get(draftSession.automationJobId) ?? null : null}
+              quotaRemaining={automations.data?.quota.remainingToday ?? null}
+              quotaError={automations.isError ? errorMessage(automations.error) : null}
+              busy={generate.isPending}
+              retrying={retry.isPending}
+              error={generate.isError ? errorMessage(generate.error) : null}
+              retryError={retry.isError ? errorMessage(retry.error) : null}
+              canManage={canManage}
+              onEditContext={(trigger) => openContext(draftSession.id, trigger)}
+              onGenerate={(input) => generate.mutate({ sessionId: draftSession.id, input })}
+              onRetry={(jobId) => retry.mutate(jobId)}
+              onOpenReview={openReview}
+              onClose={() => setFocusedSessionId(null)}
+            />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       {recentSessions.length > 0 ? (
-        <section className="sessions-history" aria-labelledby="sessions-history-title">
-          <div className="admin-section-title sessions-history-heading">
-            <div>
-              <span>Registros preservados</span>
-              <h2 id="sessions-history-title">Sessões recentes</h2>
-              <p>Retome uma sessão preparada ou acompanhe o caminho até a revisão.</p>
-            </div>
-            <div className="sessions-filters" aria-label="Filtrar sessões recentes">
-              {([
-                ["all", "Todas"],
-                ["ongoing", "Em andamento"],
-                ["ended", "Encerradas"],
-              ] as const).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={historyFilter === value}
-                  onClick={() => setHistoryFilter(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
+        <section className="space-y-5" aria-labelledby="sessions-history-title">
+          <PanelHeader
+            id="sessions-history-title"
+            eyebrow="Registros preservados"
+            title="Sessões recentes"
+            description="Retome uma sessão preparada ou acompanhe o caminho até a revisão."
+          />
+          <FilterChips
+            label="Filtrar sessões recentes"
+            value={historyFilter}
+            onChange={setHistoryFilter}
+            options={[
+              { value: "all", label: "Todas", count: recentSessions.length },
+              { value: "ongoing", label: "Em andamento", count: recentSessions.filter(isOngoing).length },
+              { value: "ended", label: "Encerradas", count: recentSessions.filter((item) => item.status === "ended" || item.status === "cancelled").length },
+            ]}
+          />
+          {start.isError && !activeSession ? <Notice tone="danger" role="alert">{errorMessage(start.error)}</Notice> : null}
           {filteredSessions.length === 0 ? (
-            <div className="sessions-filter-empty">
-              <p>Nenhuma sessão corresponde a este filtro.</p>
-              <button type="button" className="secondary-action" onClick={() => setHistoryFilter("all")}>
-                Mostrar todas
-              </button>
-            </div>
+            <FeedbackState title="Nenhuma sessão neste filtro" action={<Button onClick={() => setHistoryFilter("all")}>Mostrar todas</Button>}>
+              Escolha outro filtro para ver o histórico.
+            </FeedbackState>
           ) : (
-            <div className="sessions-history-grid">
+            <motion.ul key={historyFilter} className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3" variants={staggerList} initial="hidden" animate="visible">
               {filteredSessions.map((item) => (
-                <SessionHistoryCard
-                  key={item.id}
-                  item={item}
-                  job={item.automationJobId ? jobsById.get(item.automationJobId) ?? null : null}
-                  canManage={canManage}
-                  starting={start.isPending && start.variables?.id === item.id}
-                  onStart={() => start.mutate(item)}
-                  onPrepare={() => setFocusedSessionId(item.id)}
-                  onOpenReview={openReview}
-                />
+                <motion.li key={item.id} variants={listItem}>
+                  <SessionHistoryCard
+                    item={item}
+                    job={item.automationJobId ? jobsById.get(item.automationJobId) ?? null : null}
+                    canManage={canManage}
+                    starting={start.isPending && start.variables?.id === item.id}
+                    onStart={() => start.mutate(item)}
+                    onPrepare={() => setFocusedSessionId(item.id)}
+                    onOpenReview={openReview}
+                  />
+                </motion.li>
               ))}
-            </div>
+            </motion.ul>
           )}
-          {start.isError && !activeSession ? (
-            <p className="inline-error" role="alert">{errorMessage(start.error)}</p>
-          ) : null}
         </section>
       ) : null}
 
-      <EndSessionDialog
-        item={endingSession}
-        busy={end.isPending}
-        error={end.isError ? errorMessage(end.error) : null}
-        returnFocusRef={endTriggerRef}
-        onCancel={() => {
-          if (!end.isPending) {
-            end.reset();
-            setEndingSession(null);
-          }
+      {canManage ? (
+        <Dialog
+          open={creating}
+          onOpenChange={(next) => {
+            if (!next && !create.isPending) setCreating(false);
+          }}
+          title="Registrar sessão"
+          description="Defina o contexto da mesa e escolha quais fontes estarão disponíveis desde o início."
+          returnFocusRef={createTriggerRef}
+          className="max-w-3xl"
+        >
+          <SessionRegistrationForm
+            campaignId={campaignId}
+            me={me}
+            options={options.data}
+            optionsLoading={options.isLoading}
+            optionsError={options.isError ? errorMessage(options.error) : null}
+            busy={create.isPending}
+            error={create.isError ? errorMessage(create.error) : null}
+            onRetryOptions={() => options.refetch()}
+            onCancel={() => setCreating(false)}
+            onSubmit={(input) => create.mutate(input)}
+          />
+        </Dialog>
+      ) : null}
+
+      <Dialog
+        open={Boolean(editingContext)}
+        onOpenChange={(next) => {
+          if (!next && !update.isPending) setEditingContextId(null);
         }}
+        title={editingContext ? `Fontes manuais de “${editingContext.title}”` : ""}
+        description="As alterações ficam salvas na sessão. Nenhum rascunho é gerado sozinho."
+        returnFocusRef={contextTriggerRef}
+      >
+        {editingContext ? (
+          <SessionContextForm
+            key={editingContext.version}
+            item={editingContext}
+            busy={update.isPending}
+            error={update.isError ? errorMessage(update.error) : null}
+            onCancel={() => setEditingContextId(null)}
+            onSubmit={(input) => update.mutate({ sessionId: editingContext.id, input })}
+          />
+        ) : null}
+      </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(endingSession)}
+        title={`Encerrar “${endingSession?.title ?? ""}”?`}
+        description="Novos eventos deixam de ser adicionados. As fontes já recebidas ficam preservadas para revisão."
+        confirmLabel="Encerrar captura"
+        busyLabel="Encerrando captura…"
+        cancelLabel="Continuar sessão"
+        busy={end.isPending}
+        error={end.isError ? `${errorMessage(end.error)} Você pode tentar de novo ou continuar a sessão.` : null}
+        onCancel={() => setEndingSession(null)}
         onConfirm={() => endingSession && end.mutate(endingSession)}
-      />
+        returnFocusRef={endTriggerRef}
+      >
+        <DetailList
+          className="sm:grid-cols-2"
+          items={[
+            { label: "Mundo afetado", value: endingSession?.foundry?.worldTitle ?? "Nenhum mundo associado" },
+            { label: "Registros capturados", value: endingSession?.foundry?.messageCount ?? 0 },
+            { label: "Notas do mestre", value: endingSession?.notes.trim() ? "Incluídas" : "Ausentes" },
+            { label: "Discord", value: "Mensagens não importadas" },
+          ]}
+        />
+      </ConfirmDialog>
     </div>
   );
 }
@@ -470,11 +432,7 @@ function SessionRegistrationForm({
   onCancel: () => void;
   onSubmit: (input: CreateCampaignSessionInput) => void;
 }>) {
-  const errorRef = useRef<HTMLParagraphElement>(null);
-
-  useEffect(() => {
-    if (error) errorRef.current?.focus();
-  }, [error]);
+  const blocked = busy || optionsLoading || Boolean(optionsError);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -495,111 +453,94 @@ function SessionRegistrationForm({
   }
 
   return (
-    <section className="admin-card session-registration" id="session-registration" aria-labelledby="session-registration-title">
-      <div className="admin-section-title">
-        <div>
-          <span>Novo registro</span>
-          <h2 id="session-registration-title">Registrar sessão</h2>
-          <p>Defina o contexto da mesa e escolha quais fontes estarão disponíveis desde o início.</p>
-        </div>
-      </div>
-      {optionsLoading ? <p className="sessions-options-note">Carregando missões e mundos disponíveis…</p> : null}
+    <form className="space-y-6" onSubmit={submit}>
+      {optionsLoading ? <p className="text-sm text-fg-subtle" role="status">Carregando missões e mundos disponíveis…</p> : null}
       {optionsError ? (
-        <div className="inline-error" role="alert">
-          <p>{optionsError}</p>
-          <button className="secondary-action" type="button" onClick={onRetryOptions}>Tentar novamente</button>
-        </div>
+        <Notice tone="danger" role="alert" action={<Button size="sm" onClick={onRetryOptions}>Tentar novamente</Button>}>
+          {optionsError}
+        </Notice>
       ) : null}
       {options && !options.foundryAvailable ? (
-        <p className="inline-warning" role="status">
-          Os mundos do Foundry estão temporariamente indisponíveis. Você pode continuar
-          sem mundo e registrar a sessão usando notas manuais.
-        </p>
+        <Notice tone="warning" role="status">
+          Os mundos do Foundry estão indisponíveis agora. Você pode registrar a sessão só com notas manuais.
+        </Notice>
       ) : null}
-      <form className="admin-form sessions-form" onSubmit={submit}>
-        <label className="full">
-          Nome da sessão
-          <input
-            name="title"
-            required
-            minLength={3}
-            maxLength={140}
-            placeholder="Ex.: Sessão 12 — O moinho abandonado"
-            disabled={busy}
-          />
-        </label>
-        <label>
-          Missão relacionada <span className="optional-field">opcional</span>
-          <select name="missionId" defaultValue="" disabled={busy || Boolean(optionsError)}>
-            <option value="">Nenhuma missão relacionada</option>
-            {options?.missions.map((mission) => (
-              <option value={mission.id} key={mission.id}>{mission.title}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Mestre responsável
-          <input value={me.user?.displayName ?? "Mestre atual"} readOnly aria-describedby="session-master-help" />
-          <small id="session-master-help">Nesta versão, o registro fica sob responsabilidade de quem o cria.</small>
-        </label>
-        <label className="full">
-          Mundo do Foundry
-          <select
-            name="worldId"
-            defaultValue=""
-            disabled={busy || Boolean(optionsError) || options?.foundryAvailable === false}
-            aria-describedby="session-world-help"
-          >
-            <option value="">Sem mundo — usar apenas notas manuais</option>
-            {options?.worlds.map((world) => (
-              <option value={world.worldId} key={world.worldId} disabled={world.status === "revoked"}>
-                {world.worldTitle} — {worldStatusLabel(world.status)}
-              </option>
-            ))}
-          </select>
-          <small id="session-world-help">
-            {options?.foundryAvailable && options.worlds.length === 0
+      <FormGrid>
+        <Field label="Nome da sessão" className="full">
+          {({ id }) => <Input id={id} name="title" required minLength={3} maxLength={140} placeholder="Ex.: Sessão 12 — O moinho abandonado" disabled={busy} />}
+        </Field>
+        <Field label="Missão relacionada" optional>
+          {({ id }) => (
+            <Select id={id} name="missionId" defaultValue="" disabled={busy || Boolean(optionsError)}>
+              <option value="">Nenhuma missão relacionada</option>
+              {options?.missions.map((mission) => (
+                <option value={mission.id} key={mission.id}>{mission.title}</option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        <Field label="Mestre responsável" hint="O registro fica sob responsabilidade de quem o cria.">
+          {({ id, describedBy }) => (
+            <Input id={id} value={me.user?.displayName ?? "Mestre atual"} readOnly aria-describedby={describedBy} />
+          )}
+        </Field>
+        <Field
+          label="Mundo do Foundry"
+          className="full"
+          hint={
+            options?.foundryAvailable && options.worlds.length === 0
               ? "Nenhum mundo está conectado a esta campanha. A sessão usará notas manuais."
-              : "A captura automática começa quando o mundo selecionado estiver disponível."}
-          </small>
-        </label>
-        <label className="full">
-          Canal ou tópico do Discord <span className="optional-field">opcional</span>
-          <input
-            name="discordReference"
-            maxLength={200}
-            placeholder="Ex.: #sessao-12 ou Crônica — O moinho"
-            disabled={busy}
-            aria-describedby="session-discord-help"
-          />
-          <small id="session-discord-help">Nesta versão, a referência será salva, mas as mensagens do Discord não serão importadas automaticamente.</small>
-        </label>
-        <label className="full">
-          Notas iniciais <span className="optional-field">opcional</span>
-          <textarea
-            name="notes"
-            rows={6}
-            maxLength={20_000}
-            disabled={busy}
-            placeholder="Registre contexto que não aparecerá no Foundry…"
-          />
-        </label>
-        <div className="sessions-registration-summary full">
-          <strong>Fontes desta sessão</strong>
-          <p>O Foundry incluirá apenas mensagens públicas capturadas. Notas manuais podem ser editadas antes de gerar qualquer rascunho. O Discord será somente uma referência.</p>
-        </div>
-        <div className="form-actions sessions-form-actions full">
-          <button type="button" disabled={busy} onClick={onCancel}>Cancelar</button>
-          <button type="submit" name="action" value="save" disabled={busy || optionsLoading || Boolean(optionsError)}>
-            {busy ? "Registrando…" : "Salvar sem iniciar"}
-          </button>
-          <button className="admin-primary" type="submit" name="action" value="start" disabled={busy || optionsLoading || Boolean(optionsError)}>
-            {busy ? "Iniciando registro…" : "Registrar e iniciar captura"}
-          </button>
-        </div>
-      </form>
-      {error ? <p className="inline-error" role="alert" tabIndex={-1} ref={errorRef}>{error}</p> : null}
-    </section>
+              : "A captura automática começa quando o mestre estiver conectado ao mundo escolhido."
+          }
+        >
+          {({ id, describedBy }) => (
+            <Select
+              id={id}
+              name="worldId"
+              defaultValue=""
+              disabled={busy || Boolean(optionsError) || options?.foundryAvailable === false}
+              aria-describedby={describedBy}
+            >
+              <option value="">Sem mundo — usar só notas manuais</option>
+              {options?.worlds.map((world) => (
+                <option value={world.worldId} key={world.worldId} disabled={world.status === "revoked"}>
+                  {world.worldTitle} — {worldStatusLabel(world.status)}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        <Field
+          label="Canal ou tópico do Discord"
+          optional
+          className="full"
+          hint="A referência é salva, mas as mensagens do Discord não são importadas."
+        >
+          {({ id, describedBy }) => (
+            <Input id={id} name="discordReference" maxLength={200} placeholder="Ex.: #sessao-12" disabled={busy} aria-describedby={describedBy} />
+          )}
+        </Field>
+        <Field label="Notas iniciais" optional className="full">
+          {({ id }) => (
+            <Textarea id={id} name="notes" rows={5} maxLength={20_000} disabled={busy} placeholder="Registre o contexto que não aparecerá no Foundry…" />
+          )}
+        </Field>
+      </FormGrid>
+      <Notice tone="info" title="Fontes desta sessão">
+        O Foundry inclui só mensagens públicas capturadas. Notas manuais podem ser editadas antes de gerar qualquer
+        rascunho. O Discord fica apenas como referência.
+      </Notice>
+      {error ? <Notice tone="danger" role="alert">{error}</Notice> : null}
+      <div className="flex flex-col-reverse gap-3 border-t border-line-soft pt-4 sm:flex-row sm:justify-end">
+        <Button disabled={busy} onClick={onCancel}>Cancelar</Button>
+        <Button type="submit" name="action" value="save" disabled={blocked}>
+          {busy ? "Registrando…" : "Salvar sem iniciar"}
+        </Button>
+        <Button type="submit" name="action" value="start" variant="primary" disabled={blocked}>
+          {busy ? "Iniciando…" : "Registrar e iniciar captura"}
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -607,6 +548,7 @@ function ActiveSessionCard({
   item,
   canManage,
   endTriggerRef,
+  refreshing,
   starting,
   startError,
   onStart,
@@ -616,50 +558,87 @@ function ActiveSessionCard({
   item: CampaignSession;
   canManage: boolean;
   endTriggerRef: RefObject<HTMLButtonElement | null>;
+  refreshing: boolean;
   starting: boolean;
   startError: string | null;
   onStart: () => void;
-  onEditContext: () => void;
+  onEditContext: (trigger: HTMLElement) => void;
   onEnd: () => void;
 }>) {
   const status = sessionStatusContent[item.status];
   return (
-    <article className={`active-session-card is-${item.status}`} aria-labelledby={`active-session-${item.id}`}>
-      <header>
-        <div>
-          <span className={`session-status is-${item.status}`}>{status.label}</span>
-          <h2 id={`active-session-${item.id}`}>{item.title}</h2>
-          <p>{status.description}</p>
+    <Card
+      padding="lg"
+      className={cn(
+        "space-y-6 border-l-4",
+        item.status === "capture_failed" ? "border-l-danger" : item.status === "active" ? "border-l-success" : "border-l-info",
+      )}
+    >
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 max-w-[60ch] space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={status.tone}>
+              {item.status === "active" ? (
+                <span className="size-1.5 animate-pulse rounded-full bg-current motion-reduce:animate-none" aria-hidden="true" />
+              ) : null}
+              {status.label}
+            </Badge>
+            {refreshing ? <span className="text-xs text-fg-subtle">Atualizando…</span> : null}
+          </div>
+          <h2 className="font-display text-2xl leading-tight break-words sm:text-3xl">{item.title}</h2>
+          <p className="text-sm text-fg-muted">{status.description}</p>
         </div>
-        <dl className="session-primary-meta">
-          <div><dt>Início</dt><dd>{item.startedAt ? formatDate(item.startedAt) : "Ainda não iniciada"}</dd></div>
-          <div><dt>Mestre</dt><dd>{item.master.name}</dd></div>
-          <div><dt>Missão</dt><dd>{item.mission?.title ?? "Sem missão relacionada"}</dd></div>
-        </dl>
       </header>
-
-      <div className="session-sources" aria-label="Fontes da sessão">
+      <DetailList
+        items={[
+          { label: "Início", value: item.startedAt ? formatDateTime(item.startedAt) : "Ainda não iniciada" },
+          { label: "Mestre", value: item.master.name },
+          { label: "Missão", value: item.mission?.title ?? "Sem missão relacionada" },
+        ]}
+      />
+      <div className="grid gap-4 md:grid-cols-3" aria-label="Fontes da sessão" role="group">
         <FoundrySourceCard item={item} />
         <DiscordSourceCard item={item} />
         <NotesSourceCard item={item} />
       </div>
-
-      {startError ? <p className="inline-error" role="alert">{startError}</p> : null}
+      {startError ? <Notice tone="danger" role="alert">{startError}</Notice> : null}
       {canManage ? (
-        <footer className="active-session-actions">
-          <button className="secondary-action" type="button" onClick={onEditContext}>
-            Adicionar ou editar notas
-          </button>
+        <footer className="flex flex-wrap gap-2 border-t border-line-soft pt-4">
+          <Button onClick={(event) => onEditContext(event.currentTarget)}>Adicionar ou editar notas</Button>
           {item.status === "capture_failed" ? (
-            <button className="secondary-action" type="button" onClick={onStart} disabled={starting}>
+            <Button onClick={onStart} disabled={starting}>
               {starting ? "Retomando captura…" : "Tentar iniciar captura"}
-            </button>
+            </Button>
           ) : null}
-          <button className="danger-secondary" type="button" onClick={onEnd} ref={endTriggerRef}>
+          <Button ref={endTriggerRef} variant="danger" onClick={onEnd}>
             Encerrar e revisar fontes
-          </button>
+          </Button>
         </footer>
       ) : null}
+    </Card>
+  );
+}
+
+function SourceCard({
+  kicker,
+  title,
+  tone,
+  children,
+}: Readonly<{ kicker: string; title: string; tone: Tone; children: ReactNode }>) {
+  const bar: Readonly<Record<Tone, string>> = {
+    neutral: "bg-line-strong",
+    accent: "bg-accent",
+    success: "bg-success",
+    warning: "bg-warning",
+    danger: "bg-danger",
+    info: "bg-info",
+  };
+  return (
+    <article className="relative space-y-2 overflow-hidden rounded-md border border-line-soft bg-surface-2 p-4 pt-5">
+      <span className={cn("absolute inset-x-0 top-0 h-0.5", bar[tone])} aria-hidden="true" />
+      <p className="text-[0.7rem] font-bold tracking-wide text-fg-subtle uppercase">{kicker}</p>
+      <h3 className="font-semibold">{title}</h3>
+      <div className="space-y-2 text-sm text-fg-muted">{children}</div>
     </article>
   );
 }
@@ -667,121 +646,102 @@ function ActiveSessionCard({
 function FoundrySourceCard({ item }: Readonly<{ item: CampaignSession }>) {
   if (!item.foundry) {
     return (
-      <article className="session-source-card is-neutral">
-        <span className="source-kicker">Foundry</span>
-        <h3>Sem mundo associado</h3>
-        <p>Esta sessão usa somente notas manuais. Nenhuma captura automática está configurada.</p>
-      </article>
+      <SourceCard kicker="Foundry" title="Sem mundo associado" tone="neutral">
+        <p>Esta sessão usa só notas manuais. Nenhuma captura automática está configurada.</p>
+      </SourceCard>
     );
   }
   const state = captureContent(item.foundry.captureStatus, item.foundry.worldStatus);
-  const description = item.foundry.captureStatus === "failed" && item.foundry.errorMessage
-    ? `${item.foundry.errorMessage} Tente iniciar a captura novamente ou encerre usando as fontes disponíveis.`
-    : state.description;
+  const description =
+    item.foundry.captureStatus === "failed" && item.foundry.errorMessage
+      ? `${item.foundry.errorMessage} Tente iniciar a captura de novo ou encerre usando as fontes disponíveis.`
+      : state.description;
   return (
-    <article className={`session-source-card is-${item.foundry.captureStatus}`}>
-      <span className="source-kicker">Foundry</span>
-      <h3>{state.label}</h3>
+    <SourceCard kicker="Foundry" title={state.label} tone={state.tone}>
       <p>{description}</p>
-      <dl>
-        <div><dt>Mundo</dt><dd>{item.foundry.worldTitle}</dd></div>
-        <div><dt>Registros recebidos</dt><dd>{item.foundry.messageCount}</dd></div>
-        <div><dt>Último recebimento</dt><dd>{item.foundry.lastMessageAt ? formatDate(item.foundry.lastMessageAt) : "Ainda não recebido"}</dd></div>
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
+        <dt className="text-fg-subtle">Mundo</dt>
+        <dd className="truncate">{item.foundry.worldTitle}</dd>
+        <dt className="text-fg-subtle">Registros</dt>
+        <dd className="tabular-nums">{item.foundry.messageCount}</dd>
+        <dt className="text-fg-subtle">Último</dt>
+        <dd>{item.foundry.lastMessageAt ? formatDateTime(item.foundry.lastMessageAt) : "Ainda não recebido"}</dd>
       </dl>
-    </article>
+    </SourceCard>
   );
 }
 
 function DiscordSourceCard({ item }: Readonly<{ item: CampaignSession }>) {
   return (
-    <article className="session-source-card is-reference">
-      <span className="source-kicker">Discord</span>
-      <h3>{item.discordReference ? "Referência salva — mensagens não importadas" : "Nenhuma referência do Discord"}</h3>
+    <SourceCard kicker="Discord" title={item.discordReference ? "Referência salva" : "Sem referência"} tone="neutral">
       <p>
         {item.discordReference
-          ? "O canal ou tópico está associado, mas suas mensagens não fazem parte do material coletado nesta versão."
+          ? "O canal ou tópico fica associado, mas as mensagens não entram no material coletado."
           : "Você pode registrar o nome de um canal ou tópico como referência da sessão."}
       </p>
-      {item.discordReference ? <strong className="source-reference">{item.discordReference}</strong> : null}
-    </article>
+      {item.discordReference ? <p className="font-mono text-xs text-fg">{item.discordReference}</p> : null}
+    </SourceCard>
   );
 }
 
 function NotesSourceCard({ item }: Readonly<{ item: CampaignSession }>) {
   const hasNotes = item.notes.trim().length > 0;
   return (
-    <article className={`session-source-card ${hasNotes ? "is-ready" : "is-neutral"}`}>
-      <span className="source-kicker">Notas do mestre</span>
-      <h3>{hasNotes ? "Notas adicionadas" : "Sem notas manuais"}</h3>
+    <SourceCard kicker="Notas do mestre" title={hasNotes ? "Notas adicionadas" : "Sem notas manuais"} tone={hasNotes ? "success" : "neutral"}>
       <p>
         {hasNotes
-          ? "O conteúdo será incluído quando um rascunho for solicitado."
-          : "Adicione acontecimentos que não foram registrados no chat público do Foundry."}
+          ? "O conteúdo entra quando um rascunho for solicitado."
+          : "Adicione acontecimentos que não ficaram no chat público do Foundry."}
       </p>
-      {hasNotes ? <p className="session-notes-preview">“{item.notes}”</p> : null}
-    </article>
+      {hasNotes ? <p className="line-clamp-3 border-l-2 border-line-strong pl-3 italic">{item.notes}</p> : null}
+    </SourceCard>
   );
 }
 
-function SessionContextEditor({
+function SessionContextForm({
   item,
   busy,
   error,
   onCancel,
   onSubmit,
 }: Readonly<{
-  item: CampaignSession | null;
+  item: CampaignSession;
   busy: boolean;
   error: string | null;
   onCancel: () => void;
-  onSubmit: (sessionId: string, input: UpdateCampaignSessionInput) => void;
+  onSubmit: (input: UpdateCampaignSessionInput) => void;
 }>) {
-  const errorRef = useRef<HTMLParagraphElement>(null);
-  useEffect(() => {
-    if (error) errorRef.current?.focus();
-  }, [error]);
-  if (!item) return null;
-
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const discordReference = String(data.get("discordReference") ?? "").trim();
-    onSubmit(item!.id, {
+    onSubmit({
       notes: String(data.get("notes") ?? ""),
       discordReference: discordReference || null,
-      version: item!.version,
+      version: item.version,
     });
   }
 
   return (
-    <section className="admin-card session-context-editor" aria-labelledby="session-context-title">
-      <div className="admin-section-title">
-        <div>
-          <span>Complementar registro</span>
-          <h2 id="session-context-title">Fontes manuais de “{item.title}”</h2>
-          <p>As alterações ficam salvas na sessão, mas nenhum rascunho é gerado automaticamente.</p>
-        </div>
+    <form className="space-y-6" onSubmit={submit}>
+      <Field label="Canal ou tópico do Discord" optional hint="Só a referência é salva; as mensagens não são importadas.">
+        {({ id, describedBy }) => (
+          <Input id={id} name="discordReference" maxLength={200} defaultValue={item.discordReference ?? ""} disabled={busy} aria-describedby={describedBy} />
+        )}
+      </Field>
+      <Field label="Notas do mestre" optional hint="Use só fatos da sessão. Você pode revisar este material antes de gerar.">
+        {({ id, describedBy }) => (
+          <Textarea id={id} name="notes" rows={9} maxLength={20_000} defaultValue={item.notes} disabled={busy} aria-describedby={describedBy} />
+        )}
+      </Field>
+      {error ? <Notice tone="danger" role="alert">{error}</Notice> : null}
+      <div className="flex flex-col-reverse gap-3 border-t border-line-soft pt-4 sm:flex-row sm:justify-end">
+        <Button disabled={busy} onClick={onCancel}>Cancelar</Button>
+        <Button type="submit" variant="primary" disabled={busy}>
+          {busy ? "Salvando fontes…" : "Salvar fontes da sessão"}
+        </Button>
       </div>
-      <form className="admin-form" key={item.version} onSubmit={submit}>
-        <label className="full">
-          Canal ou tópico do Discord <span className="optional-field">opcional</span>
-          <input name="discordReference" maxLength={200} defaultValue={item.discordReference ?? ""} disabled={busy} aria-describedby="context-discord-help" />
-          <small id="context-discord-help">Somente a referência será salva; as mensagens não serão importadas nesta versão.</small>
-        </label>
-        <label className="full">
-          Notas do mestre <span className="optional-field">opcional</span>
-          <textarea name="notes" rows={9} maxLength={20_000} defaultValue={item.notes} disabled={busy} />
-          <small>Use apenas fatos da sessão. Você poderá revisar este material novamente antes de gerar.</small>
-        </label>
-        <div className="form-actions full">
-          <button type="button" disabled={busy} onClick={onCancel}>Cancelar edição</button>
-          <button className="admin-primary" type="submit" disabled={busy}>
-            {busy ? "Salvando fontes…" : "Salvar fontes da sessão"}
-          </button>
-        </div>
-      </form>
-      {error ? <p className="inline-error" role="alert" tabIndex={-1} ref={errorRef}>{error}</p> : null}
-    </section>
+    </form>
   );
 }
 
@@ -810,7 +770,7 @@ function PrepareDraft({
   error: string | null;
   retryError: string | null;
   canManage: boolean;
-  onEditContext: () => void;
+  onEditContext: (trigger: HTMLElement) => void;
   onGenerate: (input: GenerateCampaignSessionDraftInput) => void;
   onRetry: (jobId: string) => void;
   onOpenReview: () => void;
@@ -820,10 +780,7 @@ function PrepareDraft({
   const hasNotes = item.notes.trim().length > 0;
   const hasMaterial = foundryCount > 0 || hasNotes;
   const canRequestDraft = !item.automationJobId || job?.status === "cancelled";
-  const errorRef = useRef<HTMLParagraphElement>(null);
-  useEffect(() => {
-    if (error) errorRef.current?.focus();
-  }, [error]);
+  const jobState = job ? automationState(job) : null;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -837,113 +794,119 @@ function PrepareDraft({
     });
   }
 
-  const jobState = job ? automationState(job) : null;
   return (
-    <section className="prepare-draft admin-card" aria-labelledby={`prepare-draft-${item.id}`}>
-      <div className="admin-section-title prepare-draft-heading">
-        <div>
-          <span>Fontes encerradas</span>
-          <h2 id={`prepare-draft-${item.id}`}>Preparar rascunho de “{item.title}”</h2>
-          <p>Revise o inventário abaixo antes de enviar qualquer material à oficina editorial.</p>
-        </div>
-        <button className="secondary-action" type="button" onClick={onClose}>Fechar preparação</button>
-      </div>
+    <Card padding="lg" className="space-y-6" aria-labelledby={`prepare-draft-${item.id}`} role="region">
+      <PanelHeader
+        id={`prepare-draft-${item.id}`}
+        eyebrow="Fontes encerradas"
+        title={`Preparar rascunho de “${item.title}”`}
+        description="Revise o inventário antes de enviar qualquer material para a revisão editorial."
+        actions={<Button size="sm" variant="ghost" onClick={onClose}>Fechar</Button>}
+      />
 
-      <div className="draft-source-inventory" aria-label="Inventário das fontes">
-        <article className={foundryCount > 0 ? "is-included" : "is-missing"}>
-          <span>Foundry</span>
-          <strong>{foundryCount > 0 ? `${foundryCount} registros incluídos` : "Nenhum registro recebido"}</strong>
-          <small>{item.foundry?.lastMessageAt ? `Até ${formatDate(item.foundry.lastMessageAt)}` : "Sem período capturado"}</small>
-        </article>
-        <article className={hasNotes ? "is-included" : "is-missing"}>
-          <span>Notas do mestre</span>
-          <strong>{hasNotes ? "Incluídas" : "Ausentes"}</strong>
-          <small>{hasNotes ? `${item.notes.length} caracteres disponíveis` : "Podem ser adicionadas antes de gerar"}</small>
-        </article>
-        <article className="is-unavailable">
-          <span>Discord</span>
-          <strong>Mensagens não importadas</strong>
-          <small>{item.discordReference ?? "Nenhuma referência associada"}</small>
-        </article>
+      <div className="grid gap-4 md:grid-cols-3" role="group" aria-label="Inventário das fontes">
+        <SourceCard kicker="Foundry" title={foundryCount > 0 ? `${foundryCount} registros incluídos` : "Nenhum registro recebido"} tone={foundryCount > 0 ? "success" : "neutral"}>
+          <p>{item.foundry?.lastMessageAt ? `Até ${formatDateTime(item.foundry.lastMessageAt)}` : "Sem período capturado"}</p>
+        </SourceCard>
+        <SourceCard kicker="Notas do mestre" title={hasNotes ? "Incluídas" : "Ausentes"} tone={hasNotes ? "success" : "neutral"}>
+          <p>{hasNotes ? `${item.notes.length} caracteres disponíveis` : "Podem ser adicionadas antes de gerar"}</p>
+        </SourceCard>
+        <SourceCard kicker="Discord" title="Mensagens não importadas" tone="neutral">
+          <p>{item.discordReference ?? "Nenhuma referência associada"}</p>
+        </SourceCard>
       </div>
 
       {item.foundry?.transcriptTruncated ? (
-        <p className="inline-warning">O registro do Foundry atingiu o limite de captura. O material preservado será usado de forma parcial.</p>
+        <Notice tone="warning">O registro do Foundry atingiu o limite de captura. O material preservado será usado de forma parcial.</Notice>
       ) : null}
       {hasMaterial && (foundryCount === 0 || !hasNotes || Boolean(item.discordReference)) ? (
-        <p className="inline-warning">
-          Este rascunho usará dados parciais. Serão incluídos {foundryCount} registros do Foundry
-          {hasNotes ? " e as notas do mestre" : ""}. As mensagens do Discord não foram importadas.
-        </p>
+        <Notice tone="warning">
+          Este rascunho usará dados parciais: {foundryCount} registros do Foundry{hasNotes ? " e as notas do mestre" : ""}. As
+          mensagens do Discord não são importadas.
+        </Notice>
       ) : null}
       {!hasMaterial ? (
-        <div className="sessions-source-missing">
-          <strong>Ainda não há material para gerar um rascunho.</strong>
-          <p>Adicione notas da sessão para continuar. A referência do Discord, sozinha, não é uma fonte importada.</p>
-          {canManage ? <button className="secondary-action" type="button" onClick={onEditContext}>Adicionar notas da sessão</button> : null}
-        </div>
+        <Notice
+          tone="warning"
+          title="Ainda não há material para gerar um rascunho"
+          action={canManage ? <Button size="sm" onClick={(event) => onEditContext(event.currentTarget)}>Adicionar notas</Button> : null}
+        >
+          Adicione notas da sessão para continuar. A referência do Discord, sozinha, não é uma fonte importada.
+        </Notice>
       ) : null}
 
       {item.automationJobId && job?.status !== "cancelled" ? (
-        <div className={`session-editorial-state is-${job?.status ?? "registered"}`} role="status">
-          <span>Fluxo editorial</span>
-          <h3>{jobState?.label ?? (item.postId || item.summaryId ? "Rascunho pronto para revisão" : "Processamento registrado")}</h3>
-          <p>{jobState?.description ?? "Acompanhe a fila em Automações para mais detalhes."}</p>
-          <div className="session-editorial-actions">
+        <div className="space-y-3 rounded-md border border-line-soft bg-surface-2 p-4" role="status">
+          <p className="text-[0.7rem] font-bold tracking-wide text-fg-subtle uppercase">Fluxo editorial</p>
+          <h3 className="font-display text-lg">
+            {jobState?.label ?? (item.postId || item.summaryId ? "Rascunho pronto para revisão" : "Processamento registrado")}
+          </h3>
+          <p className="text-sm text-fg-muted">{jobState?.description ?? "Acompanhe a fila em Automações para mais detalhes."}</p>
+          <div className="flex flex-wrap gap-2">
             {item.postId || item.summaryId || job?.status === "awaiting_review" ? (
-              <button className="admin-primary" type="button" onClick={onOpenReview}>Abrir mesa de revisão</button>
+              <Button size="sm" variant="primary" onClick={onOpenReview}>Abrir mesa de revisão</Button>
             ) : null}
             {job?.status === "failed" && canManage ? (
-              <button className="secondary-action" type="button" disabled={retrying || quotaRemaining === 0} onClick={() => onRetry(job.id)}>
+              <Button size="sm" disabled={retrying || quotaRemaining === 0} onClick={() => onRetry(job.id)}>
                 {retrying ? "Reenviando…" : "Tentar novamente"}
-              </button>
+              </Button>
             ) : null}
           </div>
-          {retryError ? <p className="inline-error" role="alert">{retryError}</p> : null}
+          {retryError ? <Notice tone="danger" role="alert">{retryError}</Notice> : null}
         </div>
       ) : canManage ? (
-        <>
+        <form className="space-y-5" onSubmit={submit}>
           {job?.status === "cancelled" ? (
-            <p className="inline-warning" role="status">
-              O processamento anterior foi cancelado. As fontes continuam preservadas
-              e podem ser enviadas para um novo rascunho.
-            </p>
+            <Notice tone="info" role="status">
+              O processamento anterior foi cancelado. As fontes continuam preservadas e podem gerar um novo rascunho.
+            </Notice>
           ) : null}
-          <form className="admin-form session-draft-form" onSubmit={submit}>
-          <label>
-            Resultado desejado
-            <select name="kind" defaultValue="session_summary" required disabled={busy || !hasMaterial}>
-              {Object.entries(automationKindContent).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Título sugerido <span className="optional-field">opcional</span>
-            <input name="suggestedTitle" minLength={3} maxLength={140} disabled={busy || !hasMaterial} />
-          </label>
-          <label className="full">
-            Orientação editorial <span className="optional-field">opcional</span>
-            <textarea name="instructions" minLength={3} maxLength={2_000} rows={4} disabled={busy || !hasMaterial} placeholder="Ex.: destaque as consequências das decisões do grupo" />
-          </label>
-          <div className="session-draft-actions full">
-            <button className="secondary-action" type="button" onClick={onEditContext} disabled={busy}>Editar fontes manuais</button>
-            <button className="admin-primary" type="submit" disabled={busy || !hasMaterial || quotaRemaining === 0}>
+          <FormGrid>
+            <Field label="Resultado desejado">
+              {({ id }) => (
+                <Select id={id} name="kind" defaultValue="session_summary" required disabled={busy || !hasMaterial}>
+                  {Object.entries(automationKindContent).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+            <Field label="Título sugerido" optional>
+              {({ id }) => <Input id={id} name="suggestedTitle" minLength={3} maxLength={140} disabled={busy || !hasMaterial} />}
+            </Field>
+            <Field label="Orientação editorial" optional className="full">
+              {({ id }) => (
+                <Textarea
+                  id={id}
+                  name="instructions"
+                  minLength={3}
+                  maxLength={2_000}
+                  rows={3}
+                  disabled={busy || !hasMaterial}
+                  placeholder="Ex.: destaque as consequências das decisões do grupo"
+                />
+              )}
+            </Field>
+          </FormGrid>
+          <div className="flex flex-wrap justify-end gap-3 border-t border-line-soft pt-4">
+            <Button disabled={busy} onClick={(event) => onEditContext(event.currentTarget)}>Editar fontes manuais</Button>
+            <Button type="submit" variant="primary" disabled={busy || !hasMaterial || quotaRemaining === 0}>
               {busy ? "Enviando para a fila…" : "Gerar rascunho para revisão"}
-            </button>
+            </Button>
           </div>
-          </form>
-        </>
+        </form>
       ) : null}
 
       {quotaRemaining === 0 && canRequestDraft ? (
-        <p className="inline-warning" role="status">A cota de hoje terminou. Você ainda pode revisar fontes; novas gerações estarão disponíveis amanhã.</p>
+        <Notice tone="warning" role="status">
+          A cota de hoje terminou. Você ainda pode revisar as fontes; novas gerações ficam disponíveis amanhã.
+        </Notice>
       ) : null}
       {quotaError && canRequestDraft ? (
-        <p className="inline-warning">Não foi possível consultar a cota agora. Se a geração falhar, suas fontes continuarão preservadas.</p>
+        <Notice tone="warning">Não foi possível consultar a cota agora. Se a geração falhar, suas fontes continuam preservadas.</Notice>
       ) : null}
-      {error ? <p className="inline-error" role="alert" tabIndex={-1} ref={errorRef}>{error}</p> : null}
-    </section>
+      {error ? <Notice tone="danger" role="alert">{error}</Notice> : null}
+    </Card>
   );
 }
 
@@ -965,123 +928,60 @@ function SessionHistoryCard({
   onOpenReview: () => void;
 }>) {
   const status = sessionStatusContent[item.status];
-  const sourceSummary = [
-    item.foundry ? `${item.foundry.messageCount} registros do Foundry` : null,
-    item.notes.trim() ? "notas do mestre" : null,
-    item.discordReference ? "referência do Discord" : null,
-  ].filter(Boolean).join(" · ") || "Sem fontes adicionadas";
+  const sourceSummary =
+    [
+      item.foundry ? `${item.foundry.messageCount} registros do Foundry` : null,
+      item.notes.trim() ? "notas do mestre" : null,
+      item.discordReference ? "referência do Discord" : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || "Sem fontes adicionadas";
+  const actions = [
+    item.status === "prepared" && canManage ? (
+      <Button key="start" size="sm" variant="primary" onClick={onStart} disabled={starting}>
+        {starting ? "Iniciando captura…" : "Iniciar captura"}
+      </Button>
+    ) : null,
+    item.status === "ended" && !item.automationJobId && canManage ? (
+      <Button key="prepare" size="sm" variant="primary" onClick={onPrepare}>Preparar rascunho</Button>
+    ) : null,
+    item.status === "ended" && item.automationJobId && !item.postId && !item.summaryId ? (
+      <Button key="follow" size="sm" onClick={onPrepare}>
+        {job?.status === "cancelled" ? "Preparar novo rascunho" : "Acompanhar processamento"}
+      </Button>
+    ) : null,
+    item.postId || item.summaryId || job?.status === "awaiting_review" ? (
+      <Button key="review" size="sm" variant="primary" onClick={onOpenReview}>Abrir revisão</Button>
+    ) : null,
+  ].filter(Boolean);
+
   return (
-    <article className="session-history-card">
-      <header>
-        <span className={`session-status is-${item.status}`}>{status.label}</span>
-        <h3>{item.title}</h3>
-        <p>{formatDate(item.startedAt ?? item.createdAt)} · {item.master.name}</p>
+    <Card className="flex h-full flex-col gap-4">
+      <header className="space-y-2">
+        <Badge tone={status.tone}>{status.label}</Badge>
+        <h3 className="font-display text-lg leading-tight break-words">{item.title}</h3>
+        <p className="text-xs text-fg-subtle">
+          {formatDateTime(item.startedAt ?? item.createdAt)} · {item.master.name}
+        </p>
       </header>
-      <dl>
-        <div><dt>Mundo</dt><dd>{item.foundry?.worldTitle ?? "Sem mundo associado"}</dd></div>
-        <div><dt>Fontes</dt><dd>{sourceSummary}</dd></div>
-        {item.automationJobId ? <div><dt>Editorial</dt><dd>{automationState(job)?.label ?? "Processamento registrado"}</dd></div> : null}
-      </dl>
-      <footer>
-        {item.status === "prepared" && canManage ? (
-          <button className="admin-primary" type="button" onClick={onStart} disabled={starting}>
-            {starting ? "Iniciando captura…" : "Iniciar captura"}
-          </button>
-        ) : null}
-        {item.status === "ended" && !item.automationJobId && canManage ? (
-          <button className="admin-primary" type="button" onClick={onPrepare}>Preparar rascunho</button>
-        ) : null}
-        {item.status === "ended" && item.automationJobId && !item.postId && !item.summaryId ? (
-          <button className="secondary-action" type="button" onClick={onPrepare}>
-            {job?.status === "cancelled" ? "Preparar novo rascunho" : "Acompanhar processamento"}
-          </button>
-        ) : null}
-        {item.postId || item.summaryId || job?.status === "awaiting_review" ? (
-          <button className="admin-primary" type="button" onClick={onOpenReview}>Abrir revisão</button>
-        ) : null}
-      </footer>
-    </article>
-  );
-}
-
-function EndSessionDialog({
-  item,
-  busy,
-  error,
-  returnFocusRef,
-  onCancel,
-  onConfirm,
-}: Readonly<{
-  item: CampaignSession | null;
-  busy: boolean;
-  error: string | null;
-  returnFocusRef: RefObject<HTMLButtonElement | null>;
-  onCancel: () => void;
-  onConfirm: () => void;
-}>) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const safeActionRef = useRef<HTMLButtonElement>(null);
-  const errorRef = useRef<HTMLParagraphElement>(null);
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (item && !dialog.open) {
-      dialog.showModal();
-      window.requestAnimationFrame(() => safeActionRef.current?.focus());
-    }
-    if (!item && dialog.open) {
-      dialog.close();
-      window.requestAnimationFrame(() => returnFocusRef.current?.focus());
-    }
-  }, [item, returnFocusRef]);
-  useEffect(() => {
-    if (error) errorRef.current?.focus();
-  }, [error]);
-
-  return (
-    <dialog
-      className="destructive-dialog session-end-dialog"
-      ref={dialogRef}
-      aria-labelledby="end-session-title"
-      aria-describedby="end-session-description"
-      onCancel={(event) => {
-        event.preventDefault();
-        if (!busy) onCancel();
-      }}
-    >
-      <div className="destructive-dialog-card">
-        <span className="dialog-kicker">ENCERRAR CAPTURA</span>
-        <h2 id="end-session-title">Encerrar “{item?.title}”?</h2>
-        <p id="end-session-description">Novos eventos não serão adicionados automaticamente. As fontes já recebidas continuarão preservadas para revisão.</p>
-        <dl className="session-end-summary">
-          <div><dt>Mundo afetado</dt><dd>{item?.foundry?.worldTitle ?? "Nenhum mundo associado"}</dd></div>
-          <div><dt>Registros capturados</dt><dd>{item?.foundry?.messageCount ?? 0}</dd></div>
-          <div><dt>Notas do mestre</dt><dd>{item?.notes.trim() ? "Incluídas" : "Ausentes"}</dd></div>
-          <div><dt>Discord</dt><dd>Mensagens não importadas</dd></div>
-        </dl>
-        {error ? <p className="inline-error" role="alert" tabIndex={-1} ref={errorRef}>{error} Você pode tentar novamente ou continuar a sessão.</p> : null}
-        <div className="dialog-actions">
-          <button type="button" ref={safeActionRef} disabled={busy} onClick={onCancel}>Continuar sessão</button>
-          <button className="danger-primary" type="button" disabled={busy || !item} onClick={onConfirm}>
-            {busy ? "Encerrando captura…" : "Encerrar captura"}
-          </button>
+      <dl className="space-y-2 text-sm">
+        <div>
+          <dt className="text-[0.7rem] font-bold tracking-wide text-fg-subtle uppercase">Mundo</dt>
+          <dd className="text-fg-muted">{item.foundry?.worldTitle ?? "Sem mundo associado"}</dd>
         </div>
-      </div>
-    </dialog>
-  );
-}
-
-function SessionsLoading() {
-  return (
-    <div className="sessions-loading" aria-live="polite" aria-busy="true">
-      <span className="sessions-heading-skeleton" />
-      <div className="session-sources">
-        <span className="session-card-skeleton" />
-        <span className="session-card-skeleton" />
-        <span className="session-card-skeleton" />
-      </div>
-      <p>Reunindo as sessões e suas fontes…</p>
-    </div>
+        <div>
+          <dt className="text-[0.7rem] font-bold tracking-wide text-fg-subtle uppercase">Fontes</dt>
+          <dd className="text-fg-muted">{sourceSummary}</dd>
+        </div>
+        {item.automationJobId ? (
+          <div>
+            <dt className="text-[0.7rem] font-bold tracking-wide text-fg-subtle uppercase">Editorial</dt>
+            <dd className="text-fg-muted">{automationState(job)?.label ?? "Processamento registrado"}</dd>
+          </div>
+        ) : null}
+      </dl>
+      {actions.length > 0 ? <footer className="mt-auto flex flex-wrap gap-2 border-t border-line-soft pt-4">{actions}</footer> : null}
+    </Card>
   );
 }
 
@@ -1089,39 +989,50 @@ function SessionsQueryError({ error, onRetry }: Readonly<{ error: unknown; onRet
   const authError = error instanceof ApiClientError && error.status === 401;
   const permissionError = error instanceof ApiClientError && error.status === 403;
   return (
-    <section className="admin-card foundry-query-state" role="alert">
-      <span className="sessions-empty-mark" aria-hidden="true">◇</span>
-      <h2>{authError ? "Sua sessão expirou" : permissionError ? "Acesso não permitido" : "Não foi possível carregar as sessões"}</h2>
-      <p>
-        {authError
-          ? "Entre novamente para continuar sem confundir uma sessão expirada com um histórico vazio."
-          : permissionError
-            ? "Seu perfil não possui acesso aos registros desta campanha."
-            : errorMessage(error)}
-      </p>
-      {authError ? (
-        <a className="admin-primary" href="/api/auth/discord?returnTo=/dashboard">Entrar novamente</a>
-      ) : !permissionError ? (
-        <button className="admin-primary" type="button" onClick={onRetry}>Tentar novamente</button>
-      ) : null}
-    </section>
+    <FeedbackState
+      title={authError ? "Sua sessão expirou" : permissionError ? "Acesso não permitido" : "Não foi possível carregar as sessões"}
+      tone="error"
+      role="alert"
+      action={
+        authError ? (
+          <ButtonAnchor variant="accent" href="/api/auth/discord?returnTo=/dashboard/sessoes">Entrar novamente</ButtonAnchor>
+        ) : !permissionError ? (
+          <Button onClick={onRetry}>Tentar novamente</Button>
+        ) : null
+      }
+    >
+      {authError
+        ? "Entre de novo para continuar. Nada foi perdido."
+        : permissionError
+          ? "Seu perfil não tem acesso aos registros desta campanha."
+          : errorMessage(error)}
+    </FeedbackState>
   );
 }
 
 function captureContent(
   status: CampaignSessionCaptureStatus,
   worldStatus: "online" | "offline" | "revoked",
-): Readonly<{ label: string; description: string }> {
-  if (status === "starting") return { label: "Iniciando captura", description: "O portal está preparando o registro deste mundo." };
-  if (status === "capturing") return { label: "Capturando agora", description: "Mensagens públicas do Foundry estão chegando à sessão." };
-  if (status === "ended") return { label: "Captura encerrada", description: "Nenhum novo evento será acrescentado automaticamente." };
-  if (status === "cancelled") return { label: "Captura cancelada", description: "Os registros anteriores continuam preservados." };
-  if (status === "interrupted") return { label: "Captura interrompida", description: worldStatus === "revoked" ? "A conexão do mundo foi revogada. Reconecte-o em Mundos do Foundry." : "O Foundry perdeu contato. Os registros já recebidos foram preservados." };
-  if (status === "failed") return { label: "Falha ao receber registros", description: "Tente iniciar a captura novamente ou encerre usando as fontes disponíveis." };
-  if (status === "not_configured") return { label: "Sem captura automática", description: "Esta sessão depende de notas manuais." };
+): Readonly<{ label: string; description: string; tone: Tone }> {
+  if (status === "starting") return { label: "Iniciando captura", description: "O portal está preparando o registro deste mundo.", tone: "info" };
+  if (status === "capturing") return { label: "Capturando agora", description: "Mensagens públicas do Foundry estão chegando à sessão.", tone: "success" };
+  if (status === "ended") return { label: "Captura encerrada", description: "Nenhum novo evento será acrescentado.", tone: "neutral" };
+  if (status === "cancelled") return { label: "Captura cancelada", description: "Os registros anteriores continuam preservados.", tone: "neutral" };
+  if (status === "interrupted") {
+    return {
+      label: "Captura interrompida",
+      description:
+        worldStatus === "revoked"
+          ? "A conexão do mundo foi revogada. Reconecte-o em Mundos do Foundry."
+          : "O Foundry perdeu contato. Os registros já recebidos foram preservados.",
+      tone: "warning",
+    };
+  }
+  if (status === "failed") return { label: "Falha ao receber registros", description: "Tente iniciar a captura de novo ou encerre usando as fontes disponíveis.", tone: "danger" };
+  if (status === "not_configured") return { label: "Sem captura automática", description: "Esta sessão depende de notas manuais.", tone: "neutral" };
   return worldStatus === "offline"
-    ? { label: "Aguardando o Foundry", description: "A captura começará quando este mundo voltar a ficar online." }
-    : { label: "Nenhum registro recebido ainda", description: "O mundo está disponível, mas ainda não enviou uma mensagem pública." };
+    ? { label: "Aguardando o Foundry", description: "A captura começa quando o mestre entrar no mundo.", tone: "warning" }
+    : { label: "Nenhum registro ainda", description: "O mundo está disponível, mas ainda não enviou mensagens públicas.", tone: "info" };
 }
 
 function automationState(job: AutomationJob | null): Readonly<{ label: string; description: string }> | null {
@@ -1137,12 +1048,4 @@ function worldStatusLabel(status: "online" | "offline" | "revoked"): string {
   if (status === "online") return "Online";
   if (status === "offline") return "Offline";
   return "Desconectado";
-}
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-    timeZone: "America/Sao_Paulo",
-  }).format(new Date(value));
 }

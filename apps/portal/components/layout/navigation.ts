@@ -1,5 +1,6 @@
 import type { Permission } from "@ordem/authz";
 import type { CurrentUserResponse } from "@ordem/contracts";
+import { areas } from "@/components/admin/areas";
 
 export type NavigationItem = Readonly<{
   href: string;
@@ -22,33 +23,19 @@ export const playerNavigation: readonly NavigationItem[] = [
   { href: "/eu", label: "Minha área", hint: "Personagem, inscrições e pedidos" },
 ];
 
-/** Qualquer uma destas permissões revela a entrada do painel de gestão. */
-const managementPermissions: readonly Permission[] = [
-  "audit:read",
-  "automation:read",
-  "automation:run",
-  "campaign:manage",
-  "character:link:manage",
-  "foundry:world:manage",
-  "integration:manage",
-  "member:manage",
-  "mission:create",
-  "mission:edit",
-  "mission:publish",
-  "mission:review",
-  "post:create",
-  "post:delete",
-  "post:publish",
-  "post:review",
-  "role:assign",
-  "session:manage",
-  "session:read",
-];
+/**
+ * A entrada "Gestão" aparece quando a pessoa pode abrir ao menos uma área do
+ * painel. As permissões vêm das próprias áreas, para que menu e painel nunca
+ * discordem sobre quem enxerga o quê.
+ */
+const managementPermissions: ReadonlySet<Permission> = new Set(
+  areas.flatMap((area) => area.permissions),
+);
 
 export function canManage(me: CurrentUserResponse | undefined): boolean {
   return Boolean(
     me?.capabilities.some((capability) =>
-      managementPermissions.includes(capability.permission as Permission),
+      managementPermissions.has(capability.permission as Permission),
     ),
   );
 }

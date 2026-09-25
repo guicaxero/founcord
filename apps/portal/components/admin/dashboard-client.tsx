@@ -1,126 +1,49 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Permission } from "@ordem/authz";
+import { useQuery } from "@tanstack/react-query";
 import type {
-  Campaign,
   CampaignCharacterLinkManagementResponse,
   CampaignMemberListResponse,
   CampaignListResponse,
   CampaignSessionListResponse,
-  CreateCampaignInput,
   CurrentUserResponse,
   FoundryWorldListResponse,
   PostListResponse,
   SessionSummaryListResponse,
 } from "@ordem/contracts";
+import { motion } from "motion/react";
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, type ReactNode } from "react";
+import { Badge, Card, Eyebrow, Skeleton } from "@/components/ui/surface";
+import { Button, ButtonAnchor, ButtonLink } from "@/components/ui/button";
+import { FeedbackState } from "@/components/ui/feedback-state";
+import { Select } from "@/components/ui/field";
+import { riseIn } from "@/components/ui/motion";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { hasCapability } from "@/lib/capabilities";
+import { cn } from "@/lib/cn";
 import { queryKeys } from "@/lib/query-keys";
+import { areaBySlug, areaGroups, areas, type AreaDefinition, type AreaSlug } from "./areas";
 import { AuditPanel } from "./audit-panel";
 import { AutomationsPanel } from "./automations-panel";
+import { CampaignCreatorDialog, CampaignSettings } from "./campaign-settings";
 import { CharacterLinksPanel } from "./character-links-panel";
 import { FoundryPanel } from "./foundry-panel";
 import { MembersPanel } from "./members-panel";
-import { MissionsPanel } from "./missions-panel";
 import { MerchantPurchasesPanel } from "./merchant-purchases-panel";
+import { MissionsPanel } from "./missions-panel";
 import { PostsPanel } from "./posts-panel";
-import { SessionsPanel } from "./sessions-panel";
 import { SessionSummariesPanel } from "./session-summaries-panel";
+import { SessionsPanel } from "./sessions-panel";
 
-type Tab = "missions" | "posts" | "summaries" | "sessions" | "automations" | "foundry" | "characters" | "merchantPurchases" | "members" | "audit" | "campaigns";
-
-type TabDefinition = Readonly<{
-  id: Tab;
-  label: string;
-  eyebrow: string;
-  description: string;
-  permissions: readonly Permission[];
-}>;
-
-const tabDefinitions: readonly TabDefinition[] = [
-  {
-    id: "sessions",
-    label: "Sessões",
-    eyebrow: "Registros da mesa",
-    description: "Capture registros do Foundry, associe fontes e prepare rascunhos para revisão.",
-    permissions: ["session:read", "session:manage"],
-  },
-  {
-    id: "summaries",
-    label: "Diário de Sessões",
-    eyebrow: "Revisão factual",
-    description: "Revise e publique registros factuais sem misturá-los às crônicas da campanha.",
-    permissions: ["session:manage", "post:review", "post:publish", "post:delete"],
-  },
-  {
-    id: "automations",
-    label: "Automações",
-    eyebrow: "Assistência editorial",
-    description: "Transforme registros de sessão em resumos e rascunhos que sempre passam por revisão humana.",
-    permissions: ["automation:read", "automation:run"],
-  },
-  {
-    id: "foundry",
-    label: "Mundos do Foundry",
-    eyebrow: "Integrações",
-    description: "Conecte mundos de Shadow of the Demon Lord e acompanhe presença, personagens e versões.",
-    permissions: ["foundry:world:manage"],
-  },
-  {
-    id: "characters",
-    label: "Personagens",
-    eyebrow: "Identidade integrada",
-    description: "Associe membros aos personagens sincronizados antes de liberar fichas e transações.",
-    permissions: ["character:link:manage"],
-  },
-  {
-    id: "merchantPurchases",
-    label: "Pedidos do Mercador",
-    eyebrow: "Acertos da campanha",
-    description: "Acompanhe solicitações, realize o acerto no Foundry e registre a decisão humana.",
-    permissions: ["merchant:purchase:manage"],
-  },
-  {
-    id: "missions",
-    label: "Missões",
-    eyebrow: "Quadro editorial",
-    description: "Crie chamados, organize a revisão e publique missões no quadro da Ordem.",
-    permissions: ["mission:create", "mission:edit", "mission:review", "mission:publish"],
-  },
-  {
-    id: "posts",
-    label: "Publicações",
-    eyebrow: "Mesa de revisão",
-    description: "Prepare crônicas e comunicados antes de publicá-los no portal.",
-    permissions: ["post:create", "post:review", "post:publish", "post:delete"],
-  },
-  {
-    id: "members",
-    label: "Pessoas e acessos",
-    eyebrow: "Comunidade",
-    description: "Gerencie participação e papéis sem confundir acessos globais e locais.",
-    permissions: ["member:manage"],
-  },
-  {
-    id: "audit",
-    label: "Histórico",
-    eyebrow: "Auditoria",
-    description: "Acompanhe as alterações relevantes realizadas dentro da campanha.",
-    permissions: ["audit:read"],
-  },
-  {
-    id: "campaigns",
-    label: "Configurações",
-    eyebrow: "Campanha",
-    description: "Atualize identidade, visibilidade e estado da campanha selecionada.",
-    permissions: ["campaign:manage"],
-  },
-];
-
+/**
+ * Painel de gestão. A área vem da URL (`/dashboard/[area]`); a campanha ativa
+ * fica no estado do layout, que persiste entre as áreas.
+ */
 export function DashboardClient({
+  area: requestedSlug,
+  basePath = "/dashboard",
   initialMe,
   initialCampaigns,
   initialEditorialPosts,
@@ -129,19 +52,20 @@ export function DashboardClient({
   initialCharacterMembers,
   initialCharacterLinks,
   initialCharacterWorlds,
-  initialTab = "missions",
 }: Readonly<{
-  initialMe?: CurrentUserResponse;
-  initialCampaigns?: CampaignListResponse;
-  initialEditorialPosts?: PostListResponse;
-  initialSessionSummaries?: SessionSummaryListResponse;
-  initialSessions?: CampaignSessionListResponse;
-  initialCharacterMembers?: CampaignMemberListResponse;
-  initialCharacterLinks?: CampaignCharacterLinkManagementResponse;
-  initialCharacterWorlds?: FoundryWorldListResponse;
-  initialTab?: Tab;
-}> = {}) {
-  const [tab, setTab] = useState<Tab>(initialTab);
+  area?: string | null | undefined;
+  basePath?: string | undefined;
+  initialMe?: CurrentUserResponse | undefined;
+  initialCampaigns?: CampaignListResponse | undefined;
+  initialEditorialPosts?: PostListResponse | undefined;
+  initialSessionSummaries?: SessionSummaryListResponse | undefined;
+  initialSessions?: CampaignSessionListResponse | undefined;
+  initialCharacterMembers?: CampaignMemberListResponse | undefined;
+  initialCharacterLinks?: CampaignCharacterLinkManagementResponse | undefined;
+  initialCharacterWorlds?: FoundryWorldListResponse | undefined;
+}>) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [selectedCampaign, setSelectedCampaign] = useState("");
   const me = useQuery({
     queryKey: queryKeys.me,
@@ -155,9 +79,10 @@ export function DashboardClient({
     initialData: initialCampaigns,
     enabled: me.data?.authenticated === true && initialCampaigns === undefined,
   });
+  const hrefFor = (slug: AreaSlug) => `${basePath}/${slug}`;
 
   if (me.isLoading) {
-    return <DashboardState eyebrow="Aguarde" title="Preparando seu espaço de gestão" text="Estamos carregando suas permissões e campanhas." loading />;
+    return <DashboardState eyebrow="Aguarde" title="Preparando seu espaço de gestão" text="Carregando suas permissões e campanhas." loading />;
   }
 
   if (!me.data?.authenticated) {
@@ -165,241 +90,320 @@ export function DashboardClient({
       <DashboardState
         eyebrow="Acesso protegido"
         title="Entre para continuar"
-        text="O painel de gestão está disponível somente para membros autorizados."
+        text="O painel de gestão está disponível somente para a equipe da campanha."
       >
-        <a className="admin-primary" href="/api/auth/discord?returnTo=/dashboard">
+        <ButtonAnchor variant="accent" href={`/api/auth/discord?returnTo=${encodeURIComponent(pathname || "/dashboard")}`}>
           Entrar com Discord
-        </a>
-        <Link className="secondary-action" href="/">Voltar ao portal público</Link>
+        </ButtonAnchor>
+        <ButtonLink href="/">Voltar ao portal</ButtonLink>
       </DashboardState>
     );
   }
 
-  const availableTabs = tabDefinitions.filter((definition) =>
+  const user = me.data;
+  const availableAreas = areas.filter((definition) =>
     definition.permissions.some((permission) =>
-      me.data?.capabilities.some((capability) => capability.permission === permission),
+      user.capabilities.some((capability) => capability.permission === permission),
     ),
   );
 
-  if (availableTabs.length === 0) {
+  if (availableAreas.length === 0) {
     return (
       <DashboardState
         eyebrow="Área do jogador"
         title="Você não precisa do painel de gestão"
-        text="Seu perfil participa das missões pelo portal público. Controles administrativos aparecem apenas para a equipe da campanha."
+        text="Seu perfil participa das missões pelo portal. Os controles de gestão aparecem só para a equipe da campanha."
       >
-        <Link className="admin-primary" href="/#quadro">Ver missões disponíveis</Link>
-        <Link className="secondary-action" href="/">Voltar ao portal</Link>
+        <ButtonLink variant="accent" href="/missoes">Ver missões abertas</ButtonLink>
+        <ButtonLink href="/eu">Ir para minha área</ButtonLink>
+      </DashboardState>
+    );
+  }
+
+  const requested = requestedSlug ? areaBySlug(requestedSlug) : undefined;
+  if (requestedSlug && (!requested || !availableAreas.includes(requested))) {
+    return (
+      <DashboardState
+        eyebrow="Área indisponível"
+        title={requested ? "Seu perfil não acessa esta área" : "Esta área não existe"}
+        text="Escolha uma das áreas liberadas para o seu perfil."
+      >
+        <ButtonLink variant="accent" href={hrefFor(availableAreas[0]!.slug)}>
+          Abrir {availableAreas[0]!.label}
+        </ButtonLink>
       </DashboardState>
     );
   }
 
   if (campaigns.isLoading) {
-    return <DashboardState eyebrow="Aguarde" title="Carregando suas campanhas" text="Estamos aplicando seus acessos em cada campanha." loading />;
+    return <DashboardState eyebrow="Aguarde" title="Carregando suas campanhas" text="Aplicando seus acessos em cada campanha." loading />;
   }
 
   if (campaigns.isError) {
     return (
       <DashboardState
         eyebrow="Campanhas indisponíveis"
-        title="Não foi possível carregar seu espaço de gestão"
+        title="Não foi possível carregar o painel"
         text={errorMessage(campaigns.error)}
       >
-        <button className="admin-primary" type="button" onClick={() => campaigns.refetch()}>
-          Tentar novamente
-        </button>
-        <Link className="secondary-action" href="/">Voltar ao portal</Link>
+        <Button variant="accent" onClick={() => campaigns.refetch()}>Tentar novamente</Button>
+        <ButtonLink href="/">Voltar ao portal</ButtonLink>
       </DashboardState>
     );
   }
 
-  const activeTab = availableTabs.some((definition) => definition.id === tab)
-    ? tab
-    : availableTabs[0]!.id;
-  const activeDefinition = availableTabs.find((definition) => definition.id === activeTab)!;
+  const area = requested ?? availableAreas[0]!;
   const eligibleCampaigns = (campaigns.data?.data ?? []).filter((candidate) =>
-    activeDefinition.permissions.some((permission) =>
-      hasCapability(me.data, permission, candidate.id),
-    ),
+    area.permissions.some((permission) => hasCapability(user, permission, candidate.id)),
   );
   const campaignId = eligibleCampaigns.some((candidate) => candidate.id === selectedCampaign)
     ? selectedCampaign
     : eligibleCampaigns[0]?.id ?? "";
   const campaign = eligibleCampaigns.find((item) => item.id === campaignId);
-  const globalRole = me.data.assignments.find(
-    (assignment) => assignment.scopeKind === "global",
-  )?.roleName;
+  const globalRole = user.assignments.find((assignment) => assignment.scopeKind === "global")?.roleName;
+
+  let panel: ReactNode = null;
+  if (campaignId) {
+    switch (area.slug) {
+      case "sessoes":
+        panel = <SessionsPanel campaignId={campaignId} me={user} onOpenReview={() => router.push(hrefFor("diario"))} />;
+        break;
+      case "diario":
+        panel = (
+          <SessionSummariesPanel
+            campaignId={campaignId}
+            me={user}
+            initialSummaries={initialSessionSummaries}
+            initialSessions={initialSessions}
+          />
+        );
+        break;
+      case "automacoes":
+        panel = (
+          <AutomationsPanel
+            campaignId={campaignId}
+            me={user}
+            onOpenReview={(target) => router.push(hrefFor(target === "session_summary" ? "diario" : "publicacoes"))}
+          />
+        );
+        break;
+      case "missoes":
+        panel = <MissionsPanel campaignId={campaignId} me={user} />;
+        break;
+      case "publicacoes":
+        panel = <PostsPanel campaignId={campaignId} me={user} initialPosts={initialEditorialPosts} />;
+        break;
+      case "foundry":
+        panel = campaign ? <FoundryPanel key={campaignId} campaignId={campaignId} campaignName={campaign.name} /> : null;
+        break;
+      case "personagens":
+        panel = (
+          <CharacterLinksPanel
+            campaignId={campaignId}
+            initialMembers={initialCharacterMembers}
+            initialLinks={initialCharacterLinks}
+            initialWorlds={initialCharacterWorlds}
+          />
+        );
+        break;
+      case "pedidos":
+        panel = <MerchantPurchasesPanel campaignId={campaignId} />;
+        break;
+      case "pessoas":
+        panel = <MembersPanel campaignId={campaignId} me={user} />;
+        break;
+      case "historico":
+        panel = <AuditPanel campaignId={campaignId} />;
+        break;
+      case "configuracoes":
+        panel = campaign ? <CampaignSettings key={campaign.id} campaign={campaign} onCreated={setSelectedCampaign} /> : null;
+        break;
+    }
+  }
 
   return (
-    <main className="admin-shell" id="main-content">
-      <aside className="admin-sidebar">
-        <Link className="admin-brand" href="/">
-          <span className="admin-brand-mark" aria-hidden="true">O</span>
-          <span><small>Ordem da</small><strong>Última Luz</strong></span>
-        </Link>
+    <div className="mx-auto w-full max-w-[90rem] px-4 py-8 sm:px-6 lg:grid lg:grid-cols-[16.5rem_minmax(0,1fr)] lg:gap-10 lg:py-10">
+      <aside className="grid items-start gap-4 max-lg:mb-8 sm:max-lg:grid-cols-2 lg:sticky lg:gap-6 lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:self-start lg:overflow-y-auto lg:pr-2 lg:pb-6 lg:[scrollbar-width:thin]">
+        <CampaignPicker
+          campaigns={eligibleCampaigns}
+          value={campaignId}
+          onChange={setSelectedCampaign}
+        />
 
-        <div className="admin-campaign-picker">
-          <label htmlFor="active-campaign">Campanha ativa</label>
-          <select
-            id="active-campaign"
-            value={campaignId}
-            onChange={(event) => setSelectedCampaign(event.target.value)}
-            disabled={campaigns.isLoading}
-          >
-            {eligibleCampaigns.map((item) => (
-              <option value={item.id} key={item.id}>{item.name}</option>
-            ))}
-          </select>
-          {campaign ? (
-            <span className="campaign-state">
-              <i aria-hidden="true" />
-              {campaign.status === "active" ? "Campanha ativa" : campaign.status}
-            </span>
-          ) : null}
-        </div>
-
-        <nav className="admin-navigation" aria-label="Áreas de gestão">
-          <span className="admin-nav-label">Gestão</span>
-          {availableTabs.map((definition) => (
-            <button
-              key={definition.id}
-              type="button"
-              aria-current={activeTab === definition.id ? "page" : undefined}
-              aria-controls="admin-active-panel"
-              className={activeTab === definition.id ? "is-active" : ""}
-              onClick={() => setTab(definition.id)}
-            >
-              <span>{definition.label}</span>
-              <small>{definition.eyebrow}</small>
-            </button>
-          ))}
+        <nav aria-label="Áreas de gestão" className="space-y-4 max-lg:hidden">
+          {areaGroups.map((group) => {
+            const items = availableAreas.filter((definition) => definition.group === group.id);
+            if (items.length === 0) return null;
+            return (
+              <div key={group.id} className="space-y-1">
+                <p className="px-3 text-[0.7rem] font-bold tracking-[0.14em] text-fg-subtle uppercase">
+                  {group.label}
+                </p>
+                <ul className="space-y-0.5">
+                  {items.map((definition) => (
+                    <li key={definition.slug}>
+                      <AreaLink definition={definition} href={hrefFor(definition.slug)} current={definition.slug === area.slug} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
         </nav>
 
-        <label className="admin-mobile-navigation" htmlFor="active-admin-area">
-          <span>Área do painel</span>
-          <select
+        <div className="space-y-2 lg:hidden">
+          <label className="block text-sm font-semibold text-fg-muted" htmlFor="active-admin-area">
+            Área do painel
+          </label>
+          <Select
             id="active-admin-area"
-            value={activeTab}
+            value={area.slug}
             onChange={(event) => {
-              const nextTab = availableTabs.find(
-                (definition) => definition.id === event.target.value,
-              );
-              if (nextTab) setTab(nextTab.id);
+              const next = areaBySlug(event.target.value);
+              if (next) router.push(hrefFor(next.slug));
             }}
           >
-            {availableTabs.map((definition) => (
-              <option value={definition.id} key={definition.id}>
-                {definition.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="admin-user-card">
-          <span className="admin-user-avatar" aria-hidden="true">
-            {me.data.user?.displayName.slice(0, 1).toUpperCase()}
-          </span>
-          <span>
-            <strong>{me.data.user?.displayName}</strong>
-            <small>{globalRole ? roleLabel(globalRole) : "Equipe da campanha"}</small>
-          </span>
+            {areaGroups.map((group) => {
+              const items = availableAreas.filter((definition) => definition.group === group.id);
+              if (items.length === 0) return null;
+              return (
+                <optgroup key={group.id} label={group.label}>
+                  {items.map((definition) => (
+                    <option value={definition.slug} key={definition.slug}>{definition.label}</option>
+                  ))}
+                </optgroup>
+              );
+            })}
+          </Select>
         </div>
+
       </aside>
 
-      <section className="admin-main">
-        <header className="admin-topbar">
-          <div className="admin-breadcrumb" aria-label="Localização atual">
-            <Link href="/">Portal</Link><span aria-hidden="true">/</span><strong>Painel de gestão</strong>
+      <div className="min-w-0 space-y-8">
+        <motion.header
+          key={area.slug}
+          className="flex flex-wrap items-end justify-between gap-4 border-b border-line-soft pb-6"
+          variants={riseIn}
+          initial="hidden"
+          animate="visible"
+        >
+          <div className="min-w-0 max-w-[68ch] space-y-2">
+            <Eyebrow>{area.eyebrow}</Eyebrow>
+            <h1 className="font-display text-3xl leading-tight text-balance sm:text-4xl" id="admin-area-title">
+              {area.label}
+            </h1>
+            <p className="text-fg-muted">{area.description}</p>
           </div>
-          <Link className="secondary-action" href="/">Visualizar portal</Link>
-        </header>
-
-        <div className="admin-page-heading">
-          <div>
-            <span className="admin-eyebrow">{activeDefinition.eyebrow}</span>
-            <h1 id="admin-page-title">{activeDefinition.label}</h1>
-            <p>{activeDefinition.description}</p>
-          </div>
-          {globalRole ? (
-            <div className="access-summary">
-              <span>Acesso atual</span>
-              <strong>{roleLabel(globalRole)}</strong>
-              <small>Permissões globais protegidas</small>
-            </div>
-          ) : null}
-        </div>
+          {globalRole ? <Badge tone="accent">{roleLabel(globalRole)}</Badge> : null}
+        </motion.header>
 
         {!campaignId ? (
-          <section className="admin-empty">
-            <span className="empty-mark" aria-hidden="true">O</span>
-            <h2>Nenhuma campanha disponível</h2>
-            <p>Crie a primeira campanha para começar a organizar missões e membros.</p>
-            {hasCapability(me.data, "campaign:manage") ? (
-              <CampaignCreator onCreated={setSelectedCampaign} />
-            ) : null}
-          </section>
+          <NoCampaign canCreate={hasCapability(user, "campaign:manage")} onCreated={setSelectedCampaign} />
         ) : (
-          <section
-            className="admin-workspace"
-            id="admin-active-panel"
-            aria-labelledby="admin-page-title"
+          <motion.section
+            key={`${area.slug}:${campaignId}`}
+            aria-labelledby="admin-area-title"
+            variants={riseIn}
+            initial="hidden"
+            animate="visible"
           >
-            {activeTab === "missions" ? <MissionsPanel campaignId={campaignId} me={me.data} /> : null}
-            {activeTab === "posts" ? (
-              <PostsPanel
-                campaignId={campaignId}
-                me={me.data}
-                {...(initialEditorialPosts
-                  ? { initialPosts: initialEditorialPosts }
-                  : {})}
-              />
-            ) : null}
-            {activeTab === "summaries" ? (
-              <SessionSummariesPanel
-                campaignId={campaignId}
-                me={me.data}
-                {...(initialSessionSummaries ? { initialSummaries: initialSessionSummaries } : {})}
-                {...(initialSessions ? { initialSessions } : {})}
-              />
-            ) : null}
-            {activeTab === "sessions" ? (
-              <SessionsPanel
-                campaignId={campaignId}
-                me={me.data}
-                onOpenReview={() => setTab("summaries")}
-              />
-            ) : null}
-            {activeTab === "automations" ? (
-              <AutomationsPanel
-                campaignId={campaignId}
-                me={me.data}
-                onOpenReview={(target) => setTab(target === "session_summary" ? "summaries" : "posts")}
-              />
-            ) : null}
-            {activeTab === "foundry" && campaign ? (
-              <FoundryPanel key={campaignId} campaignId={campaignId} campaignName={campaign.name} />
-            ) : null}
-            {activeTab === "characters" ? (
-              <CharacterLinksPanel
-                campaignId={campaignId}
-                {...(initialCharacterMembers ? { initialMembers: initialCharacterMembers } : {})}
-                {...(initialCharacterLinks ? { initialLinks: initialCharacterLinks } : {})}
-                {...(initialCharacterWorlds ? { initialWorlds: initialCharacterWorlds } : {})}
-              />
-            ) : null}
-            {activeTab === "merchantPurchases" ? <MerchantPurchasesPanel campaignId={campaignId} /> : null}
-            {activeTab === "members" ? <MembersPanel campaignId={campaignId} me={me.data} /> : null}
-            {activeTab === "audit" ? <AuditPanel campaignId={campaignId} /> : null}
-            {activeTab === "campaigns" ? (
-              <div className="admin-two-column">
-                {campaign ? <CampaignSettings campaign={campaign} /> : null}
-                <CampaignCreator onCreated={setSelectedCampaign} />
-              </div>
-            ) : null}
-          </section>
+            {panel}
+          </motion.section>
         )}
-      </section>
-    </main>
+      </div>
+    </div>
+  );
+}
+
+function AreaLink({
+  definition,
+  href,
+  current,
+}: Readonly<{ definition: AreaDefinition; href: string; current: boolean }>) {
+  return (
+    <Link
+      href={href}
+      aria-current={current ? "page" : undefined}
+      className={cn(
+        "relative flex min-h-10 items-center rounded-md px-3 text-sm font-medium transition-colors duration-150",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
+        current ? "text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
+      )}
+    >
+      {current ? (
+        <motion.span
+          layoutId="admin-area-indicator"
+          className="absolute inset-0 rounded-md border border-line bg-surface-3"
+          aria-hidden="true"
+        >
+          <span className="absolute top-2.5 bottom-2.5 left-0 w-0.5 rounded-full bg-accent" />
+        </motion.span>
+      ) : null}
+      <span className="relative">{definition.label}</span>
+    </Link>
+  );
+}
+
+function CampaignPicker({
+  campaigns,
+  value,
+  onChange,
+}: Readonly<{
+  campaigns: CampaignListResponse["data"];
+  value: string;
+  onChange: (id: string) => void;
+}>) {
+  const campaign = campaigns.find((item) => item.id === value);
+  if (campaigns.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      <label className="block text-sm font-semibold text-fg-muted" htmlFor="active-campaign">
+        Campanha
+      </label>
+      <Select id="active-campaign" value={value} onChange={(event) => onChange(event.target.value)}>
+        {campaigns.map((item) => (
+          <option value={item.id} key={item.id}>{item.name}</option>
+        ))}
+      </Select>
+      {campaign ? (
+        <p className="flex items-center gap-2 text-xs text-fg-subtle">
+          <span
+            aria-hidden="true"
+            className={cn("size-2 rounded-full", campaign.status === "active" ? "bg-success" : "bg-fg-subtle")}
+          />
+          {campaignStatusLabel(campaign.status)} · {campaign.isPublic ? "visível no portal" : "privada"}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function NoCampaign({
+  canCreate,
+  onCreated,
+}: Readonly<{ canCreate: boolean; onCreated: (id: string) => void }>) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <FeedbackState
+        title="Nenhuma campanha disponível nesta área"
+        action={canCreate ? <Button variant="accent" onClick={() => setOpen(true)}>Criar campanha</Button> : null}
+      >
+        {canCreate
+          ? "Crie a primeira campanha para começar a organizar missões, sessões e membros."
+          : "Peça a um gestor que conceda seu papel em uma campanha."}
+      </FeedbackState>
+      {canCreate ? (
+        <CampaignCreatorDialog
+          open={open}
+          onOpenChange={setOpen}
+          onCreated={(id) => {
+            setOpen(false);
+            onCreated(id);
+          }}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -414,113 +418,37 @@ function DashboardState({
   title: string;
   text: string;
   loading?: boolean;
-  children?: React.ReactNode;
+  children?: ReactNode;
 }>) {
   return (
-    <main className="dashboard-state" id="main-content">
-      <div className="dashboard-state-card">
-        <span className="dashboard-state-mark" aria-hidden="true">O</span>
-        <span className="admin-eyebrow">{eyebrow}</span>
-        <h1>{title}</h1>
-        <p>{text}</p>
-        {loading ? <span className="loading-line" aria-hidden="true" /> : null}
-        {children ? <div className="dashboard-state-actions">{children}</div> : null}
-      </div>
-    </main>
+    <div className="mx-auto flex w-full max-w-7xl justify-center px-4 py-16 sm:px-6 sm:py-24">
+      <motion.div variants={riseIn} initial="hidden" animate="visible" className="w-full max-w-xl">
+        <Card padding="lg" className="space-y-4 text-center" aria-busy={loading || undefined}>
+          <Eyebrow>{eyebrow}</Eyebrow>
+          <h1 className="font-display text-3xl leading-tight text-balance">{title}</h1>
+          <p className="text-fg-muted">{text}</p>
+          {loading ? (
+            <div className="space-y-2 pt-2" role="status">
+              <span className="sr-only">Carregando</span>
+              <Skeleton className="mx-auto h-2 w-2/3" />
+              <Skeleton className="mx-auto h-2 w-1/2" />
+            </div>
+          ) : null}
+          {children ? <div className="flex flex-wrap justify-center gap-3 pt-2">{children}</div> : null}
+        </Card>
+      </motion.div>
+    </div>
   );
 }
 
-function CampaignCreator({ onCreated }: Readonly<{ onCreated: (id: string) => void }>) {
-  const queryClient = useQueryClient();
-  const create = useMutation({
-    mutationFn: (input: CreateCampaignInput) =>
-      apiFetch<Campaign>("/api/campaigns", {
-        method: "POST",
-        body: JSON.stringify(input),
-      }),
-    onSuccess: async (campaign) => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.campaigns });
-      onCreated(campaign.id);
-    },
-  });
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    create.mutate({
-      name: String(form.get("name")),
-      slug: String(form.get("slug")),
-      description: String(form.get("description")),
-      status: "active",
-      isPublic: form.get("isPublic") === "on",
-    });
-  }
-
-  return (
-    <section className="admin-card admin-panel-narrow">
-      <div className="admin-section-title">
-        <div><span>Nova estrutura</span><h2>Criar campanha</h2><p>Abra um novo espaço persistente dentro do portal.</p></div>
-      </div>
-      <form className="admin-form" onSubmit={submit}>
-        <label>Nome<input name="name" required minLength={3} /></label>
-        <label>Identificador<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" /></label>
-        <label className="full">Descrição<textarea name="description" rows={4} /></label>
-        <label className="check full"><input type="checkbox" name="isPublic" defaultChecked /> Exibir no portal público</label>
-        <button className="admin-primary" disabled={create.isPending}>
-          {create.isPending ? "Criando campanha…" : "Criar campanha"}
-        </button>
-      </form>
-      {create.isSuccess ? <p className="inline-success" role="status">Campanha criada com sucesso.</p> : null}
-      {create.isError ? <p className="inline-error">{errorMessage(create.error)}</p> : null}
-    </section>
-  );
+function campaignStatusLabel(status: string): string {
+  if (status === "active") return "Ativa";
+  if (status === "draft") return "Rascunho";
+  if (status === "archived") return "Arquivada";
+  return status;
 }
 
-function CampaignSettings({ campaign }: Readonly<{ campaign: Campaign }>) {
-  const queryClient = useQueryClient();
-  const update = useMutation({
-    mutationFn: (input: Record<string, unknown>) =>
-      apiFetch<Campaign>(`/api/campaigns/${campaign.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ ...input, version: campaign.version }),
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.campaigns }),
-  });
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    update.mutate({
-      name: String(form.get("name")),
-      slug: String(form.get("slug")),
-      description: String(form.get("description")),
-      status: String(form.get("status")),
-      isPublic: form.get("isPublic") === "on",
-    });
-  }
-
-  return (
-    <section className="admin-card">
-      <div className="admin-section-title">
-        <div><span>Configuração atual</span><h2>{campaign.name}</h2><p>Identidade e disponibilidade desta campanha.</p></div>
-      </div>
-      <form className="admin-form" key={campaign.version} onSubmit={submit}>
-        <label>Nome<input name="name" defaultValue={campaign.name} required /></label>
-        <label>Identificador<input name="slug" defaultValue={campaign.slug} required /></label>
-        <label className="full">Descrição<textarea name="description" rows={5} defaultValue={campaign.description} /></label>
-        <label>Status<select name="status" defaultValue={campaign.status}><option value="draft">Rascunho</option><option value="active">Ativa</option><option value="archived">Arquivada</option></select></label>
-        <label className="check"><input type="checkbox" name="isPublic" defaultChecked={campaign.isPublic} /> Exibir no portal público</label>
-        <button className="admin-primary" disabled={update.isPending}>
-          {update.isPending ? "Salvando alterações…" : "Salvar configurações"}
-        </button>
-      </form>
-      {update.isSuccess ? <p className="inline-success" role="status">Configurações atualizadas.</p> : null}
-      {update.isError ? <p className="inline-error">{errorMessage(update.error)}</p> : null}
-    </section>
-  );
-}
-
-function roleLabel(role: string): string {
+export function roleLabel(role: string): string {
   const labels: Record<string, string> = {
     owner: "Proprietário global",
     administrator: "Administrador global",
