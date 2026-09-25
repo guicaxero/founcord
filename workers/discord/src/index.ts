@@ -4,10 +4,14 @@ import {
   DiscordInteractionSchema,
   DiscordPostPublicationSchema,
   formatCoins,
+  isBareAmount,
+  MERCHANT_AVAILABILITY_LABELS,
+  MERCHANT_CONSUMABLE_LABELS,
   parseDemonLordPrice,
   type DiscordInteraction,
   type DiscordPostPublication,
   type MerchantCatalogResponse,
+  type MerchantItemProjection,
 } from "@ordem/contracts";
 import {
   createForumThread,
@@ -435,12 +439,8 @@ function merchantInteractionResponse(
     return matchesQuery && matchesAvailability;
   });
   const shown = filtered.slice(0, 8);
-  const state =
-    response.catalog.freshness === "fresh"
-      ? "Catálogo atualizado"
-      : response.catalog.freshness === "stale"
-        ? "Dados desatualizados"
-        : "Mundo offline — o estoque pode ter mudado";
+  // O estoque só é reenviado quando o mestre altera itens no Foundry; o tempo
+  // desde o envio não indica atraso, então mostramos apenas a data.
   return {
     type: 4,
     data: {
@@ -448,7 +448,7 @@ function merchantInteractionResponse(
       embeds: [
         {
           title: response.catalog.merchantName,
-          description: `${state}. Última sincronização: ${discordTimestamp(response.catalog.syncedAt)}.\n${
+          description: `Última atualização do estoque: ${discordTimestamp(response.catalog.syncedAt)}.\n${
             filtered.length === 0
               ? "Nenhum item corresponde aos filtros."
               : `Exibindo ${shown.length} de ${filtered.length} ${filtered.length === 1 ? "item" : "itens"}.`
@@ -457,7 +457,15 @@ function merchantInteractionResponse(
           fields: shown.map((item) => ({
             name: truncateDiscord(item.name, 128),
             value: truncateDiscord(
-              `**Preço:** ${merchantPrice(item.price)}\n**Estoque:** ${merchantStock(item.quantity)}\n${item.description ?? "Descrição não informada."}`,
+              [
+                `**Preço:** ${merchantPrice(item.price)}`,
+                `**Estoque:** ${merchantStock(item.quantity)}`,
+                merchantTraits(item),
+                item.properties ? `**Propriedades:** ${item.properties}` : null,
+                item.description ?? "Descrição não informada.",
+              ]
+                .filter(Boolean)
+                .join("\n"),
               480,
             ),
             inline: false,
@@ -483,7 +491,19 @@ function commandStringOption(
 function merchantPrice(price: string | null): string {
   if (!price) return "Preço não informado";
   const parsed = parseDemonLordPrice(price);
-  return parsed ? formatCoins(parsed.coins) : `${price} (combinado com o mestre)`;
+  if (parsed) return formatCoins(parsed.coins);
+  return isBareAmount(price)
+    ? `${price.trim()} (moeda não informada)`
+    : `${price} (combinado com o mestre)`;
+}
+
+/** Raridade e tipo de consumível numa linha, quando o módulo os envia. */
+function merchantTraits(item: MerchantItemProjection): string | null {
+  const traits = [
+    item.availability ? MERCHANT_AVAILABILITY_LABELS[item.availability] : null,
+    item.consumableType ? MERCHANT_CONSUMABLE_LABELS[item.consumableType] : null,
+  ].filter(Boolean);
+  return traits.length > 0 ? `**Tipo:** ${traits.join(" · ")}` : null;
 }
 
 function merchantStock(quantity: number | null): string {

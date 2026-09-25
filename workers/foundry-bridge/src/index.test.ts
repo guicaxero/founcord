@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { FoundryCommand } from "@ordem/contracts";
+import { FoundryMerchantSyncRequestSchema, type FoundryCommand } from "@ordem/contracts";
 import type { FoundryEnv } from "./types";
 
 const repository = vi.hoisted(() => ({
@@ -277,7 +277,8 @@ describe("Foundry Bridge Worker", () => {
       env,
       worldId,
       campaignId,
-      sync,
+      // Campos novos do item entram com o valor padrão do contrato.
+      FoundryMerchantSyncRequestSchema.parse(sync),
     );
   });
 

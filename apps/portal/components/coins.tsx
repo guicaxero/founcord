@@ -2,6 +2,7 @@ import {
   COIN_LABELS,
   DEMON_LORD_COINS,
   formatCoins,
+  isBareAmount,
   multiplyCoins,
   parseDemonLordPrice,
   type DemonLordCoin,
@@ -55,6 +56,14 @@ export function MerchantPrice({ price }: Readonly<{ price: string | null }>) {
     return <span className="text-sm text-fg-subtle italic">Preço não informado</span>;
   }
   const parsed = parseDemonLordPrice(price);
+  if (!parsed && isBareAmount(price)) {
+    return (
+      <span className="grid gap-0.5">
+        <strong className="font-display text-base">{price.trim()}</strong>
+        <span className="text-xs text-warning">Moeda não informada no Foundry</span>
+      </span>
+    );
+  }
   if (!parsed) {
     return (
       <span className="grid gap-0.5">
