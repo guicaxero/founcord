@@ -47,13 +47,29 @@ Regras:
 
 As primitivas em `apps/portal/components/ui/` são obrigatórias: `button`,
 `surface` (cartão, selo, cabeçalho de página, esqueleto), `dialog`, `menu`,
-`tabs` e `feedback-state`. Diálogos, menus e abas usam Radix, que já entrega foco
-preso, retorno de foco, `Esc`, rolagem travada e semântica correta.
+`tabs`, `feedback-state`, `field` (campo, entrada, seleção, texto longo, caixa de
+seleção), `notice`, `filter-chips`, `data-table`, `confirm-dialog` e `toast`.
+Diálogos, menus, abas e notificações usam Radix, que já entrega foco preso,
+retorno de foco, `Esc`, rolagem travada e semântica correta. Não existe mais CSS
+fora de `globals.css`: todo estilo vem dos tokens e das utilidades do Tailwind.
 
 - Não recrie um componente existente nem crie variante visual sem necessidade
   funcional.
 - Toda área interativa tem no mínimo 44 px de altura.
 - Ícone sozinho exige nome acessível.
+
+### Formulários, confirmações e retorno
+
+- Formulários de criação e edição abrem em diálogo, com foco no primeiro campo e
+  retorno do foco ao botão que os abriu.
+- Ação destrutiva ou que interrompe algo em andamento passa por `ConfirmDialog`,
+  com o foco inicial na ação segura. Exclusão permanente exige digitar
+  `EXCLUIR`.
+- O resultado de uma ação concluída vai para o `toast`. Erro de formulário fica
+  junto do formulário, em `Notice`, e recebe o foco.
+- Listas de gestão usam `DataTable`: cabeçalhos ordenáveis por teclado com
+  `aria-sort` em telas largas e cartões abaixo de 768 px, sem rolagem
+  horizontal.
 
 ## 4. Movimento
 
@@ -102,8 +118,11 @@ Superfícies separadas:
 
 - **Portal público:** início, missões, crônicas, diário, Mercador e o Código.
 - **Área do jogador (`/eu`):** personagem, inscrições e pedidos.
-- **Painel de gestão (`/dashboard`):** criação, revisão, publicação, pessoas,
-  integrações e auditoria.
+- **Painel de gestão (`/dashboard/[area]`):** uma URL por área (sessões,
+  diário, automações, missões, publicações, Foundry, personagens, pedidos,
+  pessoas, histórico e configurações). Barra lateral em telas largas e seletor
+  compacto abaixo de 1024 px. As áreas e suas permissões vivem em
+  `components/admin/areas.ts`, que também decide quando o menu mostra "Gestão".
 
 Regras:
 

@@ -128,8 +128,6 @@ segurança, escala ou ciclo de release em uma separação adicional.
 
 - A identidade narrativa por webhook depende de `MANAGE_WEBHOOKS`; sem essa
   permissão a publicação usa o bot com atribuição textual.
-- Parte dos painéis preserva seletores CSS legados e precisa de migração gradual
-  para as primitivas do design system.
 - Compra no Mercador, edição completa de ficha e criador de criaturas ainda não
   existem.
 - A estrutura de moedas foi confirmada: o saldo fica em `actor.system.wealth`

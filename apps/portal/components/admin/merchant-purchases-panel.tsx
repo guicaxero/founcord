@@ -7,14 +7,29 @@ import type {
   MerchantPurchaseRequest,
   MerchantPurchaseStatus,
 } from "@ordem/contracts";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { motion } from "motion/react";
+import { useRef, useState, type FormEvent } from "react";
 import { PurchaseCard } from "@/components/merchant/purchase-card";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { FeedbackState } from "@/components/ui/feedback-state";
+import { Field, Textarea } from "@/components/ui/field";
+import { FilterChips } from "@/components/ui/filter-chips";
+import { listItem, staggerList } from "@/components/ui/motion";
+import { Notice } from "@/components/ui/notice";
+import { useToast } from "@/components/ui/toast";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
+import { PanelHeader, PanelLoading, Stats } from "./kit";
 
 type Decision = "fulfill" | "reject";
 type PurchaseFilter = "attention" | "all" | MerchantPurchaseStatus;
+type Selection = Readonly<{ purchase: MerchantPurchaseRequest; decision: Decision }>;
+
+const needsAttention = (purchase: MerchantPurchaseRequest) =>
+  purchase.status === "pending_delivery" ||
+  purchase.status === "awaiting_master" ||
+  purchase.status === "delivery_failed";
 
 export function MerchantPurchasesPanel({
   campaignId,
@@ -24,36 +39,35 @@ export function MerchantPurchasesPanel({
   pollingEnabled?: boolean;
 }>) {
   const queryClient = useQueryClient();
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const toast = useToast();
+  const triggerRef = useRef<HTMLElement | null>(null);
   const [filter, setFilter] = useState<PurchaseFilter>("attention");
-  const [selection, setSelection] = useState<Readonly<{
-    purchase: MerchantPurchaseRequest;
-    decision: Decision;
-  }> | null>(null);
-  const [success, setSuccess] = useState("");
+  const [selection, setSelection] = useState<Selection | null>(null);
   const purchases = useQuery({
     queryKey: queryKeys.merchantPurchases(campaignId),
-    queryFn: () => apiFetch<MerchantPurchaseListResponse>(
-      `/api/campaigns/${campaignId}/merchant/purchases`,
-    ),
-    refetchInterval: pollingEnabled ? (query) => query.state.data?.data.some((purchase) =>
-      purchase.status === "pending_delivery" || purchase.status === "awaiting_master",
-    ) ? 10_000 : false : false,
+    queryFn: () => apiFetch<MerchantPurchaseListResponse>(`/api/campaigns/${campaignId}/merchant/purchases`),
+    refetchInterval: pollingEnabled
+      ? (query) =>
+          query.state.data?.data.some(
+            (purchase) => purchase.status === "pending_delivery" || purchase.status === "awaiting_master",
+          )
+            ? 10_000
+            : false
+      : false,
   });
   const decide = useMutation({
-    mutationFn: ({ purchaseId, input }: Readonly<{
-      purchaseId: string;
-      input: MerchantPurchaseDecisionInput;
-    }>) => apiFetch<MerchantPurchaseRequest>(
-      `/api/campaigns/${campaignId}/merchant/purchases/${purchaseId}`,
-      { method: "PATCH", body: JSON.stringify(input) },
-    ),
+    mutationFn: ({ purchaseId, input }: Readonly<{ purchaseId: string; input: MerchantPurchaseDecisionInput }>) =>
+      apiFetch<MerchantPurchaseRequest>(`/api/campaigns/${campaignId}/merchant/purchases/${purchaseId}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
     onSuccess: async (updated) => {
-      dialogRef.current?.close();
       setSelection(null);
-      setSuccess(updated.status === "fulfilled"
-        ? `Pedido de ${updated.item.name} marcado como atendido.`
-        : `Pedido de ${updated.item.name} recusado.`);
+      toast({
+        title: updated.status === "fulfilled" ? "Pedido atendido" : "Pedido recusado",
+        description: `${updated.item.quantity} × ${updated.item.name} para ${updated.character.actorName}.`,
+        tone: updated.status === "fulfilled" ? "success" : "info",
+      });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.merchantPurchases(campaignId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.audit(campaignId) }),
@@ -61,97 +75,191 @@ export function MerchantPurchasesPanel({
     },
   });
 
-  useEffect(() => {
-    if (selection && dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
-  }, [selection]);
-
-  if (purchases.isPending) {
-    return <div className="admin-loading" role="status"><span className="loading-line" /><p>Consultando pedidos do Mercador…</p></div>;
-  }
+  if (purchases.isPending) return <PanelLoading label="Consultando pedidos do Mercador" />;
   if (purchases.isError) {
-    return <FeedbackState title="Não foi possível carregar os pedidos" tone="error" role="alert" action={<button className="secondary-action" type="button" onClick={() => purchases.refetch()}>Tentar novamente</button>}>{errorMessage(purchases.error)}</FeedbackState>;
+    return (
+      <FeedbackState
+        title="Não foi possível carregar os pedidos"
+        tone="error"
+        role="alert"
+        action={<Button onClick={() => purchases.refetch()}>Tentar novamente</Button>}
+      >
+        {errorMessage(purchases.error)}
+      </FeedbackState>
+    );
   }
 
-  const data = purchases.data?.data ?? [];
+  const data = purchases.data.data;
+  const count = (predicate: (purchase: MerchantPurchaseRequest) => boolean) => data.filter(predicate).length;
   const visible = data.filter((purchase) => {
     if (filter === "all") return true;
-    if (filter === "attention") return purchase.status === "pending_delivery"
-      || purchase.status === "awaiting_master"
-      || purchase.status === "delivery_failed";
+    if (filter === "attention") return needsAttention(purchase);
     return purchase.status === filter;
   });
-  const awaiting = data.filter((purchase) => purchase.status === "awaiting_master").length;
+  const awaiting = count((purchase) => purchase.status === "awaiting_master");
+
+  function open(purchase: MerchantPurchaseRequest, decision: Decision, trigger: HTMLElement) {
+    triggerRef.current = trigger;
+    decide.reset();
+    setSelection({ purchase, decision });
+  }
 
   return (
-    <div className="merchant-management">
-      <section className="merchant-management-overview" aria-labelledby="merchant-management-title">
-        <div><span className="admin-eyebrow">Acerto manual</span><h2 id="merchant-management-title">Pedidos enviados pelos jogadores</h2><p>Confira o pedido, realize a troca no Foundry e somente depois registre a decisão. O portal não movimenta moedas, itens ou estoque.</p></div>
-        <div className="merchant-management-metric"><strong>{awaiting}</strong><span>{awaiting === 1 ? "pedido aguarda ação" : "pedidos aguardam ação"}</span></div>
+    <div className="space-y-8">
+      <Stats
+        label="Resumo dos pedidos"
+        items={[
+          { label: "Aguardam o mestre", value: awaiting },
+          { label: "Precisam de atenção", value: count(needsAttention) },
+          { label: "Atendidos", value: count((purchase) => purchase.status === "fulfilled") },
+        ]}
+      />
+
+      <Notice tone="info" title="O portal não movimenta moedas nem itens">
+        Confira o pedido, faça a troca no Foundry e só depois registre a decisão aqui.
+      </Notice>
+
+      <section className="space-y-5" aria-labelledby="merchant-queue-title">
+        <PanelHeader
+          id="merchant-queue-title"
+          eyebrow="Fila de pedidos"
+          title="Pedidos enviados pelos jogadores"
+          actions={purchases.isFetching ? <span className="text-xs text-fg-subtle" role="status">Atualizando…</span> : null}
+        />
+        <FilterChips
+          label="Filtrar pedidos por estado"
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: "attention", label: "Precisam de atenção", count: count(needsAttention) },
+            { value: "awaiting_master", label: "Aguardando mestre", count: awaiting },
+            { value: "fulfilled", label: "Atendidos" },
+            { value: "rejected", label: "Recusados" },
+            { value: "cancelled", label: "Cancelados" },
+            { value: "all", label: "Todos", count: data.length },
+          ]}
+        />
+
+        {data.length === 0 ? (
+          <FeedbackState title="Nenhum pedido recebido">
+            Os pedidos de jogadores com personagem vinculado aparecem aqui e no chat privado dos mestres no Foundry.
+          </FeedbackState>
+        ) : visible.length === 0 ? (
+          <FeedbackState
+            title="Nenhum pedido neste filtro"
+            action={<Button onClick={() => setFilter("all")}>Ver todos os pedidos</Button>}
+          >
+            Escolha outro estado para consultar o histórico.
+          </FeedbackState>
+        ) : (
+          <motion.ul
+            key={filter}
+            className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3"
+            aria-live="polite"
+            variants={staggerList}
+            initial="hidden"
+            animate="visible"
+          >
+            {visible.map((purchase) => (
+              <motion.li key={purchase.id} variants={listItem}>
+                <PurchaseCard purchase={purchase}>
+                  <p className="text-sm text-fg-muted">
+                    Pedido por <strong className="text-fg">{purchase.requester.displayName}</strong>
+                  </p>
+                  {purchase.status === "awaiting_master" ? (
+                    <div className="mt-auto flex flex-wrap gap-2 border-t border-line-soft pt-4">
+                      <Button size="sm" onClick={(event) => open(purchase, "reject", event.currentTarget)}>
+                        Recusar
+                      </Button>
+                      <Button size="sm" variant="primary" onClick={(event) => open(purchase, "fulfill", event.currentTarget)}>
+                        Marcar como atendido
+                      </Button>
+                    </div>
+                  ) : null}
+                </PurchaseCard>
+              </motion.li>
+            ))}
+          </motion.ul>
+        )}
       </section>
 
-      {success ? <p className="inline-success" role="status">{success}</p> : null}
-      {purchases.isFetching ? <p className="sessions-refresh-note" role="status">Atualizando pedidos…</p> : null}
-
-      <div className="merchant-management-filters" role="group" aria-label="Filtrar pedidos por estado">
-        {([
-          ["attention", "Precisam de atenção"],
-          ["awaiting_master", "Aguardando mestre"],
-          ["fulfilled", "Atendidos"],
-          ["rejected", "Recusados"],
-          ["cancelled", "Cancelados"],
-          ["all", "Todos"],
-        ] as const).map(([value, label]) => (
-          <button type="button" key={value} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>
-        ))}
-      </div>
-
-      {data.length === 0 ? (
-        <FeedbackState title="Nenhum pedido recebido">Os pedidos feitos por jogadores vinculados aparecerão aqui e no chat privado dos mestres no Foundry.</FeedbackState>
-      ) : visible.length === 0 ? (
-        <FeedbackState title="Nenhum pedido neste filtro" action={<button className="secondary-action" type="button" onClick={() => setFilter("attention")}>Ver os que precisam de atenção</button>}>Escolha outro estado para consultar o histórico.</FeedbackState>
-      ) : (
-        <div className="merchant-management-list" aria-live="polite">
-          {visible.map((purchase) => (
-            <PurchaseCard purchase={purchase} key={purchase.id}>
-              <span className="merchant-requester">Pedido por <strong>{purchase.requester.displayName}</strong></span>
-              {purchase.status === "awaiting_master" ? (
-                <div className="merchant-management-actions">
-                  <button className="secondary-action" type="button" onClick={() => { decide.reset(); setSelection({ purchase, decision: "reject" }); }}>Recusar pedido</button>
-                  <button className="admin-primary" type="button" onClick={() => { decide.reset(); setSelection({ purchase, decision: "fulfill" }); }}>Marcar como atendido</button>
-                </div>
-              ) : null}
-            </PurchaseCard>
-          ))}
-        </div>
-      )}
-
-      {selection ? (
-        <dialog className="merchant-decision-dialog" ref={dialogRef} aria-labelledby="merchant-decision-title" onClose={() => { if (!decide.isPending) setSelection(null); }}>
-          <form onSubmit={(event) => submitDecision(event, selection, decide.mutate)}>
-            <header><span className="admin-eyebrow">Decisão do mestre</span><h2 id="merchant-decision-title">{selection.decision === "fulfill" ? "Confirmar atendimento" : "Recusar pedido"}</h2><p>{selection.purchase.character.actorName} pediu {selection.purchase.item.quantity} × {selection.purchase.item.name}.</p></header>
-            {selection.decision === "fulfill" ? <div className="merchant-no-mutation" role="note"><strong>Confirme somente depois do acerto no Foundry.</strong><span>Esta ação registra o resultado, mas não altera a ficha nem o estoque.</span></div> : null}
-            <label><span>Retorno para o jogador <small>(opcional)</small></span><textarea name="resolutionNote" rows={4} maxLength={500} placeholder={selection.decision === "reject" ? "Exemplo: item reservado para outra expedição." : "Exemplo: item entregue e moedas ajustadas na ficha."} /></label>
-            {decide.isError ? <p className="inline-error" role="alert">{errorMessage(decide.error)}</p> : null}
-            <footer><button className="secondary-action" type="button" disabled={decide.isPending} onClick={() => dialogRef.current?.close()}>Voltar ao pedido</button><button className={selection.decision === "fulfill" ? "admin-primary" : "admin-danger"} type="submit" disabled={decide.isPending}>{decide.isPending ? "Registrando decisão…" : selection.decision === "fulfill" ? "Confirmar atendimento manual" : "Recusar este pedido"}</button></footer>
-          </form>
-        </dialog>
-      ) : null}
+      <Dialog
+        open={Boolean(selection)}
+        onOpenChange={(next) => {
+          if (!next && !decide.isPending) setSelection(null);
+        }}
+        title={selection?.decision === "fulfill" ? "Confirmar atendimento" : "Recusar pedido"}
+        description={
+          selection
+            ? `${selection.purchase.character.actorName} pediu ${selection.purchase.item.quantity} × ${selection.purchase.item.name}.`
+            : undefined
+        }
+        returnFocusRef={triggerRef}
+        className="max-w-lg"
+      >
+        {selection ? (
+          <DecisionForm
+            selection={selection}
+            busy={decide.isPending}
+            error={decide.isError ? errorMessage(decide.error) : null}
+            onCancel={() => setSelection(null)}
+            onSubmit={(input) => decide.mutate({ purchaseId: selection.purchase.id, input })}
+          />
+        ) : null}
+      </Dialog>
     </div>
   );
 }
 
-function submitDecision(
-  event: FormEvent<HTMLFormElement>,
-  selection: Readonly<{ purchase: MerchantPurchaseRequest; decision: Decision }>,
-  mutate: (variables: Readonly<{ purchaseId: string; input: MerchantPurchaseDecisionInput }>) => void,
-) {
-  event.preventDefault();
-  const form = new FormData(event.currentTarget);
-  mutate({
-    purchaseId: selection.purchase.id,
-    input: {
+function DecisionForm({
+  selection,
+  busy,
+  error,
+  onCancel,
+  onSubmit,
+}: Readonly<{
+  selection: Selection;
+  busy: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onSubmit: (input: MerchantPurchaseDecisionInput) => void;
+}>) {
+  const fulfill = selection.decision === "fulfill";
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    onSubmit({
       action: selection.decision,
       resolutionNote: String(form.get("resolutionNote") ?? "").trim() || null,
-    },
-  });
+    });
+  }
+
+  return (
+    <form className="space-y-5" onSubmit={submit}>
+      {fulfill ? (
+        <Notice tone="warning" role="note" title="Confirme só depois do acerto no Foundry">
+          Esta ação registra o resultado, mas não altera a ficha nem o estoque.
+        </Notice>
+      ) : null}
+      <Field label="Retorno para o jogador" optional>
+        {({ id }) => (
+          <Textarea
+            id={id}
+            name="resolutionNote"
+            rows={4}
+            maxLength={500}
+            placeholder={fulfill ? "Ex.: item entregue e moedas ajustadas na ficha." : "Ex.: item reservado para outra expedição."}
+          />
+        )}
+      </Field>
+      {error ? <Notice tone="danger" role="alert">{error}</Notice> : null}
+      <div className="flex flex-col-reverse gap-3 border-t border-line-soft pt-4 sm:flex-row sm:justify-end">
+        <Button disabled={busy} onClick={onCancel}>Voltar ao pedido</Button>
+        <Button type="submit" variant={fulfill ? "primary" : "danger"} disabled={busy}>
+          {busy ? "Registrando…" : fulfill ? "Confirmar atendimento" : "Recusar este pedido"}
+        </Button>
+      </div>
+    </form>
+  );
 }

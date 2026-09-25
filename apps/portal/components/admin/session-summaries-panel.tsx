@@ -10,17 +10,45 @@ import type {
   SessionSummaryStatus,
   UpdateSessionSummaryInput,
 } from "@ordem/contracts";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DataTable, RowActions } from "@/components/ui/data-table";
+import { Dialog } from "@/components/ui/dialog";
 import { FeedbackState } from "@/components/ui/feedback-state";
+import { Field, FormGrid, Input, Select, Textarea } from "@/components/ui/field";
+import { FilterChips } from "@/components/ui/filter-chips";
+import { Notice } from "@/components/ui/notice";
+import { Badge } from "@/components/ui/surface";
+import { useToast } from "@/components/ui/toast";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { hasCapability } from "@/lib/capabilities";
+import { formatDate } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
+import { PanelLoading, PermissionNote } from "./kit";
+import { editorialOrder, editorialTone, timestamp } from "./status";
 
 const statusLabels: Readonly<Record<SessionSummaryStatus, string>> = {
   draft: "Rascunho",
   pending_review: "Em revisão",
   published: "Publicado",
   archived: "Arquivado",
+};
+
+const transitionNotice: Readonly<Record<SessionSummaryStatus, string>> = {
+  draft: "Resumo devolvido ao rascunho e fora da leitura pública.",
+  pending_review: "Resumo enviado para revisão; ele continua privado.",
+  published: "Resumo publicado no Diário de Sessões.",
+  archived: "Resumo arquivado e fora da leitura pública.",
+};
+
+const sessionStatusLabels: Readonly<Record<CampaignSessionListResponse["data"][number]["status"], string>> = {
+  prepared: "preparada",
+  starting: "iniciando",
+  active: "em andamento",
+  ended: "encerrada",
+  cancelled: "cancelada",
+  capture_failed: "captura interrompida",
 };
 
 type SummaryFilter = "all" | SessionSummaryStatus;
@@ -33,15 +61,15 @@ export function SessionSummariesPanel({
 }: Readonly<{
   campaignId: string;
   me: CurrentUserResponse;
-  initialSummaries?: SessionSummaryListResponse;
-  initialSessions?: CampaignSessionListResponse;
+  initialSummaries?: SessionSummaryListResponse | undefined;
+  initialSessions?: CampaignSessionListResponse | undefined;
 }>) {
   const queryClient = useQueryClient();
-  const [editing, setEditing] = useState<SessionSummary | null>(null);
+  const toast = useToast();
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const [editor, setEditor] = useState<{ item: SessionSummary | null } | null>(null);
   const [deleting, setDeleting] = useState<SessionSummary | null>(null);
   const [filter, setFilter] = useState<SummaryFilter>("all");
-  const [notice, setNotice] = useState("");
-  const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const canManage = hasCapability(me, "session:manage", campaignId);
   const canReview = hasCapability(me, "post:review", campaignId);
   const canPublish = hasCapability(me, "post:publish", campaignId);
@@ -66,80 +94,218 @@ export function SessionSummariesPanel({
       }
       return apiFetch<SessionSummary>(`/api/campaigns/${campaignId}/session-summaries`, { method: "POST", body: JSON.stringify(payload) });
     },
-    onSuccess: async (_, payload) => {
-      setNotice("id" in payload ? "Alterações salvas no registro." : "Rascunho criado e mantido privado.");
-      setEditing(null);
+    onSuccess: async (item, payload) => {
+      setEditor(null);
+      toast({
+        title: "id" in payload ? "Alterações salvas" : "Rascunho criado",
+        description: "id" in payload ? item.title : "O registro continua privado até ser publicado.",
+      });
       await invalidateSummaries(queryClient, campaignId);
     },
   });
   const transition = useMutation({
     mutationFn: ({ item, status }: { item: SessionSummary; status: SessionSummaryStatus }) =>
-      apiFetch<SessionSummary>(`/api/campaigns/${campaignId}/session-summaries/${item.id}`, { method: "PATCH", body: JSON.stringify({ version: item.version, status }) }),
+      apiFetch<SessionSummary>(`/api/campaigns/${campaignId}/session-summaries/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ version: item.version, status }),
+      }),
     onSuccess: (item) => {
-      setNotice(transitionNotice(item.status));
+      toast({ title: item.title, description: transitionNotice[item.status] });
       return invalidateSummaries(queryClient, campaignId);
     },
+    onError: (error) => toast({ title: "O resumo não foi alterado", description: errorMessage(error), tone: "danger" }),
   });
   const destroy = useMutation({
-    mutationFn: (item: SessionSummary) => apiFetch<void>(`/api/campaigns/${campaignId}/session-summaries/${item.id}?version=${item.version}`, { method: "DELETE" }),
+    mutationFn: (item: SessionSummary) =>
+      apiFetch<void>(`/api/campaigns/${campaignId}/session-summaries/${item.id}?version=${item.version}`, { method: "DELETE" }),
     onSuccess: async () => {
-      closeDeleteDialog();
-      setNotice("Resumo excluído permanentemente. A sessão original foi preservada.");
+      setDeleting(null);
+      toast({ title: "Resumo excluído", description: "A sessão original e suas fontes foram preservadas." });
       await invalidateSummaries(queryClient, campaignId);
     },
   });
 
   const data = summaries.data?.data ?? [];
   const filtered = filter === "all" ? data : data.filter((item) => item.status === filter);
+  const canEdit = canManage || canReview;
 
-  function closeDeleteDialog() {
-    setDeleting(null);
-    window.requestAnimationFrame(() => deleteTriggerRef.current?.focus());
+  function remember(event: { currentTarget: HTMLElement }) {
+    triggerRef.current = event.currentTarget;
   }
 
   return (
-    <div className="admin-two-column session-summary-admin">
-      <div>
-        <div className="admin-section-title session-summary-heading">
-          <div><span>DIÁRIO DA ORDEM</span><h2>Resumos de sessão</h2><p>Revise registros factuais antes de torná-los públicos.</p></div>
-          <b>{data.length} registros</b>
-        </div>
-        <div className="sessions-filters" aria-label="Filtrar resumos por estado">
-          {(["all", "draft", "pending_review", "published", "archived"] as const).map((value) => (
-            <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>
-              {value === "all" ? "Todos" : statusLabels[value]}
-            </button>
-          ))}
-        </div>
-        <p className="admin-live-feedback" role="status" aria-live="polite">{notice}</p>
-        {summaries.isLoading ? <FeedbackState title="Carregando registros" role="status">Reunindo os resumos desta campanha.</FeedbackState> : null}
-        {summaries.isError ? <FeedbackState title="Não foi possível carregar o diário" tone="error" role="alert" action={<button type="button" onClick={() => summaries.refetch()}>Tentar novamente</button>}>{errorMessage(summaries.error)}</FeedbackState> : null}
-        {!summaries.isLoading && !summaries.isError && data.length === 0 ? <FeedbackState title="Nenhum resumo registrado">Resumos gerados pelas sessões ou criados manualmente aparecerão aqui.</FeedbackState> : null}
-        {!summaries.isLoading && !summaries.isError && data.length > 0 && filtered.length === 0 ? <FeedbackState title="Nenhum registro neste filtro">Escolha outro estado para continuar acompanhando o diário.</FeedbackState> : null}
-        <div className="admin-list post-list">
-          {filtered.map((item) => (
-            <article key={item.id}>
-              <div className="admin-list-main">
-                <span className={`status-pill status-${item.status}`}>{statusLabels[item.status]}</span>
-                <h3>{item.title}</h3>
-                <p>{item.sessionTitle ?? "Sem sessão vinculada"} · {item.authorName} · {item.source === "automation" ? "automação" : "manual"}</p>
-              </div>
-              <div className="admin-row-actions">
-                {(item.status === "draft" || item.status === "pending_review") && (canManage || canReview) ? <button type="button" onClick={() => setEditing(item)}>Editar</button> : null}
-                {item.status === "draft" && (canManage || canReview) ? <button type="button" disabled={transition.isPending} onClick={() => transition.mutate({ item, status: "pending_review" })}>Enviar para revisão</button> : null}
-                {item.status === "pending_review" && (canManage || canReview) ? <button type="button" disabled={transition.isPending} onClick={() => transition.mutate({ item, status: "draft" })}>Devolver ao rascunho</button> : null}
-                {item.status === "pending_review" && canPublish ? <button type="button" disabled={transition.isPending} onClick={() => transition.mutate({ item, status: "published" })}>Publicar resumo</button> : null}
-                {item.status === "archived" && canPublish ? <button type="button" disabled={transition.isPending} onClick={() => transition.mutate({ item, status: "draft" })}>Restaurar como rascunho</button> : null}
-                {item.status !== "archived" && canPublish ? <button className="danger-link" type="button" disabled={transition.isPending} onClick={() => transition.mutate({ item, status: "archived" })}>Arquivar</button> : null}
-                {item.status === "archived" && canDelete ? <button ref={deleteTriggerRef} className="danger-link" type="button" onClick={() => setDeleting(item)}>Excluir permanentemente</button> : null}
-              </div>
-            </article>
-          ))}
-        </div>
-        {transition.isError ? <p className="inline-error" role="alert">{errorMessage(transition.error)}</p> : null}
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <FilterChips
+          label="Filtrar resumos por estado"
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: "all", label: "Todos", count: data.length },
+            ...(["draft", "pending_review", "published", "archived"] as const).map((value) => ({
+              value,
+              label: statusLabels[value],
+              count: data.filter((item) => item.status === value).length,
+            })),
+          ]}
+        />
+        {canManage ? (
+          <Button variant="accent" onClick={(event) => { remember(event); save.reset(); setEditor({ item: null }); }}>
+            Novo resumo
+          </Button>
+        ) : null}
       </div>
-      {canManage || editing ? <SummaryForm campaignId={campaignId} item={editing} sessions={sessions.data?.data ?? []} sessionsUnavailable={sessions.isError} busy={save.isPending} error={save.isError ? errorMessage(save.error) : null} onCancel={() => setEditing(null)} onSubmit={(value) => save.mutate(value)} /> : <aside className="permission-note">Seu perfil revisa ou publica registros existentes, mas não cria novos resumos.</aside>}
-      {deleting ? <DeleteSummaryDialog item={deleting} busy={destroy.isPending} error={destroy.isError ? errorMessage(destroy.error) : null} onCancel={closeDeleteDialog} onConfirm={() => destroy.mutate(deleting)} /> : null}
+      {!canManage ? <PermissionNote>Seu perfil revisa ou publica registros existentes, mas não cria novos resumos.</PermissionNote> : null}
+
+      <div aria-live="polite">
+        {summaries.isPending ? (
+          <PanelLoading label="Reunindo os resumos desta campanha" />
+        ) : summaries.isError ? (
+          <FeedbackState
+            title="Não foi possível carregar o diário"
+            tone="error"
+            role="alert"
+            action={<Button onClick={() => summaries.refetch()}>Tentar novamente</Button>}
+          >
+            {errorMessage(summaries.error)}
+          </FeedbackState>
+        ) : data.length === 0 ? (
+          <FeedbackState title="Nenhum resumo registrado">
+            Resumos gerados pelas sessões ou criados manualmente aparecem aqui.
+          </FeedbackState>
+        ) : (
+          <DataTable
+            caption="Resumos de sessão"
+            rows={filtered}
+            rowKey={(item) => item.id}
+            initialSort={{ column: "status", direction: "ascending" }}
+            empty={
+              <FeedbackState title="Nenhum registro neste filtro" action={<Button onClick={() => setFilter("all")}>Mostrar todos</Button>}>
+                Escolha outro estado para continuar acompanhando o diário.
+              </FeedbackState>
+            }
+            columns={[
+              {
+                id: "title",
+                header: "Resumo",
+                hideLabelOnMobile: true,
+                sortValue: (item) => item.title,
+                cell: (item) => (
+                  <div className="min-w-0 space-y-1">
+                    <p className="font-semibold text-fg">{item.title}</p>
+                    <p className="text-xs text-fg-subtle">
+                      {item.sessionTitle ?? "Sem sessão vinculada"} · {item.authorName} · {item.source === "automation" ? "automação" : "manual"}
+                    </p>
+                  </div>
+                ),
+              },
+              {
+                id: "status",
+                header: "Situação",
+                sortValue: (item) => editorialOrder[item.status],
+                className: "md:w-36",
+                cell: (item) => <Badge tone={editorialTone[item.status]}>{statusLabels[item.status]}</Badge>,
+              },
+              {
+                id: "updated",
+                header: "Atualizado",
+                sortValue: (item) => timestamp(item.updatedAt),
+                className: "md:w-36 text-fg-muted",
+                cell: (item) => formatDate(item.updatedAt),
+              },
+              {
+                id: "actions",
+                header: "Ações",
+                hideLabelOnMobile: true,
+                className: "lg:w-80",
+                cell: (item) => (
+                  <RowActions>
+                    {(item.status === "draft" || item.status === "pending_review") && canEdit ? (
+                      <Button size="sm" variant="ghost" onClick={(event) => { remember(event); save.reset(); setEditor({ item }); }}>
+                        Editar
+                      </Button>
+                    ) : null}
+                    {item.status === "draft" && canEdit ? (
+                      <Button size="sm" disabled={transition.isPending} onClick={() => transition.mutate({ item, status: "pending_review" })}>
+                        Enviar para revisão
+                      </Button>
+                    ) : null}
+                    {item.status === "pending_review" && canEdit ? (
+                      <Button size="sm" disabled={transition.isPending} onClick={() => transition.mutate({ item, status: "draft" })}>
+                        Devolver ao rascunho
+                      </Button>
+                    ) : null}
+                    {item.status === "pending_review" && canPublish ? (
+                      <Button size="sm" variant="primary" disabled={transition.isPending} onClick={() => transition.mutate({ item, status: "published" })}>
+                        Publicar resumo
+                      </Button>
+                    ) : null}
+                    {item.status === "archived" && canPublish ? (
+                      <Button size="sm" disabled={transition.isPending} onClick={() => transition.mutate({ item, status: "draft" })}>
+                        Restaurar como rascunho
+                      </Button>
+                    ) : null}
+                    {item.status !== "archived" && canPublish ? (
+                      <Button size="sm" variant="ghost" className="text-danger" disabled={transition.isPending} onClick={() => transition.mutate({ item, status: "archived" })}>
+                        Arquivar
+                      </Button>
+                    ) : null}
+                    {item.status === "archived" && canDelete ? (
+                      <Button size="sm" variant="danger" onClick={(event) => { remember(event); destroy.reset(); setDeleting(item); }}>
+                        Excluir permanentemente
+                      </Button>
+                    ) : null}
+                  </RowActions>
+                ),
+              },
+            ]}
+          />
+        )}
+      </div>
+
+      <Dialog
+        open={Boolean(editor)}
+        onOpenChange={(next) => {
+          if (!next && !save.isPending) setEditor(null);
+        }}
+        title={editor?.item ? "Revisar resumo" : "Novo resumo"}
+        description="Nenhum resumo é publicado sem uma ação humana explícita."
+        returnFocusRef={triggerRef}
+        className="max-w-3xl"
+      >
+        {editor ? (
+          <SummaryForm
+            key={editor.item?.id ?? "new"}
+            campaignId={campaignId}
+            item={editor.item}
+            sessions={sessions.data?.data ?? []}
+            sessionsUnavailable={sessions.isError}
+            busy={save.isPending}
+            error={save.isError ? errorMessage(save.error) : null}
+            onCancel={() => setEditor(null)}
+            onSubmit={(value) => save.mutate(value)}
+          />
+        ) : null}
+      </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        title="Excluir resumo permanentemente?"
+        description="Esta ação não pode ser desfeita."
+        confirmLabel="Excluir permanentemente"
+        busyLabel="Excluindo…"
+        confirmationText="EXCLUIR"
+        busy={destroy.isPending}
+        error={destroy.isError ? errorMessage(destroy.error) : null}
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => deleting && destroy.mutate(deleting)}
+        returnFocusRef={triggerRef}
+      >
+        <p>
+          O registro <strong className="text-fg">{deleting?.title}</strong> será removido do portal. A sessão original e
+          suas fontes não serão alteradas.
+        </p>
+      </ConfirmDialog>
     </div>
   );
 }
@@ -170,47 +336,49 @@ function SummaryForm({
     const sessionId = String(data.get("sessionId") ?? "") || null;
     onSubmit(item ? { ...fields, id: item.id, version: item.version } : { ...fields, campaignId, sessionId, status: "draft" });
   }
-  return (
-    <aside className="admin-editor">
-      <div className="admin-section-title"><div><span>{item ? "REVISÃO" : "NOVO REGISTRO"}</span><h2>{item ? item.title : "Criar resumo"}</h2></div></div>
-      <form className="admin-form" key={item?.id ?? "new"} onSubmit={submit}>
-        {item ? (
-          <p className="full summary-session-context"><strong>Sessão vinculada</strong><span>{item.sessionTitle ?? "Sem sessão vinculada"}</span></p>
-        ) : (
-          <label className="full">Sessão relacionada
-            <select name="sessionId" defaultValue="" aria-describedby="session-summary-help">
-              <option value="">Registro manual, sem sessão</option>
-              {sessions.map((session) => <option value={session.id} key={session.id}>{session.title} · {statusLabelsForSession(session.status)}</option>)}
-            </select>
-            <small id="session-summary-help">Vincule a expedição quando o registro descrever uma sessão específica.</small>
-          </label>
-        )}
-        {sessionsUnavailable && !item ? <p className="inline-error full" role="alert">As sessões não puderam ser carregadas. Você ainda pode salvar o registro sem vínculo.</p> : null}
-        <label className="full">Título<input name="title" required minLength={3} maxLength={140} defaultValue={item?.title} /></label>
-        <label className="full">Resumo<textarea name="body" required rows={14} maxLength={20_000} defaultValue={item?.body} /></label>
-        <div className="form-actions full"><button className="admin-primary" disabled={busy}>{busy ? "Salvando…" : item ? "Salvar alterações" : "Salvar rascunho"}</button>{item ? <button type="button" disabled={busy} onClick={onCancel}>Cancelar</button> : null}</div>
-      </form>
-      <p className="editorial-note">Nenhum resumo é publicado sem uma ação humana explícita.</p>
-      {error ? <p className="inline-error" role="alert">{error}</p> : null}
-    </aside>
-  );
-}
 
-function DeleteSummaryDialog({ item, busy, error, onCancel, onConfirm }: Readonly<{ item: SessionSummary; busy: boolean; error: string | null; onCancel: () => void; onConfirm: () => void }>) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const confirmationRef = useRef<HTMLInputElement>(null);
-  const [confirmation, setConfirmation] = useState("");
-  useEffect(() => { const dialog = dialogRef.current; if (dialog && !dialog.open) { dialog.showModal(); confirmationRef.current?.focus(); } return () => { if (dialog?.open) dialog.close(); }; }, []);
   return (
-    <dialog ref={dialogRef} className="destructive-dialog" aria-labelledby="delete-summary-title" onCancel={(event) => { event.preventDefault(); if (!busy) onCancel(); }}>
-      <form className="destructive-dialog-card" onSubmit={(event) => { event.preventDefault(); if (confirmation === "EXCLUIR" && !busy) onConfirm(); }}>
-        <span className="dialog-kicker">AÇÃO IRREVERSÍVEL</span><h2 id="delete-summary-title">Excluir resumo permanentemente?</h2>
-        <p>O registro <strong>{item.title}</strong> será removido do portal. A sessão original e suas fontes não serão alteradas.</p>
-        <label>Digite <strong>EXCLUIR</strong> para confirmar<input ref={confirmationRef} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" spellCheck={false} /></label>
-        {error ? <p className="inline-error" role="alert">{error}</p> : null}
-        <div className="dialog-actions"><button type="button" disabled={busy} onClick={onCancel}>Cancelar</button><button className="danger-primary" disabled={confirmation !== "EXCLUIR" || busy}>{busy ? "Excluindo…" : "Excluir permanentemente"}</button></div>
-      </form>
-    </dialog>
+    <form className="space-y-6" onSubmit={submit}>
+      <FormGrid>
+        {item ? (
+          <div className="full rounded-md bg-surface-2 px-3 py-2 text-sm">
+            <span className="block text-xs font-bold text-fg-subtle uppercase">Sessão vinculada</span>
+            {item.sessionTitle ?? "Sem sessão vinculada"}
+          </div>
+        ) : (
+          <Field label="Sessão relacionada" className="full" hint="Vincule a expedição quando o registro descrever uma sessão específica.">
+            {({ id, describedBy }) => (
+              <Select id={id} name="sessionId" defaultValue="" aria-describedby={describedBy}>
+                <option value="">Registro manual, sem sessão</option>
+                {sessions.map((session) => (
+                  <option value={session.id} key={session.id}>
+                    {session.title} · {sessionStatusLabels[session.status]}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+        )}
+        {sessionsUnavailable && !item ? (
+          <Notice className="full" tone="warning" role="status">
+            As sessões não puderam ser carregadas. Você ainda pode salvar o registro sem vínculo.
+          </Notice>
+        ) : null}
+        <Field label="Título" className="full">
+          {({ id }) => <Input id={id} name="title" required minLength={3} maxLength={140} defaultValue={item?.title} />}
+        </Field>
+        <Field label="Resumo" className="full">
+          {({ id }) => <Textarea id={id} name="body" required rows={14} maxLength={20_000} defaultValue={item?.body} />}
+        </Field>
+      </FormGrid>
+      {error ? <Notice tone="danger" role="alert">{error}</Notice> : null}
+      <div className="flex flex-col-reverse gap-3 border-t border-line-soft pt-4 sm:flex-row sm:justify-end">
+        <Button disabled={busy} onClick={onCancel}>Cancelar</Button>
+        <Button type="submit" variant="primary" disabled={busy}>
+          {busy ? "Salvando…" : item ? "Salvar alterações" : "Salvar rascunho"}
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -220,26 +388,4 @@ async function invalidateSummaries(queryClient: ReturnType<typeof useQueryClient
     queryClient.invalidateQueries({ queryKey: queryKeys.sessionSummaries(campaignId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.campaignSessions(campaignId) }),
   ]);
-}
-
-function transitionNotice(status: SessionSummaryStatus): string {
-  const messages: Readonly<Record<SessionSummaryStatus, string>> = {
-    draft: "Resumo devolvido ao rascunho e removido da leitura pública.",
-    pending_review: "Resumo enviado para revisão; ele continua privado.",
-    published: "Resumo publicado no Diário de Sessões.",
-    archived: "Resumo arquivado e removido da leitura pública.",
-  };
-  return messages[status];
-}
-
-function statusLabelsForSession(status: CampaignSessionListResponse["data"][number]["status"]): string {
-  const labels: Readonly<Record<CampaignSessionListResponse["data"][number]["status"], string>> = {
-    prepared: "preparada",
-    starting: "iniciando",
-    active: "em andamento",
-    ended: "encerrada",
-    cancelled: "cancelada",
-    capture_failed: "captura interrompida",
-  };
-  return labels[status];
 }

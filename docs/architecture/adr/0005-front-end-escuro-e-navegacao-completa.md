@@ -35,8 +35,9 @@ Aceito em 23 de setembro de 2026. Substitui a seção de identidade visual
    comando `/personagem` do Discord aponta para ele.
 5. **Migração em três fases**, cada uma um PR implantável: fundação e navegação;
    portal público e área do jogador; painel de gestão. Enquanto as folhas antigas
-   existirem, um bloco de compatibilidade remapeia a escala `ink-*`/`paper-*`
-   para os tokens escuros, e cada fase remove as folhas que substituir.
+   existiram, um bloco de compatibilidade remapeou a escala `ink-*`/`paper-*`
+   para os tokens escuros, e cada fase removeu as folhas que substituiu. A fase 3
+   apagou as últimas folhas e o bloco de compatibilidade.
 6. **Terminologia.** "West Marches" e "Vigília" saem do produto. Os cookies
    passam a `ordem_session` e `ordem_oauth`, com leitura dos nomes antigos por
    uma versão para não encerrar sessões, e a migration `0016` limpa o conteúdo

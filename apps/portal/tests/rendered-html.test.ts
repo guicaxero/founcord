@@ -156,28 +156,44 @@ test("mantém a navegação essencial acessível nas superfícies públicas", as
   assert.match(order, /aria-label="Seções do Código"/i);
 });
 
-test("o shell de gestão usa navegação compatível com teclado e RBAC", async () => {
-  const [dashboard, summaries, navigation, responsiveCss] = await Promise.all([
+test("o painel de gestão tem uma rota por área, com navegação por teclado e RBAC", async () => {
+  const [dashboard, areas, summaries, confirmDialog, navigation] = await Promise.all([
     readFile(new URL("../components/admin/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/admin/areas.ts", import.meta.url), "utf8"),
     readFile(new URL("../components/admin/session-summaries-panel.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/ui/confirm-dialog.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/layout/navigation.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/styles/responsive.css", import.meta.url), "utf8"),
   ]);
 
-  assert.match(dashboard, /<nav className="admin-navigation"/);
+  assert.match(dashboard, /aria-label="Áreas de gestão"/);
   assert.match(dashboard, /aria-current=.*page/);
-  assert.match(dashboard, /className="admin-mobile-navigation"/);
   assert.match(dashboard, /id="active-admin-area"/);
-  assert.match(dashboard, /Diário de Sessões/);
-  assert.match(dashboard, /Pedidos do Mercador/);
-  assert.match(summaries, /aria-label="Filtrar resumos por estado"/);
-  assert.match(summaries, /aria-live="polite"/);
-  assert.match(summaries, /Digite <strong>EXCLUIR/);
+  assert.match(dashboard, /id="active-campaign"/);
+  // O AppShell já entrega o <main id="main-content">; o painel não pode abrir outro.
+  assert.doesNotMatch(dashboard, /<main\b/);
   assert.doesNotMatch(dashboard, /role="tab(list|panel)?"/);
-  assert.match(responsiveCss, /\.admin-navigation\s*{\s*display:\s*none/s);
-  assert.match(responsiveCss, /\.admin-mobile-navigation\s*{\s*display:\s*grid/s);
-  assert.match(navigation, /foundry:world:manage/);
-  assert.match(navigation, /session:manage/);
+  for (const label of ["Sessões", "Diário de Sessões", "Pedidos do Mercador", "Mundos do Foundry", "Configurações"]) {
+    assert.match(areas, new RegExp(`label: "${label}"`));
+  }
+  for (const permission of ["foundry:world:manage", "session:manage", "merchant:purchase:manage"]) {
+    assert.match(areas, new RegExp(permission));
+  }
+  // O menu "Gestão" deriva das mesmas permissões das áreas.
+  assert.match(navigation, /areas\.flatMap/);
+  assert.match(summaries, /label="Filtrar resumos por estado"/);
+  assert.match(summaries, /aria-live="polite"/);
+  assert.match(summaries, /confirmationText="EXCLUIR"/);
+  assert.match(confirmDialog, /Digite <strong/);
+});
+
+test("cada área do painel responde na própria URL e endereços desconhecidos dão 404", async () => {
+  for (const area of ["sessoes", "diario", "missoes", "pedidos", "configuracoes"]) {
+    const response = await render(`/dashboard/${area}`);
+    assert.equal(response.status, 200, area);
+    assert.match(await response.text(), /noindex/i, area);
+  }
+  const unknown = await render("/dashboard/inexistente");
+  assert.equal(unknown.status, 404);
 });
 
 test("o portal usa tema escuro e não conserva os termos inventados", async () => {
@@ -192,8 +208,8 @@ test("o portal usa tema escuro e não conserva os termos inventados", async () =
     assert.doesNotMatch(html, /vigília|vigilia/i);
   }
   assert.match(globals, /color-scheme: dark/);
-  // CSS legado fica numa camada abaixo das utilidades; sem isso ele as sobrescreveria.
-  assert.match(globals, /@layer theme, base, legacy, components, utilities;/);
+  // As folhas artesanais saíram na fase 3: todo o estilo vem dos tokens e utilidades.
+  assert.doesNotMatch(globals, /styles\/|layer\(legacy\)|--ink-|--paper-/);
   assert.doesNotMatch(globals, /VIGILIA/);
 });
 

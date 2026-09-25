@@ -1,29 +1,22 @@
 import { notFound } from "next/navigation";
+import { PageContainer, Section } from "@/components/layout/page-container";
 import { PlayerCharacters } from "@/components/player-characters";
+import { PageHeader } from "@/components/ui/surface";
 import { previewPlayerCharacters } from "../character-fixtures";
 
 export default function PlayerCharacterPreviewPage() {
   if (process.env.NODE_ENV !== "development") notFound();
 
   return (
-    <main className="character-page" id="main-content">
-      <header className="character-hero">
-        <div>
-          <p className="eyebrow">Área do jogador <span>•</span> Identidade integrada</p>
-          <h1>Meu personagem</h1>
-          <p>Consulte a ficha resumida associada à sua conta e acompanhe a sincronização com o Foundry.</p>
-        </div>
-        <div className="character-hero-mark" aria-hidden="true">◇</div>
-      </header>
-      <section className="player-character-workspace" aria-labelledby="preview-character-title">
-        <div className="merchant-heading">
-          <div>
-            <p className="section-index">01 / PERSONAGEM</p>
-            <h2 id="preview-character-title">Vínculos ativos</h2>
-          </div>
-        </div>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Prévia de desenvolvimento"
+        title="Meu personagem"
+        description="Ficha resumida com dados locais, para revisar estados sem depender do Foundry."
+      />
+      <Section title="Vínculos ativos" id="preview-character">
         <PlayerCharacters initialCharacters={previewPlayerCharacters} />
-      </section>
-    </main>
+      </Section>
+    </PageContainer>
   );
 }

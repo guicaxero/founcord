@@ -2,65 +2,69 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { FoundryWorldListResponse, FoundryWorldStatus } from "@ordem/contracts";
-import { useEffect, useRef, useState } from "react";
+import { motion } from "motion/react";
+import { useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { FeedbackState } from "@/components/ui/feedback-state";
+import { listItem, staggerList } from "@/components/ui/motion";
+import { Badge, Card } from "@/components/ui/surface";
+import { useToast } from "@/components/ui/toast";
 import { apiFetch, errorMessage } from "@/lib/api-client";
+import { cn } from "@/lib/cn";
+import { formatDateTime } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
+import { DetailList, PanelHeader, PanelLoading, Stats } from "./kit";
+
+const statusContent: Readonly<
+  Record<FoundryWorldStatus["status"], Readonly<{ label: string; tone: "success" | "warning" | "neutral"; dot: string }>>
+> = {
+  online: { label: "Online", tone: "success", dot: "bg-success" },
+  offline: { label: "Offline", tone: "warning", dot: "bg-warning" },
+  revoked: { label: "Desconectado", tone: "neutral", dot: "bg-fg-subtle" },
+};
 
 export function FoundryPanel({
   campaignId,
   campaignName,
 }: Readonly<{ campaignId: string; campaignName: string }>) {
   const queryClient = useQueryClient();
+  const toast = useToast();
   const instructionsRef = useRef<HTMLDetailsElement>(null);
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const disconnectErrorRef = useRef<HTMLParagraphElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
   const [disconnectTarget, setDisconnectTarget] = useState<FoundryWorldStatus | null>(null);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const worlds = useQuery({
     queryKey: queryKeys.foundryWorlds(campaignId),
-    queryFn: () =>
-      apiFetch<FoundryWorldListResponse>(
-        `/api/campaigns/${campaignId}/foundry/worlds`,
-      ),
+    queryFn: () => apiFetch<FoundryWorldListResponse>(`/api/campaigns/${campaignId}/foundry/worlds`),
     refetchInterval: 30_000,
   });
   const sync = useMutation({
     mutationFn: (worldId: string) =>
-      apiFetch<{ commandId: string }>(
-        `/api/campaigns/${campaignId}/foundry/worlds/${worldId}/sync`,
-        { method: "POST" },
-      ),
+      apiFetch<{ commandId: string }>(`/api/campaigns/${campaignId}/foundry/worlds/${worldId}/sync`, { method: "POST" }),
     onSuccess: async (_result, worldId) => {
       const worldName = worlds.data?.data.find((world) => world.worldId === worldId)?.worldTitle;
-      setSyncMessage(
-        `Sincronização de “${worldName ?? "mundo selecionado"}” solicitada. O Foundry executará o comando quando estiver online.`,
-      );
+      toast({
+        title: "Sincronização solicitada",
+        description: `O Foundry atualizará os personagens de “${worldName ?? "mundo selecionado"}” quando o mestre estiver conectado.`,
+        tone: "info",
+      });
       await queryClient.invalidateQueries({ queryKey: queryKeys.audit(campaignId) });
     },
+    onError: (error) => toast({ title: "A sincronização não foi solicitada", description: errorMessage(error), tone: "danger" }),
   });
   const disconnect = useMutation({
     mutationFn: (worldId: string) =>
-      apiFetch(`/api/campaigns/${campaignId}/foundry/worlds/${worldId}`, {
-        method: "DELETE",
-      }),
+      apiFetch(`/api/campaigns/${campaignId}/foundry/worlds/${worldId}`, { method: "DELETE" }),
     onSuccess: async () => {
+      const title = disconnectTarget?.worldTitle;
       setDisconnectTarget(null);
+      toast({ title: "Mundo desconectado", description: title ? `“${title}” não envia mais dados ao portal.` : undefined });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.foundryWorlds(campaignId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.audit(campaignId) }),
       ]);
     },
-    onError: () => {
-      window.requestAnimationFrame(() => disconnectErrorRef.current?.focus());
-    },
   });
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (disconnectTarget && !dialog.open) dialog.showModal();
-    if (!disconnectTarget && dialog.open) dialog.close();
-  }, [disconnectTarget]);
 
   const data = worlds.data?.data ?? [];
   const connected = data.filter((world) => world.status !== "revoked");
@@ -68,164 +72,125 @@ export function FoundryPanel({
   const attention = connected.filter((world) => world.status === "offline");
 
   function revealInstructions() {
-    if (instructionsRef.current) {
-      instructionsRef.current.open = true;
-      instructionsRef.current.scrollIntoView({ behavior: "auto", block: "center" });
-      instructionsRef.current.querySelector("summary")?.focus();
-    }
+    const details = instructionsRef.current;
+    if (!details) return;
+    details.open = true;
+    details.scrollIntoView({ behavior: "smooth", block: "center" });
+    details.querySelector("summary")?.focus();
   }
 
   return (
-    <div className="foundry-panel">
-      <section className="foundry-overview" aria-labelledby="foundry-overview-title">
-        <div>
-          <span className="admin-eyebrow">Escopo atual</span>
-          <h2 id="foundry-overview-title">{campaignName}</h2>
-          <p>
-            Autorize mundos pelo módulo da Ordem e acompanhe presença, personagens e
-            compatibilidade sem expor seu Foundry à internet.
-          </p>
-        </div>
-        <button className="admin-primary" type="button" onClick={revealInstructions}>
-          Conectar novo mundo
-        </button>
-      </section>
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <p className="max-w-[60ch] text-sm text-fg-muted">
+          Autorize mundos de <strong className="text-fg">{campaignName}</strong> pelo módulo da Ordem e acompanhe
+          presença, personagens e versões sem expor seu Foundry à internet.
+        </p>
+        <Button variant="accent" onClick={revealInstructions}>Conectar novo mundo</Button>
+      </div>
 
-      <section className="foundry-metrics" aria-label="Resumo das conexões">
-        <article><strong>{connected.length}</strong><span>Conectados</span></article>
-        <article><strong>{online.length}</strong><span>Online agora</span></article>
-        <article><strong>{attention.length}</strong><span>Exigem atenção</span></article>
-      </section>
+      <Stats
+        label="Resumo das conexões"
+        items={[
+          { label: "Conectados", value: connected.length },
+          { label: "Online agora", value: online.length, hint: "Só com o mestre no mundo" },
+          { label: "Offline", value: attention.length },
+        ]}
+      />
 
-      <details className="foundry-instructions admin-card" ref={instructionsRef}>
-        <summary>Como conectar um mundo</summary>
-        <div className="foundry-instruction-body">
-          <ol>
-            <li><span>1</span><div><strong>Abra o mundo no Foundry</strong><p>Ative o módulo Ordem da Última Luz e entre como mestre.</p></div></li>
-            <li><span>2</span><div><strong>Inicie a conexão</strong><p>Em Configurações, abra a tela do módulo e selecione “Conectar este mundo”.</p></div></li>
-            <li><span>3</span><div><strong>Autorize no portal</strong><p>O módulo abrirá uma solicitação com os dados do mundo. Escolha esta campanha e confirme.</p></div></li>
+      <details ref={instructionsRef} className="group rounded-lg border border-line-soft bg-surface">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-5 font-semibold focus-visible:outline-2 focus-visible:outline-focus [&::-webkit-details-marker]:hidden">
+          Como conectar um mundo
+          <span aria-hidden="true" className="text-fg-subtle transition-transform duration-200 group-open:rotate-180">⌄</span>
+        </summary>
+        <div className="space-y-5 border-t border-line-soft px-5 py-5">
+          <ol className="grid gap-4 md:grid-cols-3">
+            {[
+              ["Abra o mundo no Foundry", "Ative o módulo Ordem da Última Luz e entre como mestre."],
+              ["Inicie a conexão", "Em Configurações, abra a tela do módulo e escolha “Conectar este mundo”."],
+              ["Autorize no portal", "O módulo abre uma solicitação com os dados do mundo. Escolha esta campanha e confirme."],
+            ].map(([title, text], index) => (
+              <li key={title} className="flex gap-3">
+                <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full border border-accent-line bg-accent-soft font-display text-accent">
+                  {index + 1}
+                </span>
+                <div className="space-y-1">
+                  <strong className="block text-sm">{title}</strong>
+                  <p className="text-sm text-fg-muted">{text}</p>
+                </div>
+              </li>
+            ))}
           </ol>
-          <p className="permission-note">
-            O fluxo não solicita secrets, IDs de campanha nem comandos no console. O código
-            temporário expira em dez minutos e só pode autorizar uma conexão.
+          <p className="text-xs text-fg-subtle">
+            O fluxo não pede secrets, IDs de campanha nem comandos no console. O código temporário expira em dez
+            minutos e só autoriza uma conexão.
           </p>
         </div>
       </details>
 
-      {syncMessage ? <p className="inline-success" role="status">{syncMessage}</p> : null}
-      {sync.isError ? <p className="inline-error" role="alert">{errorMessage(sync.error)}</p> : null}
-
-      {worlds.isLoading ? (
-        <div className="foundry-world-grid" aria-label="Carregando mundos">
-          <span className="foundry-world-skeleton" />
-          <span className="foundry-world-skeleton" />
-        </div>
-      ) : null}
-
-      {worlds.isError ? (
-        <section className="admin-card foundry-query-state" role="alert">
-          <span className="admin-eyebrow">Conexão indisponível</span>
-          <h2>Não foi possível carregar os mundos</h2>
-          <p>{errorMessage(worlds.error)}</p>
-          <button className="secondary-action" type="button" onClick={() => worlds.refetch()}>
-            Tentar novamente
-          </button>
-        </section>
-      ) : null}
-
-      {!worlds.isLoading && !worlds.isError && data.length === 0 ? (
-        <section className="admin-card foundry-query-state">
-          <span className="foundry-empty-mark" aria-hidden="true">◇</span>
-          <h2>Nenhum mundo conectado</h2>
-          <p>
-            Quando um mestre iniciar a conexão pelo módulo da Ordem no Foundry, o mundo
-            aparecerá aqui.
-          </p>
-          <button className="secondary-action" type="button" onClick={revealInstructions}>
-            Ver instruções de conexão
-          </button>
-        </section>
-      ) : null}
-
-      {data.length > 0 ? (
-        <section aria-labelledby="foundry-world-list-title">
-          <div className="admin-section-title foundry-list-heading">
-            <div>
-              <span>Vínculos registrados</span>
-              <h2 id="foundry-world-list-title">Mundos da campanha</h2>
-              <p>O estado é atualizado automaticamente a cada trinta segundos.</p>
-            </div>
-            <button className="secondary-action" type="button" onClick={() => worlds.refetch()} disabled={worlds.isFetching}>
-              {worlds.isFetching ? "Atualizando…" : "Atualizar estados"}
-            </button>
-          </div>
-          <div className="foundry-world-grid">
+      {worlds.isPending ? (
+        <PanelLoading label="Carregando mundos" rows={2} />
+      ) : worlds.isError ? (
+        <FeedbackState
+          title="Não foi possível carregar os mundos"
+          tone="error"
+          role="alert"
+          action={<Button onClick={() => worlds.refetch()}>Tentar novamente</Button>}
+        >
+          {errorMessage(worlds.error)}
+        </FeedbackState>
+      ) : data.length === 0 ? (
+        <FeedbackState title="Nenhum mundo conectado" action={<Button onClick={revealInstructions}>Ver instruções de conexão</Button>}>
+          Quando um mestre iniciar a conexão pelo módulo da Ordem no Foundry, o mundo aparece aqui.
+        </FeedbackState>
+      ) : (
+        <section className="space-y-5" aria-labelledby="foundry-world-list-title">
+          <PanelHeader
+            id="foundry-world-list-title"
+            eyebrow="Vínculos registrados"
+            title="Mundos da campanha"
+            description="O estado é atualizado sozinho a cada trinta segundos."
+            actions={
+              <Button size="sm" onClick={() => worlds.refetch()} disabled={worlds.isFetching}>
+                {worlds.isFetching ? "Atualizando…" : "Atualizar estados"}
+              </Button>
+            }
+          />
+          <motion.ul className="grid gap-4 xl:grid-cols-2" variants={staggerList} initial="hidden" animate="visible">
             {data.map((world) => (
-              <WorldCard
-                key={world.worldId}
-                world={world}
-                syncing={sync.isPending && sync.variables === world.worldId}
-                syncDisabled={sync.isPending}
-                onSync={() => {
-                  setSyncMessage(null);
-                  sync.mutate(world.worldId);
-                }}
-                onDisconnect={() => {
-                  disconnect.reset();
-                  setDisconnectTarget(world);
-                }}
-              />
+              <motion.li key={world.worldId} variants={listItem}>
+                <WorldCard
+                  world={world}
+                  syncing={sync.isPending && sync.variables === world.worldId}
+                  syncDisabled={sync.isPending}
+                  onSync={() => sync.mutate(world.worldId)}
+                  onDisconnect={(trigger) => {
+                    triggerRef.current = trigger;
+                    disconnect.reset();
+                    setDisconnectTarget(world);
+                  }}
+                />
+              </motion.li>
             ))}
-          </div>
+          </motion.ul>
         </section>
-      ) : null}
+      )}
 
-      <dialog
-        className="destructive-dialog"
-        ref={dialogRef}
-        aria-labelledby="disconnect-world-title"
-        onCancel={(event) => {
-          event.preventDefault();
-          if (!disconnect.isPending) {
-            disconnect.reset();
-            setDisconnectTarget(null);
-          }
-        }}
-        onClose={() => {
-          disconnect.reset();
-          setDisconnectTarget(null);
-        }}
+      <ConfirmDialog
+        open={Boolean(disconnectTarget)}
+        title={`Desconectar “${disconnectTarget?.worldTitle ?? ""}”?`}
+        description={`O portal deixa de receber presença, personagens e comandos deste mundo em “${campaignName}”.`}
+        confirmLabel="Desconectar mundo"
+        busyLabel="Desconectando…"
+        cancelLabel="Manter conexão"
+        busy={disconnect.isPending}
+        error={disconnect.isError ? `${errorMessage(disconnect.error)} Você pode tentar de novo ou manter a conexão.` : null}
+        onCancel={() => setDisconnectTarget(null)}
+        onConfirm={() => disconnectTarget && disconnect.mutate(disconnectTarget.worldId)}
+        returnFocusRef={triggerRef}
       >
-        <div className="destructive-dialog-card">
-          <span className="dialog-kicker">INTERROMPER INTEGRAÇÃO</span>
-          <h2 id="disconnect-world-title">Desconectar “{disconnectTarget?.worldTitle}”?</h2>
-          <p>
-            O portal deixará de receber presença, personagens e comandos deste mundo em
-            “{campaignName}”. Nenhum personagem será apagado no Foundry.
-          </p>
-          {disconnect.isError ? (
-            <p className="inline-error" role="alert" tabIndex={-1} ref={disconnectErrorRef}>
-              {errorMessage(disconnect.error)} Você pode tentar novamente ou manter a conexão.
-            </p>
-          ) : null}
-          <div className="dialog-actions">
-            <button type="button" disabled={disconnect.isPending} onClick={() => {
-              disconnect.reset();
-              setDisconnectTarget(null);
-            }}>
-              Manter conexão
-            </button>
-            <button
-              className="danger-primary"
-              type="button"
-              disabled={!disconnectTarget || disconnect.isPending}
-              onClick={() => disconnectTarget && disconnect.mutate(disconnectTarget.worldId)}
-            >
-              {disconnect.isPending ? "Desconectando…" : "Desconectar mundo"}
-            </button>
-          </div>
-        </div>
-      </dialog>
+        <p>Nenhum personagem é apagado no Foundry. Para reconectar, inicie um novo pareamento pelo módulo.</p>
+      </ConfirmDialog>
     </div>
   );
 }
@@ -241,68 +206,76 @@ function WorldCard({
   syncing: boolean;
   syncDisabled: boolean;
   onSync: () => void;
-  onDisconnect: () => void;
+  onDisconnect: (trigger: HTMLElement) => void;
 }>) {
+  const status = statusContent[world.status];
   return (
-    <article className="foundry-world-card">
-      <header>
-        <div className={`foundry-status-icon is-${world.status}`} aria-hidden="true" />
-        <div>
-          <span className={`status-pill foundry-status is-${world.status}`}>
-            {statusLabel(world.status)}
-          </span>
-          <h3>{world.worldTitle}</h3>
-          <p>{world.status === "online" ? "Recebendo atualizações do Foundry" : statusDescription(world)}</p>
+    <Card className={cn("flex h-full flex-col gap-5", world.status === "revoked" && "opacity-75")}>
+      <header className="flex items-start gap-3">
+        <span className="relative mt-2 flex size-2.5 shrink-0" aria-hidden="true">
+          {world.status === "online" ? (
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-success opacity-60 motion-reduce:animate-none" />
+          ) : null}
+          <span className={cn("relative inline-flex size-2.5 rounded-full", status.dot)} />
+        </span>
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-display text-xl leading-tight break-words">{world.worldTitle}</h3>
+            <Badge tone={status.tone}>{status.label}</Badge>
+          </div>
+          <p className="text-sm text-fg-muted">
+            {world.status === "online" ? "Recebendo atualizações do Foundry." : statusDescription(world)}
+          </p>
         </div>
       </header>
-      <dl className="foundry-world-stats">
-        <div><dt>Último contato</dt><dd>{world.lastSeenAt ? formatDate(world.lastSeenAt) : "Ainda não recebido"}</dd></div>
-        <div><dt>Personagens</dt><dd>{world.actorCount}</dd></div>
-        <div><dt>Usuários ativos</dt><dd>{world.activeUsers}</dd></div>
-      </dl>
-      <details className="foundry-technical-details">
-        <summary>Detalhes técnicos</summary>
-        <dl>
-          <div><dt>Foundry</dt><dd>{world.foundryVersion}</dd></div>
-          <div><dt>Sistema</dt><dd>{world.systemVersion}</dd></div>
-          <div><dt>Módulo</dt><dd>{world.moduleVersion}</dd></div>
-          <div><dt>ID do mundo</dt><dd title={world.foundryWorldId}>{world.foundryWorldId}</dd></div>
-          <div><dt>Registrado</dt><dd>{formatDate(world.registeredAt)}</dd></div>
+      <DetailList
+        items={[
+          { label: "Último contato", value: world.lastSeenAt ? formatDateTime(world.lastSeenAt) : "Ainda não recebido" },
+          { label: "Personagens", value: world.actorCount },
+          { label: "Usuários ativos", value: world.activeUsers },
+        ]}
+      />
+      <details className="group text-sm">
+        <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded-md text-fg-subtle hover:text-fg focus-visible:outline-2 focus-visible:outline-focus [&::-webkit-details-marker]:hidden">
+          <span aria-hidden="true" className="transition-transform duration-200 group-open:rotate-90">›</span>
+          Detalhes técnicos
+        </summary>
+        <dl className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-[auto_minmax(0,1fr)]">
+          {[
+            ["Foundry", world.foundryVersion],
+            ["Sistema", world.systemVersion],
+            ["Módulo", world.moduleVersion],
+            ["ID do mundo", world.foundryWorldId],
+            ["Registrado", formatDateTime(world.registeredAt)],
+          ].map(([label, value]) => (
+            <div key={label} className="contents">
+              <dt className="text-fg-subtle">{label}</dt>
+              <dd className="truncate font-mono text-xs leading-5 text-fg-muted max-sm:mb-2" title={value}>{value}</dd>
+            </div>
+          ))}
         </dl>
       </details>
       {world.status !== "revoked" ? (
-        <footer>
-          <button className="secondary-action" type="button" onClick={onSync} disabled={syncDisabled}>
+        <footer className="mt-auto flex flex-wrap gap-2 border-t border-line-soft pt-4">
+          <Button size="sm" onClick={onSync} disabled={syncDisabled}>
             {syncing ? "Solicitando…" : "Sincronizar personagens"}
-          </button>
-          <button className="danger-secondary" type="button" onClick={onDisconnect}>
+          </Button>
+          <Button size="sm" variant="ghost" className="text-danger" onClick={(event) => onDisconnect(event.currentTarget)}>
             Desconectar
-          </button>
+          </Button>
         </footer>
       ) : (
-        <p className="foundry-reconnect-note">Inicie um novo pareamento no Foundry para reconectar este mundo.</p>
+        <p className="mt-auto border-t border-line-soft pt-4 text-sm text-fg-subtle">
+          Inicie um novo pareamento no Foundry para reconectar este mundo.
+        </p>
       )}
-    </article>
+    </Card>
   );
 }
 
-function statusLabel(status: FoundryWorldStatus["status"]): string {
-  if (status === "online") return "Online";
-  if (status === "offline") return "Offline";
-  return "Desconectado";
-}
-
 function statusDescription(world: FoundryWorldStatus): string {
-  if (world.status === "revoked") return "A credencial deste vínculo foi revogada";
+  if (world.status === "revoked") return "A credencial deste vínculo foi revogada.";
   return world.lastSeenAt
-    ? `Sem contato desde ${formatDate(world.lastSeenAt)}`
-    : "Autorizado, aguardando o Foundry concluir a conexão";
-}
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-    timeZone: "America/Sao_Paulo",
-  }).format(new Date(value));
+    ? `Sem contato desde ${formatDateTime(world.lastSeenAt)}. O mundo só fica online com o mestre conectado.`
+    : "Autorizado, aguardando o Foundry concluir a conexão.";
 }
