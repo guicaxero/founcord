@@ -131,8 +131,7 @@ segurança, escala ou ciclo de release em uma separação adicional.
 
 - A identidade narrativa por webhook depende de `MANAGE_WEBHOOKS`; sem essa
   permissão a publicação usa o bot com atribuição textual.
-- Compra no Mercador, edição completa de ficha e criador de criaturas ainda não
-  existem.
+- Compra no Mercador e edição completa de ficha ainda não existem.
 - A estrutura de moedas foi confirmada: o saldo fica em `actor.system.wealth`
   (`gc`, `ss`, `cp`, `bits`) e o preço dos itens é texto livre em
   `item.system.value`. O portal interpreta os preços e exibe o saldo; a compra
@@ -361,7 +360,7 @@ Fallback caso a escrita segura não seja possível:
 - deixar o escambo para confirmação manual;
 - não simular saldo ou inventário no portal.
 
-### 7.1.1 Sorteador de estoque do Lojista — em implementação
+### 7.1.1 Sorteador de estoque do Lojista — concluído
 
 O portal mantém a lista de itens que o Lojista pode vender (a lista base vem da
 planilha "Estoque Lojista", 137 itens) e sorteia o estoque por disponibilidade
@@ -377,7 +376,38 @@ Próximos passos registrados:
 - importação de `.xlsx` pelo painel, peso por raridade e vários lojistas, se
   fizerem falta.
 
-### 7.2 Área do jogador e ficha
+### 7.2 Criador de criaturas para mestres — em implementação
+
+Antecipado para antes da área do jogador. Especificação em
+`docs/product/specs/criador-de-criaturas.md`.
+
+Decisões:
+
+- **ponto de partida:** uma criatura do bestiário ou uma ficha em branco, com
+  Defesa e Vida sugeridas pela mediana do bestiário na mesma dificuldade;
+- **conteúdo do livro:** o bestiário e o grimório entram só por importação no
+  painel (JSON exportados do Foundry, pasta `compendium/` na raiz FMS). Nada
+  disso vai para os repositórios, e o conteúdo fica restrito a
+  `creature:manage`;
+- **resultado:** biblioteca de criaturas no portal e o comando tipado
+  `creature.upsert`. O módulo (0.10.0) cria o ator na pasta "Ordem — Criaturas"
+  e, no reenvio, atualiza o mesmo ator.
+
+Regras de segurança:
+
+- nenhuma macro ou código arbitrário vindo do usuário é executado;
+- arquivos importados são dados não confiáveis: são validados e convertidos
+  para texto simples;
+- imagem e token aceitam só caminhos do Foundry ou HTTPS;
+- criação e envio exigem `creature:manage` (mestre, gerente, administrador,
+  dono);
+- envio idempotente por criatura, versão e mundo; resultados de envios antigos
+  são ignorados.
+
+Fora deste corte: comando equivalente no Discord, importação de texto livre e
+efeitos ativos do Foundry.
+
+### 7.3 Área do jogador e ficha
 
 - aba autenticada de personagem para jogadores;
 - associação explícita entre usuário, campanha e ator do Foundry;
@@ -403,33 +433,6 @@ autorizada e o comando Discord que encaminha para esta área.
 
 O portal não substitui a ficha mecânica do Foundry. Em caso de divergência, o
 Foundry vence e a projeção é atualizada.
-
-### 7.3 Criador de criaturas para mestres
-
-Fluxo planejado:
-
-1. mestre abre a área protegida no portal ou usa o comando equivalente no
-   Discord;
-2. escolhe criar do zero, importar texto estruturado ou usar uma fonte externa
-   compatível;
-3. sistema transforma a entrada em um rascunho tipado, nunca em código livre;
-4. mestre revisa atributos, perícias, talentos, magias, equipamentos, imagem e
-   token;
-5. validação específica do sistema Shadow of the Demon Lord aponta campos
-   inválidos ou incompletos;
-6. mestre confirma a criação;
-7. Foundry recebe um comando tipado e idempotente para criar o ator;
-8. portal exibe resultado, erro recuperável e referência do ator criado.
-
-Regras de segurança:
-
-- nenhuma macro ou código arbitrário vindo do usuário é executado;
-- APIs externas são opcionais e devem ser avaliadas por licença, estabilidade,
-  custo e compatibilidade;
-- importações externas são tratadas como dados não confiáveis;
-- criação exige permissão de mestre/gerente na campanha;
-- imagem e token passam por limites de tamanho, tipo e origem;
-- falha parcial não cria duplicatas e pode ser reprocessada com idempotência.
 
 ## 8. Front-end e design system
 
@@ -548,9 +551,9 @@ Estado atual
   -> Fundação visual, Diário de Sessões e Discord (concluídos)
   -> Mercador: vitrine, pedido assistido, moedas e detalhes do item (concluídos)
   -> Refatoração completa do front em três fases (concluída)
-  -> Sorteador de estoque do Lojista (em implementação)
+  -> Sorteador de estoque do Lojista (concluído)
+  -> Criador de criaturas para mestres (em implementação)
   -> Área do jogador e ficha (inventário, magias, edição autorizada)
-  -> Criador de criaturas para mestres
   -> Compra automática no Mercador (adiada)
   -> Otimizações de polling, eventos/deltas e escala
 ```

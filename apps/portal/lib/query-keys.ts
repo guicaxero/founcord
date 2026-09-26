@@ -27,6 +27,16 @@ export const queryKeys = {
     ["campaigns", campaignId, "merchant", "stock", "draws"] as const,
   merchantStockTargets: (campaignId: string) =>
     ["campaigns", campaignId, "merchant", "stock", "targets"] as const,
+  creatures: (campaignId: string) =>
+    ["campaigns", campaignId, "creatures"] as const,
+  creature: (campaignId: string, creatureId: string) =>
+    ["campaigns", campaignId, "creatures", "item", creatureId] as const,
+  creatureTargets: (campaignId: string) =>
+    ["campaigns", campaignId, "creature-targets"] as const,
+  compendium: (campaignId: string, kind: "creature" | "spell") =>
+    ["campaigns", campaignId, "compendium", kind] as const,
+  compendiumEntry: (campaignId: string, entryId: string) =>
+    ["campaigns", campaignId, "compendium", "entry", entryId] as const,
   characterLinks: (campaignId: string) =>
     ["campaigns", campaignId, "character-links"] as const,
   myCharacters: ["me", "characters"] as const,

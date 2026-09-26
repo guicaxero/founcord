@@ -563,6 +563,64 @@ export const merchantStockDraws = sqliteTable(
   ],
 );
 
+/**
+ * Bestiário e grimório importados pelo mestre a partir do compêndio. É conteúdo
+ * dos livros: só entra por importação e só aparece na área de gestão.
+ */
+export const compendiumEntries = sqliteTable(
+  "compendium_entries",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["creature", "spell"] }).notNull(),
+    sourceKey: text("source_key").notNull(),
+    name: text("name").notNull(),
+    category: text("category").notNull().default(""),
+    difficulty: integer("difficulty"),
+    rank: integer("rank"),
+    defense: integer("defense"),
+    health: integer("health"),
+    dataJson: text("data_json").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("uq_compendium_entry_source").on(table.campaignId, table.kind, table.sourceKey),
+    index("idx_compendium_entry_name").on(table.campaignId, table.kind, table.name),
+  ],
+);
+
+/** Biblioteca de criaturas da campanha e sua situação no Foundry. */
+export const creatures = sqliteTable(
+  "creatures",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    dataJson: text("data_json").notNull(),
+    basedOnEntryId: text("based_on_entry_id"),
+    basedOnName: text("based_on_name"),
+    version: integer("version").notNull().default(1),
+    status: text("status", { enum: ["draft", "pending_delivery", "synced", "failed"] })
+      .notNull()
+      .default("draft"),
+    sentVersion: integer("sent_version").notNull().default(0),
+    worldId: text("world_id"),
+    commandId: text("command_id"),
+    foundryActorId: text("foundry_actor_id"),
+    error: text("error"),
+    sentAt: text("sent_at"),
+    ...timestamps,
+  },
+  (table) => [index("idx_creatures_campaign").on(table.campaignId, table.updatedAt)],
+);
+
 export const foundrySyncCursors = sqliteTable(
   "foundry_sync_cursors",
   {

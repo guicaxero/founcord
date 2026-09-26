@@ -39,6 +39,12 @@ Mudanças exclusivamente de backend, infraestrutura, banco, contratos sem interf
 - O papel global de proprietário nunca deve parecer removível por um controle de campanha.
 - Use conteúdo real da Ordem da Última Luz; não invente ambientação quando houver conteúdo oficial no repositório.
 
+## Fonte de referência do jogo
+
+- A pasta `compendium/`, na raiz `FMS` ao lado dos dois repositórios, guarda os exports em português do Shadow of the Demon Lord no Foundry: Bestiário, Grimório, Equipamentos, Ancestralidades, Trilhas, Talentos, Profissões, Idiomas, Peculiaridades de Insanidade, Tabelas, Regras e Lore e Veículos. Cada pasta tem um `_manifesto.json`.
+- Consulte essa pasta antes de decidir qualquer regra, nome, valor ou formato de dado do jogo; não invente números nem nomes quando o compêndio os tiver.
+- É conteúdo dos livros: não copie seus arquivos para repositório nenhum. O portal só recebe esse conteúdo por importação feita pelo mestre no painel, e ele fica restrito a superfícies de gestão, nunca a páginas públicas. O repositório do módulo é público e não pode conter nada do compêndio.
+
 ## Limites entre repositórios
 
 - O código, o manifesto e as releases do módulo cliente do Foundry residem exclusivamente em `guicaxero/founcord-module-foundryVTT`.

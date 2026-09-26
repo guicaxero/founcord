@@ -29,6 +29,7 @@ import { AuditPanel } from "./audit-panel";
 import { AutomationsPanel } from "./automations-panel";
 import { CampaignCreatorDialog, CampaignSettings } from "./campaign-settings";
 import { CharacterLinksPanel } from "./character-links-panel";
+import { CreaturesPanel } from "./creatures/creatures-panel";
 import { FoundryPanel } from "./foundry-panel";
 import { MembersPanel } from "./members-panel";
 import { MerchantPurchasesPanel } from "./merchant-purchases-panel";
@@ -187,6 +188,9 @@ export function DashboardClient({
             onOpenReview={(target) => router.push(hrefFor(target === "session_summary" ? "diario" : "cronicas"))}
           />
         );
+        break;
+      case "criaturas":
+        panel = <CreaturesPanel campaignId={campaignId} />;
         break;
       case "missoes":
         panel = <MissionsPanel campaignId={campaignId} me={user} />;
