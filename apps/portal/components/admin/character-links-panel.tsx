@@ -12,6 +12,7 @@ import type {
 } from "@ordem/contracts";
 import { motion } from "motion/react";
 import { useMemo, useRef, useState } from "react";
+import { CharacterImage } from "@/components/character-image";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FeedbackState } from "@/components/ui/feedback-state";
@@ -249,12 +250,17 @@ function CharacterLinkCard({
 
       {current ? (
         <div className="space-y-3 rounded-md border border-line-soft bg-surface-2 p-4">
-          <div>
+          <div className="flex items-start gap-4">
+          {character ? (
+            <CharacterImage name={current.actorName} portraitUrl={character.portraitUrl} tokenUrl={character.tokenUrl} size="sm" />
+          ) : null}
+          <div className="min-w-0">
             <p className="text-[0.7rem] font-bold tracking-wide text-fg-subtle uppercase">Personagem vinculado</p>
             <p className="font-display text-xl text-gold">{current.actorName}</p>
             <p className="text-sm text-fg-muted">
               {character ? characterDescriptor(character) : "Não encontrado na última sincronização"}
             </p>
+          </div>
           </div>
           {character ? (
             <DetailList

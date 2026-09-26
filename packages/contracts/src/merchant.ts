@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EntityIdSchema, IsoDateTimeSchema } from "./common";
+import { EntityIdSchema, IsoDateTimeSchema, foundryImageSchema } from "./common";
 
 const foundryIdentifier = z
   .string()
@@ -7,30 +7,11 @@ const foundryIdentifier = z
   .max(128)
   .regex(/^[A-Za-z0-9._-]+$/);
 
-const httpsImageUrl = z
-  .string()
-  .url()
-  .max(2_048)
-  .refine((value) => new URL(value).protocol === "https:", {
-    message: "A imagem pública deve usar HTTPS.",
-  });
-
-/**
- * Miniatura gerada pelo módulo a partir do ícone do item. Os ícones do Foundry
- * vivem no servidor do mestre, que não é exposto à internet; por isso o módulo
- * envia uma cópia pequena (64 px) em vez do endereço.
- */
-const thumbnailDataUrl = z
-  .string()
-  .max(16_000)
-  .regex(/^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/u, {
-    message: "A miniatura deve ser uma imagem WebP, PNG ou JPEG em base64.",
-  });
-
 /** Soma máxima das miniaturas de um catálogo, em caracteres de base64. */
 export const MAX_CATALOG_IMAGE_CHARS = 1_000_000;
 
-const itemImage = z.union([httpsImageUrl, thumbnailDataUrl]);
+/** Ícone do item: HTTPS ou miniatura de 64 px gerada pelo módulo. */
+const itemImage = foundryImageSchema(16_000);
 
 /** Disponibilidade do sistema (`system.availability`: C, U, R, E). */
 export const MerchantItemAvailabilitySchema = z.enum(["common", "uncommon", "rare", "exotic"]);

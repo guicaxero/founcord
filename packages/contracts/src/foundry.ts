@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CampaignSchema } from "./campaigns";
+import { foundryImageSchema } from "./common";
 import { DemonLordCoinsSchema } from "./currency";
 import { MerchantStockEntrySchema } from "./merchant-stock";
 
@@ -118,6 +119,9 @@ export const FoundryHeartbeatResponseSchema = z
 
 const nullableLabel = z.string().trim().min(1).max(120).nullable();
 
+/** Retrato ou token do personagem: HTTPS ou miniatura gerada pelo módulo. */
+export const CharacterImageSchema = foundryImageSchema(60_000);
+
 export const FoundryCharacterProjectionSchema = z
   .object({
     actorId: foundryIdentifier,
@@ -145,15 +149,35 @@ export const FoundryCharacterProjectionSchema = z
       .strict(),
     /** Opcional para aceitar o módulo 0.5.x, que não envia o saldo. */
     wealth: DemonLordCoinsSchema.optional(),
+    /**
+     * Retrato (`actor.img`) e token (`prototypeToken.texture.src`), a partir do
+     * módulo 0.9.0. Ausente = módulo antigo, e o portal mantém o que já tinha;
+     * `null` = o personagem não tem essa imagem.
+     */
+    portraitUrl: CharacterImageSchema.nullable().optional(),
+    tokenUrl: CharacterImageSchema.nullable().optional(),
     sourceUpdatedAt: isoDate,
   })
   .strict();
+
+/** Soma máxima das imagens de uma sincronização de personagens, em caracteres. */
+export const MAX_CHARACTER_SYNC_IMAGE_CHARS = 1_500_000;
 
 export const FoundryCharacterSyncRequestSchema = z
   .object({
     syncId: z.string().uuid(),
     capturedAt: isoDate,
-    characters: z.array(FoundryCharacterProjectionSchema).max(200),
+    characters: z
+      .array(FoundryCharacterProjectionSchema)
+      .max(200)
+      .refine(
+        (characters) =>
+          characters.reduce(
+            (total, character) => total + (character.portraitUrl?.length ?? 0) + (character.tokenUrl?.length ?? 0),
+            0,
+          ) <= MAX_CHARACTER_SYNC_IMAGE_CHARS,
+        { message: "As imagens dos personagens excedem o limite total." },
+      ),
   })
   .strict();
 

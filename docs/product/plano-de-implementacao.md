@@ -395,6 +395,8 @@ Primeiro corte implementado junto ao vínculo de identidade:
 - estados sem vínculo, sincronizado e temporariamente indisponível;
 - comando Discord `/personagem` com resposta privada e acesso direto ao portal;
 - nenhum campo editável e nenhum dado de outros jogadores exposto.
+- retrato e token do personagem (módulo 0.9.0), com a opção de alternar entre
+  os dois e ampliar, na área do jogador e no cartão de Personagens do painel.
 
 Permanecem pendentes a projeção ampliada de inventário e magias, edição
 autorizada e o comando Discord que encaminha para esta área.

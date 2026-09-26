@@ -386,6 +386,8 @@ export const foundryCharacterProjections = sqliteTable(
     wealthSs: integer("wealth_ss"),
     wealthCp: integer("wealth_cp"),
     wealthBits: integer("wealth_bits"),
+    portraitUrl: text("portrait_url"),
+    tokenUrl: text("token_url"),
     sourceUpdatedAt: text("source_updated_at").notNull(),
     lastSyncedAt: text("last_synced_at").notNull(),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),

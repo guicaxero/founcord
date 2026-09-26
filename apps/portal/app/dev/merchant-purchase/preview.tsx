@@ -54,6 +54,8 @@ const characters: PlayerCharacterListResponse = {
         paths: { novice: "Sacerdote", expert: "Oráculo", master: null, legendary: null },
         statistics: { healthMax: 24, damage: 6, healingRate: 6, insanity: 2, corruption: 1 },
         wealth: { gc: 0, ss: 1, cp: 0, bits: 0 },
+        portraitUrl: null,
+        tokenUrl: null,
         sourceUpdatedAt: "2026-09-07T15:00:00.000Z",
         lastSyncedAt: "2026-09-07T15:01:00.000Z",
         active: true,

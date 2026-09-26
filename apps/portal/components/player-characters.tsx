@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { CampaignCharacterProjection, PlayerCharacterListResponse } from "@ordem/contracts";
 import { motion } from "motion/react";
 import { usePathname } from "next/navigation";
+import { CharacterImage } from "@/components/character-image";
 import { CoinPurse } from "@/components/coins";
 import { Button, ButtonAnchor, ButtonLink } from "@/components/ui/button";
 import { FeedbackState } from "@/components/ui/feedback-state";
@@ -136,13 +137,8 @@ function CharacterSheet({ character }: Readonly<{ character: CampaignCharacterPr
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-4">
-        <span
-          aria-hidden="true"
-          className="grid size-16 shrink-0 place-items-center rounded-full border border-accent-line bg-accent-soft font-display text-2xl text-accent"
-        >
-          {character.name.slice(0, 1).toUpperCase()}
-        </span>
+      <div className="flex flex-wrap items-start gap-5">
+        <CharacterImage name={character.name} portraitUrl={character.portraitUrl} tokenUrl={character.tokenUrl} />
         <div className="min-w-0">
           <p className="text-xs font-bold tracking-wider text-fg-subtle uppercase">
             Personagem vinculado

@@ -538,6 +538,40 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
         .bind(sync.syncId)
         .first();
       assert.equal(auditCount?.count, 1);
+
+      // Retrato e token (módulo 0.9.0+): gravados quando enviados, preservados
+      // quando o módulo antigo não envia os campos, apagados quando vêm null.
+      const portrait = "data:image/webp;base64,UklGRlBPUlRSQUlU";
+      const token = "data:image/webp;base64,UklGRlRPS0VO";
+      const imageSteps = [
+        { syncId: "55555555-5555-4555-8555-555555555555", capturedAt: "2026-08-23T03:00:00.000Z", images: { portraitUrl: portrait, tokenUrl: token }, expected: [portrait, token] },
+        { syncId: "66666666-6666-4666-8666-666666666666", capturedAt: "2026-08-23T04:00:00.000Z", images: {}, expected: [portrait, token] },
+        { syncId: "77777777-7777-4777-8777-777777777777", capturedAt: "2026-08-23T05:00:00.000Z", images: { portraitUrl: null, tokenUrl: token }, expected: [null, token] },
+      ];
+      for (const step of imageSteps) {
+        const response = await api(mf, path, {
+          method: "POST",
+          body: { ...sync, syncId: step.syncId, capturedAt: step.capturedAt, characters: [{ ...sync.characters[0], ...step.images }] },
+          headers: { authorization: "Bearer test-integration-token-with-at-least-32-bytes" },
+        });
+        assert.equal(response.status, 200, JSON.stringify(response.data));
+        const images = await db
+          .prepare("SELECT portrait_url, token_url FROM foundry_character_projections WHERE world_id = ? AND foundry_actor_id = ?")
+          .bind(sync.worldId, sync.characters[0]?.actorId)
+          .first();
+        assert.deepEqual([images?.portrait_url ?? null, images?.token_url ?? null], step.expected, step.syncId);
+      }
+      const insecure = await api(mf, path, {
+        method: "POST",
+        body: {
+          ...sync,
+          syncId: "88888888-8888-4888-8888-888888888888",
+          capturedAt: "2026-08-23T06:00:00.000Z",
+          characters: [{ ...sync.characters[0], portraitUrl: "http://foundry.local/aster.webp" }],
+        },
+        headers: { authorization: "Bearer test-integration-token-with-at-least-32-bytes" },
+      });
+      assert.equal(insecure.status, 422);
     });
 
     test("vincula membro e ator com RBAC, exclusividade e auditoria", async () => {
