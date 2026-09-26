@@ -2,6 +2,7 @@
 
 import { motion } from "motion/react";
 import { useId, type ReactNode } from "react";
+import { Avatar } from "@/components/ui/avatar";
 import { Card, Eyebrow, Skeleton } from "@/components/ui/surface";
 import { staggerList, listItem } from "@/components/ui/motion";
 import { cn } from "@/lib/cn";
@@ -143,17 +144,11 @@ export function DetailList({
   );
 }
 
-/** Inicial do nome, usada como avatar neutro. */
-export function Initial({ name, className }: Readonly<{ name: string; className?: string | undefined }>) {
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-line bg-surface-3 font-display text-lg text-gold",
-        className,
-      )}
-    >
-      {name.slice(0, 1).toUpperCase()}
-    </span>
-  );
+/** Foto do Discord da pessoa, ou a inicial do nome quando não houver. */
+export function Initial({
+  name,
+  avatarUrl,
+  className,
+}: Readonly<{ name: string; avatarUrl?: string | null | undefined; className?: string | undefined }>) {
+  return <Avatar name={name} src={avatarUrl} className={cn("size-10 text-lg", className)} />;
 }

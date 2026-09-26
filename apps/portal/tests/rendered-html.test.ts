@@ -42,6 +42,9 @@ test("renderiza a primeira superfície do portal", async () => {
   assert.match(html, /name="twitter:title"/i);
   assert.match(html, /name="twitter:description"/i);
   assert.match(html, /name="twitter:image"/i);
+  // Ícone da aba e da tela inicial do celular, gerados a partir do braseiro da Ordem.
+  assert.match(html, /<link rel="icon" href="\/icon\.png/i);
+  assert.match(html, /<link rel="apple-touch-icon" href="\/apple-icon\.png/i);
   assert.match(
     html,
     /https:\/\/ordem-da-ultima-luz\.example\.test\/og\.png/i,
