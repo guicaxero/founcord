@@ -1,10 +1,12 @@
 import {
+  CreatureDeliveryCallbackSchema,
   FoundryCharacterSyncResponseSchema,
   MerchantPurchaseDeliveryCallbackSchema,
   MerchantStockDeliveryCallbackSchema,
   type FoundryCharacterSyncCallback,
   type MerchantPurchaseDeliveryCallback,
   type MerchantStockDeliveryCallback,
+  type CreatureDeliveryCallback,
 } from "@ordem/contracts";
 import type { FoundryEnv } from "./types";
 
@@ -72,5 +74,28 @@ export async function reportMerchantStockDelivery(
   );
   if (!response.ok) {
     throw new Error(`Portal merchant stock callback failed with ${response.status}.`);
+  }
+}
+
+/** Resultado da criação ou atualização do ator de uma criatura no Foundry. */
+export async function reportCreatureDelivery(
+  env: FoundryEnv,
+  input: CreatureDeliveryCallback,
+  correlationId: string,
+): Promise<void> {
+  const body = CreatureDeliveryCallbackSchema.parse(input);
+  const response = await env.PORTAL.fetch(
+    new Request("https://portal.internal/api/internal/integration/foundry/creatures/delivery", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${env.INTEGRATION_SERVICE_TOKEN}`,
+        "content-type": "application/json",
+        "x-correlation-id": correlationId,
+      },
+      body: JSON.stringify(body),
+    }),
+  );
+  if (!response.ok) {
+    throw new Error(`Portal creature callback failed with ${response.status}.`);
   }
 }

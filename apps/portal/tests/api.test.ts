@@ -935,6 +935,130 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.equal(delivered.data.appliedAt, "2026-09-25T12:00:00.000Z");
     });
 
+    test("importa o compêndio e mantém a biblioteca de criaturas com RBAC", async () => {
+      const base = `/api/campaigns/${defaultCampaignId}`;
+      // Documento sintético no formato do export do Foundry; nenhum conteúdo dos livros.
+      const creatureFile = {
+        _id: "fixture-creature",
+        name: "Fera de Teste",
+        type: "creature",
+        system: {
+          attributes: { strength: { value: 12 }, agility: { value: 11 }, intellect: { value: 6 }, will: { value: 9 }, perception: { value: 10 } },
+          characteristics: { defense: 13, health: { max: 22 }, speed: 12, size: "1" },
+          difficulty: 10,
+          descriptor: "Criatura média (fera)",
+          description: "<p>Descrição.</p>",
+        },
+        items: [{ _id: "w1", name: "Mordida", type: "weapon", system: { action: { attack: "+2", against: "defense", damage: "1d6" } } }],
+      };
+      const spellFile = { _id: "fixture-spell", name: "Clarão", type: "spell", system: { tradition: "Teste", rank: 1 } };
+      const importBody = {
+        kind: "creature",
+        files: [
+          { fileName: "Fera.json", content: creatureFile },
+          { fileName: "_manifesto.json", content: {} },
+          { fileName: "Magia.json", content: spellFile },
+        ],
+      };
+
+      assert.equal((await api(mf, `${base}/compendium`, { token: identities.playerOne.token })).status, 403);
+      assert.equal(
+        (await api(mf, `${base}/compendium/import`, { token: identities.playerOne.token, method: "POST", body: importBody })).status,
+        403,
+      );
+      assert.equal((await api(mf, `${base}/creatures`, { token: identities.playerOne.token })).status, 403);
+
+      const imported = await api(mf, `${base}/compendium/import`, { token: identities.gm.token, method: "POST", body: importBody });
+      assert.equal(imported.status, 200, JSON.stringify(imported.data));
+      assert.equal(imported.data.created, 1);
+      assert.deepEqual(imported.data.skipped.map((item: Json) => item.fileName), ["_manifesto.json", "Magia.json"]);
+      const reimported = await api(mf, `${base}/compendium/import`, { token: identities.gm.token, method: "POST", body: importBody });
+      assert.deepEqual([reimported.data.created, reimported.data.updated], [0, 1]);
+      const spells = await api(mf, `${base}/compendium/import`, {
+        token: identities.gm.token,
+        method: "POST",
+        body: { kind: "spell", files: [{ fileName: "Magia.json", content: spellFile }] },
+      });
+      assert.equal(spells.data.created, 1);
+
+      const bestiary = await api(mf, `${base}/compendium?tipo=creature`, { token: identities.gm.token });
+      assert.equal(bestiary.status, 200);
+      assert.equal(bestiary.data.data.length, 1);
+      const entry = bestiary.data.data[0];
+      assert.deepEqual([entry.name, entry.category, entry.difficulty, entry.defense, entry.health], [
+        "Fera de Teste",
+        "Criatura média (fera)",
+        10,
+        13,
+        22,
+      ]);
+      assert.equal((await api(mf, `${base}/compendium?tipo=outro`, { token: identities.gm.token })).status, 422);
+      const full = await api(mf, `${base}/compendium/${entry.id}`, { token: identities.gm.token });
+      assert.equal(full.status, 200);
+      assert.equal(full.data.data.items[0].kind, "attack");
+
+      const created = await api(mf, `${base}/creatures`, {
+        token: identities.gm.token,
+        method: "POST",
+        body: { draft: full.data.data, basedOnEntryId: entry.id },
+      });
+      assert.equal(created.status, 201, JSON.stringify(created.data));
+      assert.deepEqual(created.data.basedOn, { entryId: entry.id, name: "Fera de Teste" });
+      assert.deepEqual([created.data.version, created.data.status, created.data.sentVersion], [1, "draft", 0]);
+
+      const invalid = await api(mf, `${base}/creatures`, {
+        token: identities.gm.token,
+        method: "POST",
+        body: { draft: { ...full.data.data, image: "../segredo.png" }, basedOnEntryId: null },
+      });
+      assert.equal(invalid.status, 422);
+
+      const path = `${base}/creatures/${created.data.id}`;
+      const draft = { ...created.data.draft, name: "Fera Alfa", health: 30 };
+      const stale = await api(mf, path, { token: identities.gm.token, method: "PATCH", body: { draft, version: 2 } });
+      assert.equal(stale.status, 409);
+      const saved = await api(mf, path, { token: identities.gm.token, method: "PATCH", body: { draft, version: 1 } });
+      assert.equal(saved.status, 200, JSON.stringify(saved.data));
+      assert.deepEqual([saved.data.version, saved.data.draft.name, saved.data.draft.health], [2, "Fera Alfa", 30]);
+
+      // O envio real passa pelo bridge; aqui simulamos o comando já na fila.
+      await db
+        .prepare("UPDATE creatures SET status = 'pending_delivery', sent_version = 2 WHERE id = ?")
+        .bind(created.data.id)
+        .run();
+      const callbackPath = "/api/internal/integration/foundry/creatures/delivery";
+      const callback = {
+        creatureId: created.data.id,
+        version: 2,
+        commandId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        outcome: "succeeded",
+        actorId: "ActorFoundry01",
+        error: null,
+        deliveredAt: "2026-09-26T12:00:00.000Z",
+      };
+      const serviceAuth = { authorization: "Bearer test-integration-token-with-at-least-32-bytes" };
+      assert.equal((await api(mf, callbackPath, { method: "POST", body: callback })).status, 401);
+      const stalePush = await api(mf, callbackPath, { method: "POST", body: { ...callback, version: 1 }, headers: serviceAuth });
+      assert.equal(stalePush.data.status, "pending_delivery");
+      const delivered = await api(mf, callbackPath, { method: "POST", body: callback, headers: serviceAuth });
+      assert.equal(delivered.status, 200, JSON.stringify(delivered.data));
+      assert.deepEqual(
+        [delivered.data.status, delivered.data.foundryActorId, delivered.data.sentAt],
+        ["synced", "ActorFoundry01", "2026-09-26T12:00:00.000Z"],
+      );
+
+      const list = await api(mf, `${base}/creatures`, { token: identities.manager.token });
+      assert.equal(list.status, 200);
+      assert.deepEqual(list.data.data.map((item: Json) => item.id), [created.data.id]);
+
+      const sameOrigin = { "sec-fetch-site": "same-origin" };
+      const forbidden = await api(mf, path, { token: identities.playerOne.token, method: "DELETE", headers: sameOrigin });
+      assert.equal(forbidden.status, 403);
+      const removed = await api(mf, path, { token: identities.gm.token, method: "DELETE", headers: sameOrigin });
+      assert.equal(removed.status, 200);
+      assert.equal((await api(mf, path, { token: identities.gm.token })).status, 404);
+    });
+
     test("não deixa automações misturarem Crônicas e Diário de Sessões", async () => {
       const path = `/api/campaigns/${defaultCampaignId}/automations`;
       const source = { kind: "pasted_text", label: "Sessão 12", content: "Registro da mesa. ".repeat(10) };
@@ -984,6 +1108,11 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
         "merchant.catalog.deactivated",
         "merchant.stock.drawn",
         "merchant.stock.applied",
+        "compendium.imported",
+        "creature.created",
+        "creature.updated",
+        "creature.synced",
+        "creature.deleted",
       ]) {
         assert.equal(actions.has(action), true, `ação ausente: ${action}`);
       }

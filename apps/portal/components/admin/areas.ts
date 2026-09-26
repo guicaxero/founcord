@@ -10,6 +10,7 @@ export type AreaSlug =
   | "sessoes"
   | "diario"
   | "automacoes"
+  | "criaturas"
   | "missoes"
   | "cronicas"
   | "foundry"
@@ -62,6 +63,14 @@ export const areas: readonly AreaDefinition[] = [
     description: "Transforme registros de sessão em rascunhos que sempre passam por revisão humana.",
     group: "mesa",
     permissions: ["automation:read", "automation:run"],
+  },
+  {
+    slug: "criaturas",
+    label: "Criaturas",
+    eyebrow: "Bestiário da mesa",
+    description: "Monte criaturas a partir do bestiário ou do zero e envie para o Foundry, que cria o ator pronto para a cena.",
+    group: "mesa",
+    permissions: ["creature:manage"],
   },
   {
     slug: "missoes",

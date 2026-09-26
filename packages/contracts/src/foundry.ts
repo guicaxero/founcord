@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CampaignSchema } from "./campaigns";
 import { foundryImageSchema } from "./common";
+import { CreatureDraftSchema } from "./creatures";
 import { DemonLordCoinsSchema } from "./currency";
 import { MerchantStockEntrySchema } from "./merchant-stock";
 
@@ -264,6 +265,7 @@ export const FoundryCommandTypeSchema = z.enum([
   "chat.message.create",
   "merchant.purchase.request",
   "merchant.stock.replace",
+  "creature.upsert",
 ]);
 
 const ActorSyncCommandSchema = z
@@ -335,11 +337,31 @@ const MerchantStockReplaceCommandSchema = z
   })
   .strict();
 
+/**
+ * Cria ou atualiza o ator de uma criatura da biblioteca. O módulo encontra o
+ * ator pela marca `creatureId` e troca os itens; sem ator, cria um novo.
+ */
+const CreatureUpsertCommandSchema = z
+  .object({
+    type: z.literal("creature.upsert"),
+    payload: z
+      .object({
+        creatureId: z.string().uuid(),
+        campaignId: z.string().uuid(),
+        version: z.number().int().positive(),
+        creature: CreatureDraftSchema,
+        requestedAt: isoDate,
+      })
+      .strict(),
+  })
+  .strict();
+
 export const FoundryCommandInputSchema = z.discriminatedUnion("type", [
   ActorSyncCommandSchema,
   ChatMessageCommandSchema,
   MerchantPurchaseRequestCommandSchema,
   MerchantStockReplaceCommandSchema,
+  CreatureUpsertCommandSchema,
 ]);
 
 export const FoundryCommandCreateRequestSchema = z

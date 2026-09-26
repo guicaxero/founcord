@@ -5,6 +5,7 @@ export const permissions = [
   "campaign:manage",
   "character:link:manage",
   "character:self:read",
+  "creature:manage",
   "foundry:world:manage",
   "integration:manage",
   "merchant:catalog:manage",
@@ -56,6 +57,7 @@ export type Principal = Readonly<{
 export const rolePermissions = {
   owner: permissions,
   administrator: [
+    "creature:manage",
     "audit:read",
     "automation:read",
     "automation:run",
@@ -78,6 +80,7 @@ export const rolePermissions = {
     "session:read",
   ],
   campaign_manager: [
+    "creature:manage",
     "audit:read",
     "automation:read",
     "automation:run",
@@ -101,6 +104,7 @@ export const rolePermissions = {
     "session:read",
   ],
   gm: [
+    "creature:manage",
     "automation:read",
     "automation:run",
     "character:link:manage",

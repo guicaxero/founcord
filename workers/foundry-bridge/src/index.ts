@@ -36,6 +36,7 @@ import {
   hashToken,
 } from "./auth";
 import {
+  reportCreatureDelivery,
   reportMerchantPurchaseDelivery,
   reportMerchantStockDelivery,
   syncCharactersWithPortal,
@@ -396,6 +397,22 @@ foundryApp.post(
           drawId: completion.command.payload.drawId,
           commandId,
           outcome: input.outcome,
+          error: input.outcome === "failed" ? input.error : null,
+          deliveredAt: new Date().toISOString(),
+        },
+        requestCorrelationId(context.req.raw),
+      );
+    }
+    if (completion.command.type === "creature.upsert") {
+      const actorId = input.result.actorId;
+      await reportCreatureDelivery(
+        context.env,
+        {
+          creatureId: completion.command.payload.creatureId,
+          version: completion.command.payload.version,
+          commandId,
+          outcome: input.outcome,
+          actorId: input.outcome === "succeeded" && typeof actorId === "string" ? actorId.slice(0, 128) : null,
           error: input.outcome === "failed" ? input.error : null,
           deliveredAt: new Date().toISOString(),
         },
