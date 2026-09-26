@@ -190,6 +190,19 @@ test("Marcos 3, 4.1 e Mercador: conexão, projeções e captura pública do Foun
     assert.equal(worlds.data.worlds[0].status, "online");
     assert.notEqual(worlds.data.worlds[0].lastSeenAt, "2099-01-01T00:00:00.000Z");
 
+    // Depois de atualizar o módulo, o heartbeat corrige a versão registrada no pareamento;
+    // heartbeats sem versão (módulos antigos) preservam o que já está gravado.
+    for (const body of [
+      { observedAt: "2099-01-01T00:00:00.000Z", activeUsers: 1, actorCount: 1, moduleVersion: "0.8.1", systemVersion: "6.1.7" },
+      { observedAt: "2099-01-01T00:00:00.000Z", activeUsers: 1, actorCount: 1 },
+    ]) {
+      const updated = await api(mf, `/v1/worlds/${worldId}/heartbeat`, { method: "POST", token: accessToken, body });
+      assert.equal(updated.status, 200, JSON.stringify(updated.data));
+    }
+    const refreshed = await api(mf, `/internal/foundry/campaigns/${campaignId}/worlds`, { token: serviceToken });
+    assert.equal(refreshed.data.worlds[0].moduleVersion, "0.8.1");
+    assert.equal(refreshed.data.worlds[0].systemVersion, "6.1.7");
+
     const otherCampaignWorlds = await api(
       mf,
       `/internal/foundry/campaigns/${otherCampaignId}/worlds`,

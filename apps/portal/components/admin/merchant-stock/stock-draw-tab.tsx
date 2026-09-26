@@ -391,10 +391,16 @@ function DeliveryNotice({
           {targets.map((target) => (
             <li key={target.worldId}>
               {target.worldTitle}: {blockedCopy[target.blockedReason!]}
-              {target.blockedReason === "module_outdated" ? ` (versão atual ${target.moduleVersion})` : null}.
+              {target.blockedReason === "module_outdated" ? ` (versão registrada: ${target.moduleVersion})` : null}.
             </li>
           ))}
         </ul>
+        {targets.some((target) => target.blockedReason === "module_outdated") ? (
+          <p className="mt-2">
+            Se o módulo já foi atualizado, entre no mundo como mestre: a partir do 0.8.1, a versão registrada se
+            atualiza sozinha em até um minuto.
+          </p>
+        ) : null}
       </Notice>
     );
   }

@@ -460,15 +460,33 @@ export async function findWorldByTokenHash(
 export async function recordHeartbeat(
   env: FoundryEnv,
   worldId: string,
-  input: Readonly<{ observedAt: string; activeUsers: number; actorCount: number }>,
+  input: Readonly<{
+    observedAt: string;
+    activeUsers: number;
+    actorCount: number;
+    foundryVersion?: string | undefined;
+    systemVersion?: string | undefined;
+    moduleVersion?: string | undefined;
+  }>,
 ): Promise<void> {
+  // As versões só mudam quando o módulo as informa; heartbeats antigos preservam o registro.
   const result = await env.INTEGRATION_DB.prepare(
     `UPDATE foundry_worlds
      SET last_seen_at = CURRENT_TIMESTAMP, active_users = ?, actor_count = ?,
+         foundry_version = COALESCE(?, foundry_version),
+         system_version = COALESCE(?, system_version),
+         module_version = COALESCE(?, module_version),
          updated_at = CURRENT_TIMESTAMP
      WHERE id = ? AND revoked_at IS NULL`,
   )
-    .bind(input.activeUsers, input.actorCount, worldId)
+    .bind(
+      input.activeUsers,
+      input.actorCount,
+      input.foundryVersion ?? null,
+      input.systemVersion ?? null,
+      input.moduleVersion ?? null,
+      worldId,
+    )
     .run();
   if ((result.meta.changes ?? 0) === 0) {
     throw new FoundryBridgeError(401, "world_revoked", "Mundo não autorizado.");

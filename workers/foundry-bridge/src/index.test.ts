@@ -238,6 +238,27 @@ describe("Foundry Bridge Worker", () => {
     );
   });
 
+  it("repassa as versões informadas no heartbeat para atualizar o registro do mundo", async () => {
+    const response = await request(`/v1/worlds/${worldId}/heartbeat`, {
+      method: "POST",
+      headers: bearer(accessToken),
+      body: JSON.stringify({
+        observedAt: "2026-09-26T14:00:00.000Z",
+        activeUsers: 1,
+        actorCount: 3,
+        foundryVersion: "14.367",
+        systemVersion: "6.1.4",
+        moduleVersion: "0.8.1",
+      }),
+    });
+    expect(response.status).toBe(200);
+    expect(repository.recordHeartbeat).toHaveBeenCalledWith(
+      env,
+      worldId,
+      expect.objectContaining({ moduleVersion: "0.8.1", systemVersion: "6.1.4", foundryVersion: "14.367" }),
+    );
+  });
+
   it("sincroniza a projeção pelo portal e conclui o inbox", async () => {
     const sync = characterSync();
     const response = await request(`/v1/worlds/${worldId}/characters/sync`, {
