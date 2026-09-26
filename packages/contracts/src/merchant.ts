@@ -7,7 +7,7 @@ const foundryIdentifier = z
   .max(128)
   .regex(/^[A-Za-z0-9._-]+$/);
 
-const publicImageUrl = z
+const httpsImageUrl = z
   .string()
   .url()
   .max(2_048)
@@ -15,15 +15,97 @@ const publicImageUrl = z
     message: "A imagem pública deve usar HTTPS.",
   });
 
+/**
+ * Miniatura gerada pelo módulo a partir do ícone do item. Os ícones do Foundry
+ * vivem no servidor do mestre, que não é exposto à internet; por isso o módulo
+ * envia uma cópia pequena (64 px) em vez do endereço.
+ */
+const thumbnailDataUrl = z
+  .string()
+  .max(16_000)
+  .regex(/^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/u, {
+    message: "A miniatura deve ser uma imagem WebP, PNG ou JPEG em base64.",
+  });
+
+/** Soma máxima das miniaturas de um catálogo, em caracteres de base64. */
+export const MAX_CATALOG_IMAGE_CHARS = 1_000_000;
+
+const itemImage = z.union([httpsImageUrl, thumbnailDataUrl]);
+
+/** Disponibilidade do sistema (`system.availability`: C, U, R, E). */
+export const MerchantItemAvailabilitySchema = z.enum(["common", "uncommon", "rare", "exotic"]);
+
+/** Tipo de consumível do sistema (`system.consumabletype`: D, F, I, P, V, T). */
+export const MerchantConsumableTypeSchema = z.enum([
+  "drink",
+  "food",
+  "incantation",
+  "potion",
+  "poison",
+  "trinket",
+]);
+
+/** Nomes do livro em português, os mesmos da tradução do sistema no Foundry. */
+export const MERCHANT_AVAILABILITY_LABELS = {
+  common: "Comum",
+  uncommon: "Incomum",
+  rare: "Raro",
+  exotic: "Exótico",
+} as const satisfies Record<z.infer<typeof MerchantItemAvailabilitySchema>, string>;
+
+export const MERCHANT_CONSUMABLE_LABELS = {
+  drink: "Bebida",
+  food: "Comida",
+  incantation: "Encanto",
+  potion: "Poção",
+  poison: "Veneno",
+  trinket: "Bugiganga",
+} as const satisfies Record<z.infer<typeof MerchantConsumableTypeSchema>, string>;
+
+const shortStat = z.string().trim().min(1).max(40).nullable().default(null);
+
+const itemRequirement = z
+  .object({
+    attribute: z.enum(["strength", "agility", "intellect", "will", "perception"]),
+    minimum: z.number().int().min(0).max(99),
+  })
+  .strict()
+  .nullable()
+  .default(null);
+
+export const MerchantWeaponDetailsSchema = z
+  .object({
+    damage: shortStat,
+    hands: z.enum(["one", "two", "off"]).nullable().default(null),
+    requirement: itemRequirement,
+  })
+  .strict();
+
+export const MerchantArmorDetailsSchema = z
+  .object({
+    defense: shortStat,
+    agility: shortStat,
+    fixed: shortStat,
+    shield: z.boolean().default(false),
+    requirement: itemRequirement,
+  })
+  .strict();
+
 export const MerchantItemProjectionSchema = z
   .object({
     itemId: foundryIdentifier,
     name: z.string().trim().min(1).max(160),
     description: z.string().trim().min(1).max(4_000).nullable(),
     category: z.string().trim().min(1).max(80).nullable(),
-    imageUrl: publicImageUrl.nullable(),
+    imageUrl: itemImage.nullable(),
     price: z.string().trim().min(1).max(64).nullable(),
     quantity: z.number().int().nonnegative().max(1_000_000).nullable(),
+    // Campos a partir do módulo 0.7.0; catálogos antigos continuam válidos.
+    availability: MerchantItemAvailabilitySchema.nullable().default(null),
+    consumableType: MerchantConsumableTypeSchema.nullable().default(null),
+    properties: z.string().trim().min(1).max(500).nullable().default(null),
+    weapon: MerchantWeaponDetailsSchema.nullable().default(null),
+    armor: MerchantArmorDetailsSchema.nullable().default(null),
     sourceUpdatedAt: IsoDateTimeSchema,
   })
   .strict();
@@ -33,7 +115,15 @@ export const FoundryMerchantCatalogProjectionSchema = z
     merchantActorId: foundryIdentifier,
     merchantName: z.string().trim().min(1).max(160),
     sourceUpdatedAt: IsoDateTimeSchema,
-    items: z.array(MerchantItemProjectionSchema).max(500),
+    items: z
+      .array(MerchantItemProjectionSchema)
+      .max(500)
+      // O catálogo inteiro vira uma linha do D1 (máximo de 2 MB); as miniaturas
+      // somadas ficam bem abaixo disso.
+      .refine(
+        (items) => items.reduce((total, item) => total + (item.imageUrl?.length ?? 0), 0) <= MAX_CATALOG_IMAGE_CHARS,
+        { message: "As miniaturas do catálogo excedem o limite total." },
+      ),
   })
   .strict();
 
@@ -171,6 +261,10 @@ export const FoundryMerchantPurchaseContextSchema = z
   })
   .strict();
 
+export type MerchantItemAvailability = z.infer<typeof MerchantItemAvailabilitySchema>;
+export type MerchantConsumableType = z.infer<typeof MerchantConsumableTypeSchema>;
+export type MerchantWeaponDetails = z.infer<typeof MerchantWeaponDetailsSchema>;
+export type MerchantArmorDetails = z.infer<typeof MerchantArmorDetailsSchema>;
 export type MerchantItemProjection = z.infer<
   typeof MerchantItemProjectionSchema
 >;

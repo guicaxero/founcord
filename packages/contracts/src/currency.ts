@@ -108,6 +108,11 @@ export function parseDemonLordPrice(raw: string | null | undefined): ParsedPrice
   return { coins, totalBits: toBits(coins) };
 }
 
+/** Preço só com número (`22`): o Foundry não disse qual moeda é. */
+export function isBareAmount(raw: string | null | undefined): boolean {
+  return Boolean(raw && /^\s*\d+\s*$/u.test(raw));
+}
+
 export function toBits(coins: DemonLordCoins): number {
   return DEMON_LORD_COINS.reduce((total, coin) => total + coins[coin] * BITS_PER_COIN[coin], 0);
 }

@@ -10,6 +10,7 @@ import {
   FoundryMerchantSyncRequestSchema,
   FoundryPairingCreateRequestSchema,
   FoundryUserCodeSchema,
+  MerchantItemProjectionSchema,
   MerchantPurchaseRequestInputSchema,
   UpdatePostSchema,
 } from "./index";
@@ -157,6 +158,40 @@ describe("contratos públicos", () => {
           items: [{ ...baseItem, itemId: "negative", quantity: -1 }],
         },
       }),
+    ).toThrow();
+  });
+
+  it("aceita detalhes do item e miniatura, sem quebrar catálogos antigos", () => {
+    const legacy = MerchantItemProjectionSchema.parse({
+      itemId: "tocha",
+      name: "Tocha",
+      description: null,
+      category: null,
+      imageUrl: null,
+      price: "1 cp",
+      quantity: 2,
+      sourceUpdatedAt: "2026-08-31T12:00:00.000Z",
+    });
+    expect(legacy).toMatchObject({ availability: null, consumableType: null, weapon: null, armor: null });
+
+    const detailed = MerchantItemProjectionSchema.parse({
+      ...legacy,
+      imageUrl: "data:image/webp;base64,UklGRhIAAABXRUJQVlA4",
+      availability: "rare",
+      consumableType: "potion",
+      properties: "Arremesso, Precisa",
+      weapon: { damage: "1d6", hands: "one", requirement: { attribute: "strength", minimum: 11 } },
+    });
+    expect(detailed.weapon).toEqual({
+      damage: "1d6",
+      hands: "one",
+      requirement: { attribute: "strength", minimum: 11 },
+    });
+    expect(() =>
+      MerchantItemProjectionSchema.parse({ ...legacy, imageUrl: "data:text/html;base64,PHA+" }),
+    ).toThrow();
+    expect(() =>
+      MerchantItemProjectionSchema.parse({ ...legacy, imageUrl: "http://foundry.local/icon.webp" }),
     ).toThrow();
   });
 

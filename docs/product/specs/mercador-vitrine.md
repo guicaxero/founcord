@@ -26,15 +26,26 @@ módulo são entregues em PRs independentes.
 - Cada sincronização possui `syncId` idempotente e `capturedAt` para rejeitar
   snapshots atrasados.
 - Item contém identificador do Foundry, nome, descrição, categoria opcional,
-  imagem HTTPS opcional, preço textual da origem, quantidade opcional e data da
+  imagem opcional, preço textual da origem, quantidade opcional e data da
   última alteração na origem.
+- A partir do módulo 0.7.0, o item também traz raridade
+  (`system.availability`: comum, incomum, raro, exótico), tipo de consumível
+  (`system.consumabletype`: bebida, comida, encanto, poção, veneno, bugiganga),
+  propriedades (`system.properties`), dados de arma (dano, empunhadura e
+  requisito) e dados de armadura (defesa, defesa fixa, agilidade, escudo e
+  requisito). Os campos são opcionais: catálogos de módulos antigos continuam
+  válidos e aparecem sem esses detalhes.
 - Quantidade `0`, quantidade desconhecida (`null`) e quantidade positiva são
   estados distintos.
 - Preço ausente nunca é transformado em zero. O campo `system.value` do sistema
-  Demon Lord é textual; ele é preservado como veio da origem e não é inferido,
-  convertido ou usado em cálculos pelo portal.
-- Caminhos locais de imagem do Foundry não são publicados; somente recursos
-  HTTPS acessíveis ao navegador podem compor a projeção.
+  Demon Lord é textual. Um preço só com número (`22`) não diz a moeda: o módulo
+  aplica a moeda padrão escolhida pelo mestre na tela de conexão (centavos de
+  cobre, se nada for escolhido) e envia `22 cp`. Catálogos antigos com número
+  puro aparecem com o aviso "moeda não informada".
+- Caminhos locais de imagem do Foundry não são publicados, porque o servidor do
+  mestre não é exposto à internet. O módulo gera no navegador do mestre uma
+  miniatura de 64 px (`data:image/webp;base64,...`, até 16 KB) a partir do
+  ícone do item. Endereços HTTPS continuam aceitos.
 
 ## Seleção e atualidade
 
@@ -47,6 +58,12 @@ o mundo como online.
 - `stale`: mundo online, mas catálogo anterior a 15 minutos;
 - `offline`: mundo sem heartbeat recente; o último catálogo continua visível.
 
+O catálogo só é reenviado quando o mestre altera o estoque ou sincroniza pelo
+módulo; não há atualização periódica. Por isso portal e Discord não exibem esses
+estados como selo ("atualização atrasada" seria sempre verdadeiro) e mostram
+apenas a data da última atualização do estoque. O campo continua no contrato
+para uso interno.
+
 Se não existir catálogo, a resposta ainda distingue campanha sem mundo, mundo
 offline e integração ainda não sincronizada.
 
@@ -58,11 +75,14 @@ offline e integração ainda não sincronizada.
   como destino do comando Discord.
 - Título “Mercador”, descrição objetiva e aviso de que a vitrine é somente para
   consulta.
-- Estado e hora exata da última sincronização ficam próximos do cabeçalho.
+- A data da última atualização do estoque fica próxima do cabeçalho, com o
+  tempo relativo entre parênteses.
 - Busca por nome ou descrição, filtro “Todos / Em estoque / Esgotados” e total
   de resultados.
-- Nome do item é primário; preço e estoque são secundários; descrição completa
-  é revelada progressivamente sem modal.
+- Nome do item é primário; preço e estoque são secundários. Raridade e tipo de
+  consumível aparecem como selos com texto; dano, empunhadura, requisito, defesa
+  e propriedades formam uma ficha curta. A descrição fica visível, limitada a
+  três linhas quando longa, com "Ler descrição completa".
 - Não há botão de compra, carrinho, saldo, edição ou controle desabilitado que
   prometa funcionalidade futura.
 

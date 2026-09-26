@@ -20,30 +20,13 @@ import { listItem, staggerList } from "@/components/ui/motion";
 import { Badge, Card, PageHeader, Skeleton } from "@/components/ui/surface";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { hasCapability } from "@/lib/capabilities";
-import { formatDateTime, normalizeSearch } from "@/lib/format";
+import { formatDateTime, formatRelative, normalizeSearch } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
+import { ItemBadges, ItemDescription, ItemImage, ItemStats } from "./item-details";
 import { MyPurchaseRequests } from "./my-purchases";
 import { PurchaseDialog } from "./purchase-dialog";
 
 type StockFilter = "todos" | "em-estoque" | "esgotados";
-
-const freshnessContent = {
-  fresh: {
-    label: "Catálogo atualizado",
-    description: "A vitrine está sincronizada com um mundo online.",
-    tone: "success",
-  },
-  stale: {
-    label: "Atualização atrasada",
-    description: "O mundo está online, mas este catálogo não é recente.",
-    tone: "warning",
-  },
-  offline: {
-    label: "Mundo offline",
-    description: "Você está consultando o último catálogo recebido do Foundry.",
-    tone: "neutral",
-  },
-} as const;
 
 export function MerchantCatalog({
   campaignId,
@@ -184,7 +167,7 @@ export function MerchantCatalog({
                   type="search"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Nome ou descrição do item"
+                  placeholder="Nome, descrição ou propriedade"
                   autoComplete="off"
                   className="min-h-11 w-full rounded-md border border-line bg-surface px-3 text-fg placeholder:text-fg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                 />
@@ -311,36 +294,24 @@ export function MerchantCatalog({
   );
 }
 
+/**
+ * O catálogo só é reenviado quando o mestre altera o estoque ou sincroniza no
+ * Foundry, então o tempo desde o envio não indica atraso. Mostramos apenas quando
+ * foi a última atualização.
+ */
 function CatalogStatus({ response }: Readonly<{ response: MerchantCatalogResponse }>) {
   const catalog = response.catalog;
   if (!catalog) return null;
-  const content = freshnessContent[catalog.freshness];
+  const relative = formatRelative(catalog.syncedAt);
 
   return (
-    <Card className="flex flex-wrap items-center justify-between gap-4" padding="sm">
-      <div className="flex items-center gap-3">
-        <Badge tone={content.tone}>{content.label}</Badge>
-        <span className="text-sm text-fg-muted">{content.description}</span>
-      </div>
-      <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-        <div>
-          <dt className="inline text-fg-subtle">Último catálogo: </dt>
-          <dd className="inline font-semibold">
-            <time dateTime={catalog.syncedAt}>{formatDateTime(catalog.syncedAt)}</time>
-          </dd>
-        </div>
-        {response.connection.lastSeenAt ? (
-          <div>
-            <dt className="inline text-fg-subtle">Último contato: </dt>
-            <dd className="inline font-semibold">
-              <time dateTime={response.connection.lastSeenAt}>
-                {formatDateTime(response.connection.lastSeenAt)}
-              </time>
-            </dd>
-          </div>
-        ) : null}
-      </dl>
-    </Card>
+    <p className="text-sm text-fg-muted">
+      Última atualização do estoque:{" "}
+      <time className="font-semibold text-fg" dateTime={catalog.syncedAt}>
+        {formatDateTime(catalog.syncedAt)}
+      </time>
+      {relative ? <span className="text-fg-subtle"> ({relative})</span> : null}
+    </p>
   );
 }
 
@@ -361,31 +332,21 @@ function MerchantItem({
     <Card className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start" interactive>
       <ItemImage item={item} />
 
-      <div className="min-w-0 space-y-2">
-        {item.category ? (
-          <p className="text-xs font-bold tracking-wider text-accent uppercase">
-            {item.category}
-          </p>
-        ) : null}
-        <h3 className="font-display text-xl leading-tight">{item.name}</h3>
-        {item.description ? (
-          <details className="group">
-            <summary className="cursor-pointer text-sm font-semibold text-fg-muted hover:text-fg">
-              <span className="group-open:hidden">Ver detalhes</span>
-              <span className="hidden group-open:inline">Ocultar detalhes</span>
-            </summary>
-            <p className="mt-2 max-w-[65ch] text-sm text-fg-muted text-pretty">
-              {item.description}
-            </p>
-          </details>
-        ) : (
-          <p className="text-sm text-fg-subtle italic">Descrição não informada</p>
-        )}
+      <div className="min-w-0 space-y-3">
+        <div className="space-y-1.5">
+          {item.category ? (
+            <p className="text-xs font-bold tracking-wider text-accent uppercase">{item.category}</p>
+          ) : null}
+          <h3 className="font-display text-xl leading-tight break-words">{item.name}</h3>
+          <ItemBadges item={item} />
+        </div>
+        <ItemStats item={item} />
+        <ItemDescription description={item.description} />
         <p className="sr-only">Vendido por {merchantName}</p>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-4 sm:w-56 sm:flex-col sm:items-end">
-        <div className="text-right">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line-soft pt-4 sm:w-56 sm:flex-col sm:items-end sm:border-0 sm:pt-0">
+        <div className="sm:text-right">
           <MerchantPrice price={item.price} />
           <Stock quantity={item.quantity} />
         </div>
@@ -508,32 +469,6 @@ function PurchaseAccess({
   );
 }
 
-function ItemImage({ item }: Readonly<{ item: MerchantItemProjection }>) {
-  if (!item.imageUrl) {
-    return (
-      <span
-        aria-hidden="true"
-        className="grid size-14 place-items-center rounded-md border border-line-soft bg-surface-2 font-display text-xl text-fg-subtle"
-      >
-        {item.name.slice(0, 1)}
-      </span>
-    );
-  }
-
-  return (
-    // URLs vêm de uma lista HTTPS validada e podem usar qualquer host do mundo Foundry.
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      className="size-14 rounded-md border border-line-soft object-cover"
-      src={item.imageUrl}
-      alt=""
-      width="56"
-      height="56"
-      loading="lazy"
-    />
-  );
-}
-
 function Stock({ quantity }: Readonly<{ quantity: number | null }>) {
   if (quantity === null) {
     return <span className="block text-sm text-fg-subtle">Estoque não informado</span>;
@@ -553,7 +488,7 @@ function filterItems(
   return items.filter((item) => {
     const matchesSearch =
       term.length === 0 ||
-      normalizeSearch(`${item.name} ${item.description ?? ""}`).includes(term);
+      normalizeSearch(`${item.name} ${item.description ?? ""} ${item.properties ?? ""} ${item.category ?? ""}`).includes(term);
     const matchesStock =
       stockFilter === "todos" ||
       (stockFilter === "em-estoque" && item.quantity !== null && item.quantity > 0) ||
