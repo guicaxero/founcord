@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   AutomationJob,
   AutomationJobListResponse,
-  AutomationKind,
   CampaignSession,
   CampaignSessionCaptureStatus,
   CampaignSessionGenerationResponse,
@@ -49,12 +48,6 @@ const sessionStatusContent: Readonly<
     description: "Os registros recebidos foram preservados e a captura pode ser retomada.",
     tone: "danger",
   },
-};
-
-const automationKindContent: Readonly<Record<AutomationKind, string>> = {
-  session_summary: "Resumo de sessão",
-  chronicle_draft: "Rascunho de crônica",
-  record_extraction: "Extrair registros",
 };
 
 type HistoryFilter = "all" | "ongoing" | "ended";
@@ -211,7 +204,7 @@ export function SessionsPanel({
   const editingContext = editingContextId ? data.find((item) => item.id === editingContextId) ?? null : null;
 
   async function openReview() {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.posts(campaignId, "editorial") });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.sessionSummaries(campaignId, "editorial") });
     onOpenReview();
   }
 
@@ -788,7 +781,7 @@ function PrepareDraft({
     const suggestedTitle = String(data.get("suggestedTitle") ?? "").trim();
     const instructions = String(data.get("instructions") ?? "").trim();
     onGenerate({
-      kind: String(data.get("kind")) as AutomationKind,
+      kind: "session_summary",
       ...(suggestedTitle ? { suggestedTitle } : {}),
       ...(instructions ? { instructions } : {}),
     });
@@ -862,16 +855,11 @@ function PrepareDraft({
             </Notice>
           ) : null}
           <FormGrid>
-            <Field label="Resultado desejado">
-              {({ id }) => (
-                <Select id={id} name="kind" defaultValue="session_summary" required disabled={busy || !hasMaterial}>
-                  {Object.entries(automationKindContent).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </Select>
-              )}
-            </Field>
-            <Field label="Título sugerido" optional>
+            <Notice className="full" tone="info" title="Resumo de sessão para o Diário">
+              A automação organiza acontecimentos, decisões e pendências desta sessão num resumo, que vai para
+              revisão no Diário de Sessões. Crônicas de lore são escritas em Crônicas ou geradas em Automações.
+            </Notice>
+            <Field label="Título sugerido" optional className="full">
               {({ id }) => <Input id={id} name="suggestedTitle" minLength={3} maxLength={140} disabled={busy || !hasMaterial} />}
             </Field>
             <Field label="Orientação editorial" optional className="full">
@@ -891,7 +879,7 @@ function PrepareDraft({
           <div className="flex flex-wrap justify-end gap-3 border-t border-line-soft pt-4">
             <Button disabled={busy} onClick={(event) => onEditContext(event.currentTarget)}>Editar fontes manuais</Button>
             <Button type="submit" variant="primary" disabled={busy || !hasMaterial || quotaRemaining === 0}>
-              {busy ? "Enviando para a fila…" : "Gerar rascunho para revisão"}
+              {busy ? "Enviando para a fila…" : "Gerar resumo para o Diário"}
             </Button>
           </div>
         </form>

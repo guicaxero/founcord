@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AutomationJobCreateResponseSchema, AutomationKindSchema } from "./automations";
+import { AutomationJobCreateResponseSchema } from "./automations";
 import { EntityIdSchema, IsoDateTimeSchema } from "./common";
 
 export const campaignSessionStatuses = [
@@ -52,9 +52,10 @@ export const UpdateCampaignSessionSchema = z
     message: "Informe ao menos uma alteração.",
   });
 
+/** A área Sessões só gera resumos, que vão para o Diário. */
 export const GenerateCampaignSessionDraftSchema = z
   .object({
-    kind: AutomationKindSchema,
+    kind: z.literal("session_summary").default("session_summary"),
     suggestedTitle: z.string().trim().min(3).max(140).optional(),
     instructions: z.string().trim().min(3).max(2_000).optional(),
   })

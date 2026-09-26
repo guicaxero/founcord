@@ -124,6 +124,19 @@ Superfícies separadas:
   compacto abaixo de 1024 px. As áreas e suas permissões vivem em
   `components/admin/areas.ts`, que também decide quando o menu mostra "Gestão".
 
+Cada tela pública tem uma única fonte de conteúdo, sem mistura:
+
+| Tela | Conteúdo | Fonte |
+| --- | --- | --- |
+| Crônicas | Registros da lore | `posts` |
+| Diário | Resumos das sessões jogadas | `session_summaries` |
+| A Ordem | Funcionamento da mesa | conteúdo fixo |
+| Missões | Missões disponíveis aos jogadores | `missions` |
+
+As automações obedecem à mesma divisão (`AUTOMATION_DESTINATIONS` em
+`@ordem/contracts`): resumo de sessão só vai para o Diário e só nasce na área
+Sessões; rascunho de crônica só vai para Crônicas e nasce na área Automações.
+
 Regras:
 
 - A navegação é única e consciente de papel: a entrada de gestão só aparece para

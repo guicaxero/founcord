@@ -44,10 +44,10 @@ const sourceLabels: Readonly<Record<Post["source"], string>> = {
 };
 
 const transitionToast: Partial<Record<PostStatus, string>> = {
-  pending_review: "Publicação enviada à revisão",
-  approved: "Publicação aprovada",
-  rejected: "Publicação rejeitada",
-  published: "Publicada no portal",
+  pending_review: "Crônica enviada à revisão",
+  approved: "Crônica aprovada",
+  rejected: "Crônica rejeitada",
+  published: "Crônica publicada no portal",
   draft: "Restaurada como rascunho",
 };
 
@@ -97,17 +97,17 @@ export function PostsPanel({
         body: JSON.stringify({ version: post.version, status }),
       }),
     onSuccess: async (post) => {
-      toast({ title: transitionToast[post.status] ?? "Publicação atualizada", description: post.title });
+      toast({ title: transitionToast[post.status] ?? "Crônica atualizada", description: post.title });
       await invalidatePosts(queryClient, campaignId);
     },
-    onError: (error) => toast({ title: "A publicação não foi alterada", description: errorMessage(error), tone: "danger" }),
+    onError: (error) => toast({ title: "A crônica não foi alterada", description: errorMessage(error), tone: "danger" }),
   });
   const archive = useMutation({
     mutationFn: (post: Post) =>
       apiFetch<void>(`/api/posts/${post.id}?version=${post.version}&mode=archive`, { method: "DELETE" }),
     onSuccess: async (_, post) => {
       setArchiving(null);
-      toast({ title: "Publicação arquivada", description: `${post.title} saiu da leitura pública.` });
+      toast({ title: "Crônica arquivada", description: `${post.title} saiu da leitura pública.` });
       await invalidatePosts(queryClient, campaignId);
     },
   });
@@ -116,7 +116,7 @@ export function PostsPanel({
       apiFetch<void>(`/api/posts/${post.id}?version=${post.version}&mode=permanent`, { method: "DELETE" }),
     onSuccess: async (_, post) => {
       setDeleting(null);
-      toast({ title: "Publicação excluída", description: `${post.title} foi removida permanentemente.` });
+      toast({ title: "Crônica excluída", description: `${post.title} foi removida permanentemente.` });
       await invalidatePosts(queryClient, campaignId);
     },
   });
@@ -127,11 +127,11 @@ export function PostsPanel({
   const canDelete = hasCapability(me, "post:delete", campaignId);
   const canEditAll = canCreate && canReview;
 
-  if (posts.isPending) return <PanelLoading label="Reunindo as publicações" />;
+  if (posts.isPending) return <PanelLoading label="Reunindo as crônicas" />;
   if (posts.isError) {
     return (
       <FeedbackState
-        title="Não foi possível carregar as publicações"
+        title="Não foi possível carregar as crônicas"
         tone="error"
         role="alert"
         action={<Button onClick={() => posts.refetch()}>Tentar novamente</Button>}
@@ -157,15 +157,15 @@ export function PostsPanel({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <SearchField label="Buscar publicação" value={search} onChange={setSearch} placeholder="Título ou autoria" className="max-w-md" />
+        <SearchField label="Buscar crônica" value={search} onChange={setSearch} placeholder="Título ou autoria" className="max-w-md" />
         {canCreate ? (
           <Button variant="accent" onClick={(event) => { remember(event); save.reset(); setEditor({ post: null }); }}>
-            Nova publicação
+            Nova crônica
           </Button>
         ) : null}
       </div>
       <FilterChips
-        label="Filtrar publicações por situação"
+        label="Filtrar crônicas por situação"
         value={filter}
         onChange={setFilter}
         options={[
@@ -177,30 +177,30 @@ export function PostsPanel({
           { value: "all", label: "Todas", count: data.length },
         ]}
       />
-      {!canCreate ? <PermissionNote>Seu perfil revisa e publica, mas não cria textos.</PermissionNote> : null}
+      {!canCreate ? <PermissionNote>Seu perfil revisa e publica, mas não escreve crônicas.</PermissionNote> : null}
 
       {data.length === 0 ? (
         <FeedbackState
-          title="Nenhuma publicação ainda"
+          title="Nenhuma crônica ainda"
           action={canCreate ? <Button variant="accent" onClick={() => setEditor({ post: null })}>Escrever a primeira</Button> : null}
         >
-          Crônicas e comunicados passam por revisão humana antes de chegar ao portal.
+          As crônicas da lore passam por revisão humana antes de aparecer em Crônicas no portal.
         </FeedbackState>
       ) : (
         <DataTable
-          caption="Publicações da campanha"
+          caption="Crônicas da campanha"
           rows={visible}
           rowKey={(post) => post.id}
           initialSort={{ column: "status", direction: "ascending" }}
           empty={
-            <FeedbackState title="Nenhuma publicação neste filtro" action={<Button onClick={() => { setFilter("all"); setSearch(""); }}>Mostrar todas</Button>}>
+            <FeedbackState title="Nenhuma crônica neste filtro" action={<Button onClick={() => { setFilter("all"); setSearch(""); }}>Mostrar todas</Button>}>
               Ajuste a busca ou escolha outra situação.
             </FeedbackState>
           }
           columns={[
             {
               id: "title",
-              header: "Publicação",
+              header: "Crônica",
               hideLabelOnMobile: true,
               sortValue: (post) => post.title,
               cell: (post) => (
@@ -284,8 +284,8 @@ export function PostsPanel({
         onOpenChange={(next) => {
           if (!next && !save.isPending) setEditor(null);
         }}
-        title={editor?.post ? "Editar publicação" : "Nova publicação"}
-        description={editor?.post ? editor.post.title : "O texto começa como rascunho. Nenhuma publicação vai ao portal sem revisão humana."}
+        title={editor?.post ? "Editar crônica" : "Nova crônica"}
+        description={editor?.post ? editor.post.title : "A crônica começa como rascunho e só vai para Crônicas depois da revisão. Resumos de sessão são escritos no Diário de Sessões."}
         returnFocusRef={triggerRef}
         className="max-w-3xl"
       >
@@ -304,7 +304,7 @@ export function PostsPanel({
 
       <ConfirmDialog
         open={Boolean(archiving)}
-        title="Arquivar publicação?"
+        title="Arquivar crônica?"
         description={archiving ? `“${archiving.title}” sai da leitura pública, mas pode ser restaurada depois.` : undefined}
         confirmLabel="Arquivar"
         busyLabel="Arquivando…"
@@ -317,7 +317,7 @@ export function PostsPanel({
 
       <ConfirmDialog
         open={Boolean(deleting)}
-        title="Excluir publicação permanentemente?"
+        title="Excluir crônica permanentemente?"
         description="Esta ação não pode ser desfeita."
         confirmLabel="Excluir permanentemente"
         busyLabel="Excluindo…"
@@ -329,8 +329,8 @@ export function PostsPanel({
         returnFocusRef={triggerRef}
       >
         <p>
-          A publicação <strong className="text-fg">{deleting?.title}</strong> e seus registros internos serão removidos do
-          portal. Uma publicação já enviada ao Discord continuará existindo no fórum.
+          A crônica <strong className="text-fg">{deleting?.title}</strong> e seus registros internos serão removidos do
+          portal. Uma crônica já enviada ao Discord continuará existindo no fórum.
         </p>
       </ConfirmDialog>
     </div>

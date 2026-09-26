@@ -14,7 +14,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FeedbackState } from "@/components/ui/feedback-state";
-import { Field, FormGrid, Input, Select, Textarea } from "@/components/ui/field";
+import { Field, FormGrid, Input, Textarea } from "@/components/ui/field";
 import { softTransition } from "@/components/ui/motion";
 import { Notice } from "@/components/ui/notice";
 import { Badge, Card } from "@/components/ui/surface";
@@ -300,7 +300,7 @@ function AutomationForm({
     const instructions = String(form.get("instructions") ?? "").trim();
     onSubmit({
       campaignId,
-      kind: String(form.get("kind")) as AutomationKind,
+      kind: "chronicle_draft",
       source: {
         kind: "pasted_text",
         label: String(form.get("sourceLabel")),
@@ -314,17 +314,10 @@ function AutomationForm({
   return (
     <form className="space-y-6" onSubmit={submit}>
       <FormGrid>
-        <Field label="Resultado desejado" hint="Resumos de sessão são gerados pela área Sessões, a partir das fontes capturadas.">
-          {({ id, describedBy }) => (
-            <Select id={id} name="kind" defaultValue="chronicle_draft" required aria-describedby={describedBy}>
-              {(Object.entries(kindContent) as [AutomationKind, (typeof kindContent)[AutomationKind]][])
-                .filter(([value]) => value !== "session_summary")
-                .map(([value, content]) => (
-                  <option key={value} value={value}>{content.label}</option>
-                ))}
-            </Select>
-          )}
-        </Field>
+        <Notice className="full" tone="info" title="Rascunho de crônica, para Crônicas">
+          A automação transforma o registro numa narrativa da lore, que vai para revisão em Crônicas. Resumos de
+          sessão são gerados pela área Sessões e vão para o Diário.
+        </Notice>
         <Field label="Nome do registro">
           {({ id }) => <Input id={id} name="sourceLabel" required minLength={3} maxLength={120} placeholder="Ex.: Sessão 12 — O moinho" />}
         </Field>
