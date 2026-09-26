@@ -810,6 +810,97 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.equal(privatePostForMember.status, 200);
     });
 
+    test("mantém o catálogo do Lojista e sorteia o estoque com RBAC", async () => {
+      const catalogPath = `/api/campaigns/${defaultCampaignId}/merchant/catalog`;
+      const sameOrigin = { "sec-fetch-site": "same-origin" };
+
+      assert.equal((await api(mf, catalogPath, { token: identities.playerOne.token })).status, 403);
+      assert.equal(
+        (await api(mf, `${catalogPath}/import-base`, { token: identities.playerOne.token, method: "POST", headers: sameOrigin })).status,
+        403,
+      );
+
+      const imported = await api(mf, `${catalogPath}/import-base`, { token: identities.gm.token, method: "POST", headers: sameOrigin });
+      assert.equal(imported.status, 200, JSON.stringify(imported.data));
+      assert.deepEqual(imported.data, { created: 137, skipped: 0 });
+      const again = await api(mf, `${catalogPath}/import-base`, { token: identities.gm.token, method: "POST", headers: sameOrigin });
+      assert.deepEqual(again.data, { created: 0, skipped: 137 });
+
+      const catalog = await api(mf, catalogPath, { token: identities.gm.token });
+      assert.equal(catalog.status, 200);
+      assert.equal(catalog.data.data.length, 137);
+      const longbow = catalog.data.data.find((item: Json) => item.name === "Arco longo");
+      assert.deepEqual(longbow.requirement, { attribute: "strength", minimum: 9 });
+      assert.match(longbow.icon, /^systems\/demonlord\/assets\/icons\/weapons\/longbow\.webp$/);
+
+      const duplicate = await api(mf, catalogPath, {
+        token: identities.gm.token,
+        method: "POST",
+        body: { name: "Arco longo", category: "Armas à Distância", kind: "weapon", availability: "uncommon", price: "1 co" },
+      });
+      assert.equal(duplicate.status, 409);
+
+      const staleUpdate = await api(mf, `${catalogPath}/${longbow.id}`, {
+        token: identities.gm.token,
+        method: "PATCH",
+        body: { active: false, version: longbow.version + 1 },
+      });
+      assert.equal(staleUpdate.status, 409);
+      const deactivated = await api(mf, `${catalogPath}/${longbow.id}`, {
+        token: identities.gm.token,
+        method: "PATCH",
+        body: { active: false, version: longbow.version },
+      });
+      assert.equal(deactivated.status, 200, JSON.stringify(deactivated.data));
+      assert.equal(deactivated.data.active, false);
+
+      const drawsPath = `/api/campaigns/${defaultCampaignId}/merchant/stock/draws`;
+      const criteria = { maxAvailability: "uncommon", categories: ["Armas à Distância"], quantity: 20, allowRepeat: false };
+      const draw = await api(mf, drawsPath, { token: identities.gm.token, method: "POST", body: criteria });
+      assert.equal(draw.status, 201, JSON.stringify(draw.data));
+      assert.equal(draw.data.status, "preview");
+      // Arco, Besta, Funda e Zarabatana: o Arco longo foi desativado; os raros e exóticos ficam fora.
+      assert.equal(draw.data.eligibleCount, 4);
+      assert.equal(draw.data.entries.length, 4);
+      for (const entry of draw.data.entries) {
+        assert.equal(entry.category, "Armas à Distância");
+        assert.ok(["common", "uncommon"].includes(entry.availability));
+        assert.equal(entry.quantity, 1);
+      }
+
+      const redraw = await api(mf, drawsPath, { token: identities.gm.token, method: "POST", body: criteria });
+      assert.equal(redraw.status, 201);
+      const history = await api(mf, drawsPath, { token: identities.gm.token });
+      assert.deepEqual(history.data.data.map((item: Json) => item.id), [redraw.data.id]);
+
+      const impossible = await api(mf, drawsPath, {
+        token: identities.gm.token,
+        method: "POST",
+        body: { ...criteria, categories: ["Categoria inexistente"] },
+      });
+      assert.equal(impossible.status, 422);
+
+      // O envio real passa pelo bridge; aqui simulamos o comando já na fila.
+      await db.prepare("UPDATE merchant_stock_draws SET status = 'pending_delivery' WHERE id = ?").bind(redraw.data.id).run();
+      const callbackPath = "/api/internal/integration/foundry/merchant-stock/delivery";
+      const callback = {
+        drawId: redraw.data.id,
+        commandId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        outcome: "succeeded",
+        error: null,
+        deliveredAt: "2026-09-25T12:00:00.000Z",
+      };
+      assert.equal((await api(mf, callbackPath, { method: "POST", body: callback })).status, 401);
+      const delivered = await api(mf, callbackPath, {
+        method: "POST",
+        body: callback,
+        headers: { authorization: "Bearer test-integration-token-with-at-least-32-bytes" },
+      });
+      assert.equal(delivered.status, 200, JSON.stringify(delivered.data));
+      assert.equal(delivered.data.status, "applied");
+      assert.equal(delivered.data.appliedAt, "2026-09-25T12:00:00.000Z");
+    });
+
     test("registra as mutações na auditoria", async () => {
       const audit = await api(mf, `/api/campaigns/${defaultCampaignId}/audit`, {
         token: identities.owner.token,
@@ -829,6 +920,10 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
         "discord.post.published",
         "post.deleted_permanently",
         "session_summary.deleted_permanently",
+        "merchant.catalog.imported",
+        "merchant.catalog.deactivated",
+        "merchant.stock.drawn",
+        "merchant.stock.applied",
       ]) {
         assert.equal(actions.has(action), true, `ação ausente: ${action}`);
       }

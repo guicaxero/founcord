@@ -1,9 +1,8 @@
 import {
   COIN_LABELS,
   DEMON_LORD_COINS,
-  formatCoins,
+  formatParsedPrice,
   isBareAmount,
-  multiplyCoins,
   parseDemonLordPrice,
   type DemonLordCoin,
   type DemonLordCoins,
@@ -72,7 +71,7 @@ export function MerchantPrice({ price }: Readonly<{ price: string | null }>) {
       </span>
     );
   }
-  const formatted = formatCoins(parsed.coins);
+  const formatted = formatParsedPrice(parsed);
   return (
     <span className="grid gap-0.5">
       <strong className="font-display text-base">{formatted}</strong>
@@ -86,11 +85,11 @@ export function MerchantPrice({ price }: Readonly<{ price: string | null }>) {
 /** Texto do preço para listas compactas; preços especiais permanecem como escritos. */
 export function priceLabel(price: string): string {
   const parsed = parseDemonLordPrice(price);
-  return parsed ? formatCoins(parsed.coins) : price;
+  return parsed ? formatParsedPrice(parsed) : price;
 }
 
 /** Custo total mantendo as denominações do preço, ou `null` para preço especial. */
 export function totalCostLabel(price: string, quantity: number): string | null {
   const parsed = parseDemonLordPrice(price);
-  return parsed ? formatCoins(multiplyCoins(parsed.coins, quantity)) : null;
+  return parsed ? formatParsedPrice(parsed, quantity) : null;
 }

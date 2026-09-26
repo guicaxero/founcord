@@ -117,12 +117,15 @@ segurança, escala ou ciclo de release em uma separação adicional.
   obrigatoriamente `pending_review`.
 - Diário de Sessões com entidade própria, vínculo explícito à sessão, revisão,
   publicação, arquivo e exclusão auditada.
-- Design system inicial responsivo e acessível, navegação pública e shell de
-  gestão revisados.
+- Front-end refeito em três fases (ADR 0005): tema escuro, Tailwind 4, Radix e
+  Motion; rotas próprias para missões, crônicas, diário e área do jogador (`/eu`);
+  painel de gestão com uma URL por área (`/dashboard/[area]`).
 - CI protegido e workflow manual de produção.
 - Deploy da PR #24 validado em produção no commit `5914126`.
-- Mercador somente leitura publicado no portal e no Discord, com catálogo vindo
-  do ator configurado no Foundry.
+- Mercador publicado no portal e no Discord, com catálogo vindo do ator
+  configurado no Foundry: ícones, raridade, tipo de consumível, propriedades,
+  dados de arma e armadura, moeda padrão para preços só com número (módulo 0.7.0)
+  e pedidos assistidos com saldo informativo.
 
 ### Limitações conhecidas
 
@@ -298,7 +301,14 @@ campanha.
 
 ## 7. Próxima entrega e funcionalidades posteriores
 
-### 7.1 Mercador — Etapa A concluída; Etapa B em implementação
+### 7.1 Mercador — Etapa A concluída; Etapa B em pedido assistido
+
+> **Compra automática adiada (2026-09-25).** O desconto de moedas e a entrega
+> automática do item dependem de uma escrita segura e idempotente em
+> `actor.system.wealth` e no inventário do Foundry. Por decisão do produto, esse
+> passo fica para depois; a compra continua assistida (o jogador pede, o mestre
+> acerta no Foundry e registra a decisão). No lugar dele entrou o sorteador de
+> estoque do Lojista (7.1.1).
 
 Implementar em duas etapas para reduzir risco.
 
@@ -350,6 +360,22 @@ Fallback caso a escrita segura não seja possível:
 - notificar mestre no portal, Discord e Foundry;
 - deixar o escambo para confirmação manual;
 - não simular saldo ou inventário no portal.
+
+### 7.1.1 Sorteador de estoque do Lojista — em implementação
+
+O portal mantém a lista de itens que o Lojista pode vender (a lista base vem da
+planilha "Estoque Lojista", 137 itens) e sorteia o estoque por disponibilidade
+máxima, categorias, quantidade e repetição. Ao confirmar, o módulo cria os itens
+no ator do Lojista; o Foundry continua sendo a fonte de verdade. Especificação em
+`docs/product/specs/mercador-sorteio-de-estoque.md`.
+
+Próximos passos registrados:
+
+- itens feitos pelos NPCs artesãos (arcanista, ocultista, druida, alquimista),
+  distribuídos pelo mesmo Lojista, sem página própria por NPC;
+- pergaminhos do arcanista com a magia sorteada do JSON de magias;
+- importação de `.xlsx` pelo painel, peso por raridade e vários lojistas, se
+  fizerem falta.
 
 ### 7.2 Área do jogador e ficha
 
@@ -405,8 +431,10 @@ Regras de segurança:
 
 ## 8. Front-end e design system
 
-A fundação visual da PR #20 foi publicada, mas a migração continua de forma
-incremental em cada nova superfície.
+A refatoração do front foi concluída em três fases (ADR 0005). Não há mais CSS
+fora de `apps/portal/app/globals.css`: telas novas usam os tokens do tema e as
+primitivas de `apps/portal/components/ui/`, conforme
+`docs/design/padrao-de-ui-ux.md`.
 
 Toda alteração de interface deve seguir:
 
@@ -515,13 +543,13 @@ acoplar os bancos ou o ciclo de execução.
 
 ```text
 Estado atual
-  -> Deploy da fundação visual (concluído)
-  -> Diário de Sessões (concluído e implantado)
-  -> Webhooks e melhoria do conteúdo do Discord (concluído neste corte)
-  -> Mercador somente leitura
-  -> Compra assistida/automática, se o Foundry permitir
-  -> Área do jogador e ficha
+  -> Fundação visual, Diário de Sessões e Discord (concluídos)
+  -> Mercador: vitrine, pedido assistido, moedas e detalhes do item (concluídos)
+  -> Refatoração completa do front em três fases (concluída)
+  -> Sorteador de estoque do Lojista (em implementação)
+  -> Área do jogador e ficha (inventário, magias, edição autorizada)
   -> Criador de criaturas para mestres
+  -> Compra automática no Mercador (adiada)
   -> Otimizações de polling, eventos/deltas e escala
 ```
 

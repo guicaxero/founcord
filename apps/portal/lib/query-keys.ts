@@ -21,6 +21,12 @@ export const queryKeys = {
     ["campaigns", campaignId, "merchant"] as const,
   merchantPurchases: (campaignId: string) =>
     ["campaigns", campaignId, "merchant", "purchases"] as const,
+  merchantCatalog: (campaignId: string) =>
+    ["campaigns", campaignId, "merchant", "catalog"] as const,
+  merchantStockDraws: (campaignId: string) =>
+    ["campaigns", campaignId, "merchant", "stock", "draws"] as const,
+  merchantStockTargets: (campaignId: string) =>
+    ["campaigns", campaignId, "merchant", "stock", "targets"] as const,
   characterLinks: (campaignId: string) =>
     ["campaigns", campaignId, "character-links"] as const,
   myCharacters: ["me", "characters"] as const,

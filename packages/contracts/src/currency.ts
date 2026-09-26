@@ -79,7 +79,11 @@ const SEPARATORS = /[\s,;+]+|(?<![a-z])e(?![a-z])/g;
 
 export const EMPTY_COINS: DemonLordCoins = { gc: 0, ss: 0, cp: 0, bits: 0 };
 
-export type ParsedPrice = Readonly<{ coins: DemonLordCoins; totalBits: number }>;
+/**
+ * `minimum` marca preços "a partir de", escritos no livro com `+` no fim
+ * (`1 xp+`): o valor é o mínimo, e o mestre acerta o restante na mesa.
+ */
+export type ParsedPrice = Readonly<{ coins: DemonLordCoins; totalBits: number; minimum: boolean }>;
 
 /**
  * Interpreta o texto livre de preço do Foundry (`5 cp`, `2 gc e 5 ss`,
@@ -105,7 +109,7 @@ export function parseDemonLordPrice(raw: string | null | undefined): ParsedPrice
     return " ";
   });
   if (!matched || remainder.replace(SEPARATORS, "").length > 0) return null;
-  return { coins, totalBits: toBits(coins) };
+  return { coins, totalBits: toBits(coins), minimum: /\+\s*$/u.test(normalized) };
 }
 
 /** Preço só com número (`22`): o Foundry não disse qual moeda é. */
@@ -136,6 +140,12 @@ export function multiplyCoins(coins: DemonLordCoins, quantity: number): DemonLor
     cp: coins.cp * quantity,
     bits: coins.bits * quantity,
   };
+}
+
+/** Preço interpretado em nomes completos, com "a partir de" quando é um mínimo. */
+export function formatParsedPrice(parsed: ParsedPrice, quantity = 1): string {
+  const text = formatCoins(quantity === 1 ? parsed.coins : multiplyCoins(parsed.coins, quantity));
+  return parsed.minimum ? `a partir de ${text}` : text;
 }
 
 /** `2 coroas de ouro e 5 centavos de cobre`; valor zero vira `Gratuito`. */

@@ -3,7 +3,7 @@ import {
   CreateDiscordPostDraftSchema,
   DiscordInteractionSchema,
   DiscordPostPublicationSchema,
-  formatCoins,
+  formatParsedPrice,
   isBareAmount,
   MERCHANT_AVAILABILITY_LABELS,
   MERCHANT_CONSUMABLE_LABELS,
@@ -491,7 +491,7 @@ function commandStringOption(
 function merchantPrice(price: string | null): string {
   if (!price) return "Preço não informado";
   const parsed = parseDemonLordPrice(price);
-  if (parsed) return formatCoins(parsed.coins);
+  if (parsed) return formatParsedPrice(parsed);
   return isBareAmount(price)
     ? `${price.trim()} (moeda não informada)`
     : `${price} (combinado com o mestre)`;

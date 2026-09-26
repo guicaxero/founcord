@@ -15,6 +15,7 @@ export type AreaSlug =
   | "foundry"
   | "personagens"
   | "pedidos"
+  | "estoque"
   | "pessoas"
   | "historico"
   | "configuracoes";
@@ -101,6 +102,14 @@ export const areas: readonly AreaDefinition[] = [
     description: "Acompanhe solicitações, faça o acerto no Foundry e registre a decisão.",
     group: "integracao",
     permissions: ["merchant:purchase:manage"],
+  },
+  {
+    slug: "estoque",
+    label: "Estoque do Lojista",
+    eyebrow: "Sorteio de estoque",
+    description: "Mantenha o catálogo de itens e sorteie o estoque do Lojista, que o módulo cria no Foundry.",
+    group: "integracao",
+    permissions: ["merchant:catalog:manage"],
   },
   {
     slug: "pessoas",

@@ -4,6 +4,7 @@ import {
   formatCoins,
   fromBits,
   multiplyCoins,
+  formatParsedPrice,
   parseDemonLordPrice,
   toBits,
 } from "./currency";
@@ -28,7 +29,14 @@ describe("parseDemonLordPrice", () => {
     ["5cp", coins(0, 0, 5), 50],
     ["0 cp", coins(), 0],
   ])("interpreta %s", (raw, expected, totalBits) => {
-    expect(parseDemonLordPrice(raw)).toEqual({ coins: expected, totalBits });
+    expect(parseDemonLordPrice(raw)).toEqual({ coins: expected, totalBits, minimum: false });
+  });
+
+  it("marca preços com + como mínimos", () => {
+    expect(parseDemonLordPrice("1 xp+")).toEqual({ coins: coins(0, 1), totalBits: 100, minimum: true });
+    expect(parseDemonLordPrice("5 cc +")?.minimum).toBe(true);
+    expect(formatParsedPrice(parseDemonLordPrice("2 xp+")!)).toBe("a partir de 2 xelins de prata");
+    expect(formatParsedPrice(parseDemonLordPrice("1 cc")!, 3)).toBe("3 centavos de cobre");
   });
 
   it.each(["2 gc e um favor", "5", "a combinar", "", "   ", "1.000 bits", "5 cpx", "cp 5"])(

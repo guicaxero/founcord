@@ -490,6 +490,77 @@ export const merchantPurchaseRequests = sqliteTable(
   ],
 );
 
+/**
+ * Lista de itens que o Lojista pode vender. O sorteio lê daqui; o estoque real
+ * continua no ator do Lojista no Foundry.
+ */
+export const merchantCatalogItems = sqliteTable(
+  "merchant_catalog_items",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    category: text("category").notNull(),
+    kind: text("kind", { enum: ["weapon", "armor", "item"] }).notNull(),
+    availability: text("availability", {
+      enum: ["common", "uncommon", "rare", "exotic"],
+    }).notNull(),
+    price: text("price"),
+    damage: text("damage"),
+    hands: text("hands", { enum: ["one", "two", "off"] }),
+    agility: text("agility"),
+    fixed: text("fixed"),
+    requirementAttribute: text("requirement_attribute", {
+      enum: ["strength", "agility", "intellect", "will", "perception"],
+    }),
+    requirementMinimum: integer("requirement_minimum"),
+    properties: text("properties"),
+    description: text("description"),
+    icon: text("icon"),
+    source: text("source").notNull().default("lojista"),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    version: integer("version").notNull().default(1),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("uq_merchant_catalog_name").on(table.campaignId, table.category, table.name),
+    index("idx_merchant_catalog_draw").on(table.campaignId, table.active, table.availability),
+  ],
+);
+
+/** Histórico dos sorteios de estoque, da prévia até a aplicação no Foundry. */
+export const merchantStockDraws = sqliteTable(
+  "merchant_stock_draws",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    criteriaJson: text("criteria_json").notNull(),
+    entriesJson: text("entries_json").notNull(),
+    eligibleCount: integer("eligible_count").notNull(),
+    status: text("status", {
+      enum: ["preview", "pending_delivery", "applied", "failed", "discarded"],
+    })
+      .notNull()
+      .default("preview"),
+    worldId: text("world_id"),
+    commandId: text("command_id"),
+    error: text("error"),
+    appliedAt: text("applied_at"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("uq_merchant_stock_command").on(table.commandId),
+    index("idx_merchant_stock_campaign").on(table.campaignId, table.createdAt),
+  ],
+);
+
 export const foundrySyncCursors = sqliteTable(
   "foundry_sync_cursors",
   {

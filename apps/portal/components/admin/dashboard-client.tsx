@@ -32,6 +32,7 @@ import { CharacterLinksPanel } from "./character-links-panel";
 import { FoundryPanel } from "./foundry-panel";
 import { MembersPanel } from "./members-panel";
 import { MerchantPurchasesPanel } from "./merchant-purchases-panel";
+import { MerchantStockPanel } from "./merchant-stock/merchant-stock-panel";
 import { MissionsPanel } from "./missions-panel";
 import { PostsPanel } from "./posts-panel";
 import { SessionSummariesPanel } from "./session-summaries-panel";
@@ -208,6 +209,9 @@ export function DashboardClient({
         break;
       case "pedidos":
         panel = <MerchantPurchasesPanel campaignId={campaignId} />;
+        break;
+      case "estoque":
+        panel = <MerchantStockPanel campaignId={campaignId} />;
         break;
       case "pessoas":
         panel = <MembersPanel campaignId={campaignId} me={user} />;
