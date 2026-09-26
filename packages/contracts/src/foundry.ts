@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CampaignSchema } from "./campaigns";
 import { DemonLordCoinsSchema } from "./currency";
+import { MerchantStockEntrySchema } from "./merchant-stock";
 
 const foundryIdentifier = z
   .string()
@@ -228,6 +229,7 @@ export const FoundryCommandTypeSchema = z.enum([
   "actor.sync.request",
   "chat.message.create",
   "merchant.purchase.request",
+  "merchant.stock.replace",
 ]);
 
 const ActorSyncCommandSchema = z
@@ -281,10 +283,29 @@ const MerchantPurchaseRequestCommandSchema = z
   })
   .strict();
 
+/**
+ * Troca o estoque sorteado no ator do Lojista. O módulo apaga só os itens que
+ * ele mesmo criou em sorteios anteriores e preserva os colocados à mão.
+ */
+const MerchantStockReplaceCommandSchema = z
+  .object({
+    type: z.literal("merchant.stock.replace"),
+    payload: z
+      .object({
+        drawId: z.string().uuid(),
+        campaignId: z.string().uuid(),
+        items: z.array(MerchantStockEntrySchema).min(1).max(100),
+        requestedAt: isoDate,
+      })
+      .strict(),
+  })
+  .strict();
+
 export const FoundryCommandInputSchema = z.discriminatedUnion("type", [
   ActorSyncCommandSchema,
   ChatMessageCommandSchema,
   MerchantPurchaseRequestCommandSchema,
+  MerchantStockReplaceCommandSchema,
 ]);
 
 export const FoundryCommandCreateRequestSchema = z

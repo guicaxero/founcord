@@ -35,7 +35,11 @@ import {
   generateAccessToken,
   hashToken,
 } from "./auth";
-import { reportMerchantPurchaseDelivery, syncCharactersWithPortal } from "./portal-client";
+import {
+  reportMerchantPurchaseDelivery,
+  reportMerchantStockDelivery,
+  syncCharactersWithPortal,
+} from "./portal-client";
 import {
   authorizeFoundryPairing,
   cancelFoundryCaptureSession,
@@ -377,6 +381,19 @@ foundryApp.post(
         context.env,
         {
           requestId: completion.command.payload.requestId,
+          commandId,
+          outcome: input.outcome,
+          error: input.outcome === "failed" ? input.error : null,
+          deliveredAt: new Date().toISOString(),
+        },
+        requestCorrelationId(context.req.raw),
+      );
+    }
+    if (completion.command.type === "merchant.stock.replace") {
+      await reportMerchantStockDelivery(
+        context.env,
+        {
+          drawId: completion.command.payload.drawId,
           commandId,
           outcome: input.outcome,
           error: input.outcome === "failed" ? input.error : null,

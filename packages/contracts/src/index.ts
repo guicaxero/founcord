@@ -10,5 +10,6 @@ export * from "./events";
 export * from "./foundry";
 export * from "./missions";
 export * from "./merchant";
+export * from "./merchant-stock";
 export * from "./posts";
 export * from "./discord";
