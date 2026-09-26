@@ -34,6 +34,8 @@ type CharacterRow = Readonly<{
   wealth_ss: number | null;
   wealth_cp: number | null;
   wealth_bits: number | null;
+  portrait_url: string | null;
+  token_url: string | null;
   source_updated_at: string;
   last_synced_at: string;
   is_active: number;
@@ -66,6 +68,8 @@ type LinkRow = Readonly<{
   wealth_ss: number | null;
   wealth_cp: number | null;
   wealth_bits: number | null;
+  portrait_url: string | null;
+  token_url: string | null;
   source_updated_at: string | null;
   last_synced_at: string | null;
   is_active: number | null;
@@ -93,6 +97,7 @@ export async function listCampaignCharacterLinks(
                 novice_path, expert_path, master_path, legendary_path,
                 health_max, damage, healing_rate, insanity, corruption,
                 wealth_gc, wealth_ss, wealth_cp, wealth_bits,
+                NULL AS portrait_url, NULL AS token_url,
                 source_updated_at, last_synced_at, is_active
          FROM foundry_character_projections
          WHERE campaign_id = ? AND is_active = 1
@@ -358,7 +363,7 @@ function linkSelect(suffix: string): string {
                  p.novice_path, p.expert_path, p.master_path, p.legendary_path,
                  p.health_max, p.damage, p.healing_rate, p.insanity,
                  p.corruption, p.wealth_gc, p.wealth_ss, p.wealth_cp, p.wealth_bits,
-                 p.source_updated_at, p.last_synced_at, p.is_active
+                 p.portrait_url, p.token_url, p.source_updated_at, p.last_synced_at, p.is_active
           FROM campaign_character_links l
           LEFT JOIN foundry_character_projections p
             ON p.campaign_id = l.campaign_id
@@ -400,6 +405,8 @@ function mapLink(row: LinkRow): CampaignCharacterLink {
           wealth_ss: row.wealth_ss,
           wealth_cp: row.wealth_cp,
           wealth_bits: row.wealth_bits,
+          portrait_url: row.portrait_url,
+          token_url: row.token_url,
           source_updated_at: row.source_updated_at,
           last_synced_at: row.last_synced_at,
           is_active: row.is_active,
@@ -439,6 +446,8 @@ function mapCharacter(row: CharacterRow): CampaignCharacterProjection {
       corruption: row.corruption,
     },
     wealth: mapWealth(row),
+    portraitUrl: row.portrait_url,
+    tokenUrl: row.token_url,
     sourceUpdatedAt: requiredIsoDateTime(row.source_updated_at),
     lastSyncedAt: requiredIsoDateTime(row.last_synced_at),
     active: Boolean(row.is_active),
