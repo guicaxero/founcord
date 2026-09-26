@@ -78,12 +78,16 @@ function SiteHeader({
           href="/"
           className="flex shrink-0 items-center gap-3 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus"
         >
-          <span
+          {/* Braseiro da Ordem, o mesmo emblema do ícone da aba e da imagem de compartilhamento. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand-mark.png"
+            alt=""
             aria-hidden="true"
-            className="grid size-10 place-items-center rounded-lg border border-accent-line bg-accent-soft font-display text-xl text-accent"
-          >
-            O
-          </span>
+            width={40}
+            height={40}
+            className="size-10 rounded-lg border border-accent-line"
+          />
           <span className="hidden leading-tight sm:block">
             <span className="block text-xs tracking-[0.18em] text-fg-subtle uppercase">
               Ordem da

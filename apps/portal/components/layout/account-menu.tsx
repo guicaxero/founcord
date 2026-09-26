@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CurrentUserResponse } from "@ordem/contracts";
 import { usePathname, useRouter } from "next/navigation";
+import { Avatar } from "@/components/ui/avatar";
 import { Button, ButtonAnchor } from "@/components/ui/button";
 import { Menu, MenuButton, MenuLabel, MenuLink, MenuSeparator } from "@/components/ui/menu";
 import { Skeleton } from "@/components/ui/surface";
@@ -56,12 +57,7 @@ export function AccountMenu() {
           className="gap-3 rounded-full border border-line-soft pr-4 pl-1.5"
           aria-label={`Conta de ${user.displayName}`}
         >
-          <span
-            aria-hidden="true"
-            className="grid size-8 place-items-center rounded-full bg-accent-soft font-display text-base text-accent"
-          >
-            {user.displayName.slice(0, 1).toUpperCase()}
-          </span>
+          <Avatar name={user.displayName} src={user.avatarUrl} className="size-8 text-base" />
           <span className="hidden max-w-36 truncate sm:inline">{user.displayName}</span>
         </Button>
       }

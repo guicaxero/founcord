@@ -236,7 +236,7 @@ function MemberCard({
   return (
     <Card className="flex h-full flex-col gap-5">
       <header className="flex items-start gap-3">
-        <Initial name={member.user.displayName} />
+        <Initial name={member.user.displayName} avatarUrl={member.user.avatarUrl} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-display text-lg leading-tight break-words">{member.user.displayName}</h3>

@@ -239,7 +239,7 @@ function CharacterLinkCard({
   return (
     <Card className="flex h-full flex-col gap-5">
       <header className="flex items-start gap-3">
-        <Initial name={member.user.displayName} />
+        <Initial name={member.user.displayName} avatarUrl={member.user.avatarUrl} />
         <div className="min-w-0 flex-1">
           <h3 className="font-display text-lg leading-tight break-words">{member.user.displayName}</h3>
           <p className="text-xs text-fg-subtle">{roleSummary(member.roles)}</p>
