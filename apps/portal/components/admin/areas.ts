@@ -11,7 +11,7 @@ export type AreaSlug =
   | "diario"
   | "automacoes"
   | "missoes"
-  | "publicacoes"
+  | "cronicas"
   | "foundry"
   | "personagens"
   | "pedidos"
@@ -50,8 +50,8 @@ export const areas: readonly AreaDefinition[] = [
   {
     slug: "diario",
     label: "Diário de Sessões",
-    eyebrow: "Revisão factual",
-    description: "Revise e publique registros factuais sem misturá-los às crônicas da campanha.",
+    eyebrow: "Resumos das sessões",
+    description: "Revise e publique os resumos das sessões jogadas. Eles aparecem só no Diário, nunca em Crônicas.",
     group: "mesa",
     permissions: ["session:manage", "post:review", "post:publish", "post:delete"],
   },
@@ -72,10 +72,10 @@ export const areas: readonly AreaDefinition[] = [
     permissions: ["mission:create", "mission:edit", "mission:review", "mission:publish"],
   },
   {
-    slug: "publicacoes",
-    label: "Publicações",
-    eyebrow: "Mesa de revisão",
-    description: "Prepare crônicas e comunicados antes de publicá-los no portal.",
+    slug: "cronicas",
+    label: "Crônicas",
+    eyebrow: "Registros da lore",
+    description: "Escreva e revise as crônicas da lore da campanha. Resumos de sessão ficam no Diário de Sessões.",
     group: "conteudo",
     permissions: ["post:create", "post:review", "post:publish", "post:delete"],
   },

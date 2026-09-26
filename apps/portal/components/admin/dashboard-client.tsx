@@ -184,14 +184,14 @@ export function DashboardClient({
           <AutomationsPanel
             campaignId={campaignId}
             me={user}
-            onOpenReview={(target) => router.push(hrefFor(target === "session_summary" ? "diario" : "publicacoes"))}
+            onOpenReview={(target) => router.push(hrefFor(target === "session_summary" ? "diario" : "cronicas"))}
           />
         );
         break;
       case "missoes":
         panel = <MissionsPanel campaignId={campaignId} me={user} />;
         break;
-      case "publicacoes":
+      case "cronicas":
         panel = <PostsPanel campaignId={campaignId} me={user} initialPosts={initialEditorialPosts} />;
         break;
       case "foundry":

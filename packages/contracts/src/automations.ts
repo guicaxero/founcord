@@ -25,6 +25,35 @@ export const AutomationKindSchema = z.enum(automationKinds);
 export const AutomationJobStatusSchema = z.enum(automationJobStatuses);
 export const AutomationSourceKindSchema = z.enum(automationSourceKinds);
 
+/**
+ * Onde cada tipo de automação pode publicar. As telas não se misturam:
+ * - resumo de sessão vai só para o Diário (`session_summary`) e exige uma sessão;
+ * - rascunho de crônica vai só para Crônicas (`post`), que guarda a lore.
+ * "Extrair registros" não tem tela de destino no portal e não é aceito por ele.
+ */
+export const AUTOMATION_DESTINATIONS = {
+  session_summary: "session_summary",
+  chronicle_draft: "post",
+  record_extraction: null,
+} as const satisfies Record<(typeof automationKinds)[number], "session_summary" | "post" | null>;
+
+/** Confere se o tipo pedido combina com o destino; devolve o motivo quando não combina. */
+export function automationDestinationError(
+  kind: (typeof automationKinds)[number],
+  targetType: "session_summary" | "post",
+): string | null {
+  const destination = AUTOMATION_DESTINATIONS[kind];
+  if (destination === null) {
+    return "Este tipo de automação não tem uma tela de destino no portal.";
+  }
+  if (destination !== targetType) {
+    return destination === "session_summary"
+      ? "Resumos de sessão vão para o Diário e são gerados pela área Sessões."
+      : "Rascunhos de crônica vão para Crônicas e não podem ser vinculados a uma sessão.";
+  }
+  return null;
+}
+
 export const AutomationTargetSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("post") }).strict(),
   z.object({ type: z.literal("session_summary"), sessionId: EntityIdSchema }).strict(),

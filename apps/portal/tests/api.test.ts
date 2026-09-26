@@ -901,6 +901,32 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.equal(delivered.data.appliedAt, "2026-09-25T12:00:00.000Z");
     });
 
+    test("não deixa automações misturarem Crônicas e Diário de Sessões", async () => {
+      const path = `/api/campaigns/${defaultCampaignId}/automations`;
+      const source = { kind: "pasted_text", label: "Sessão 12", content: "Registro da mesa. ".repeat(10) };
+      const sessionTarget = { type: "session_summary", sessionId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee" };
+      for (const body of [
+        // Resumo de sessão sem sessão: iria parar em Crônicas.
+        { campaignId: defaultCampaignId, kind: "session_summary", source },
+        // Crônica apontando para uma sessão: iria parar no Diário.
+        { campaignId: defaultCampaignId, kind: "chronicle_draft", source, target: sessionTarget },
+        // Extração de registros não tem tela de destino.
+        { campaignId: defaultCampaignId, kind: "record_extraction", source },
+      ]) {
+        const response = await api(mf, path, { token: identities.gm.token, method: "POST", body });
+        assert.equal(response.status, 422, `${body.kind}: ${JSON.stringify(response.data)}`);
+        assert.equal(response.data.error.code, "automation_destination_mismatch");
+      }
+
+      const sessionDraft = await api(mf, `/api/campaigns/${defaultCampaignId}/sessions/${sessionTarget.sessionId}/draft`, {
+        token: identities.gm.token,
+        method: "POST",
+        body: { kind: "chronicle_draft" },
+      });
+      // A área Sessões só aceita resumo de sessão; o contrato recusa outros tipos.
+      assert.equal(sessionDraft.status, 422);
+    });
+
     test("registra as mutações na auditoria", async () => {
       const audit = await api(mf, `/api/campaigns/${defaultCampaignId}/audit`, {
         token: identities.owner.token,

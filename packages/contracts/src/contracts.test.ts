@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   CampaignCharacterLinkInputSchema,
+  GenerateCampaignSessionDraftSchema,
+  automationDestinationError,
   CreateCampaignSessionSchema,
   CreateDiscordPostDraftSchema,
   CreateMissionSchema,
@@ -291,5 +293,21 @@ describe("contratos públicos", () => {
         messages: [{ ...batch.messages[0], whisperUserIds: ["user-002"] }],
       }),
     ).toThrow();
+  });
+});
+
+describe("separação entre Crônicas e Diário de Sessões", () => {
+  it("manda cada tipo de automação só para a sua tela", () => {
+    expect(automationDestinationError("session_summary", "session_summary")).toBeNull();
+    expect(automationDestinationError("chronicle_draft", "post")).toBeNull();
+    expect(automationDestinationError("session_summary", "post")).toMatch(/Diário/);
+    expect(automationDestinationError("chronicle_draft", "session_summary")).toMatch(/Crônicas/);
+    expect(automationDestinationError("record_extraction", "post")).not.toBeNull();
+    expect(automationDestinationError("record_extraction", "session_summary")).not.toBeNull();
+  });
+
+  it("a área Sessões só gera resumos de sessão", () => {
+    expect(GenerateCampaignSessionDraftSchema.parse({}).kind).toBe("session_summary");
+    expect(() => GenerateCampaignSessionDraftSchema.parse({ kind: "chronicle_draft" })).toThrow();
   });
 });
