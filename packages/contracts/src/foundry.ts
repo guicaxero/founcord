@@ -90,11 +90,21 @@ export const FoundryPairingApprovalResponseSchema = z
   })
   .strict();
 
+const reportedVersion = z.string().trim().min(1).max(40).optional();
+
+/**
+ * Heartbeat do módulo. As versões são opcionais (módulos anteriores ao 0.8.1
+ * não as enviam) e mantêm o registro do mundo atualizado depois de uma
+ * atualização do Foundry, do sistema ou do próprio módulo.
+ */
 export const FoundryHeartbeatRequestSchema = z
   .object({
     observedAt: isoDate,
     activeUsers: z.number().int().min(0).max(1_000),
     actorCount: z.number().int().min(0).max(100_000),
+    foundryVersion: reportedVersion,
+    systemVersion: reportedVersion,
+    moduleVersion: reportedVersion,
   })
   .strict();
 
