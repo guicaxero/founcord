@@ -115,8 +115,8 @@ export const areas: readonly AreaDefinition[] = [
   {
     slug: "estoque",
     label: "Estoque do Lojista",
-    eyebrow: "Sorteio de estoque",
-    description: "Mantenha o catálogo de itens e sorteie o estoque do Lojista, que o módulo cria no Foundry.",
+    eyebrow: "Sorteio e seleção",
+    description: "Mantenha o catálogo de itens e monte o estoque do Lojista, por sorteio ou escolhendo item a item. O módulo cria os itens no Foundry.",
     group: "integracao",
     permissions: ["merchant:catalog:manage"],
   },

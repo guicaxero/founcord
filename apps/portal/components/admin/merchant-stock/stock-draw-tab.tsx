@@ -31,12 +31,12 @@ import {
   availabilityTone,
   ceilingOptions,
   combatSummary,
-  criteriaSummary,
+  drawSummary,
   drawStatusContent,
   handlingSummary,
 } from "./presentation";
 
-const blockedCopy: Readonly<Record<NonNullable<MerchantStockTarget["blockedReason"]>, string>> = {
+export const blockedCopy: Readonly<Record<NonNullable<MerchantStockTarget["blockedReason"]>, string>> = {
   module_outdated: "o módulo precisa ser atualizado para a versão 0.8.0 ou mais nova",
   merchant_missing: "nenhum ator foi escolhido como Lojista na tela de conexão do módulo",
   revoked: "o mundo foi desconectado da campanha",
@@ -46,7 +46,14 @@ export function StockDrawTab({
   campaignId,
   catalog,
   onOpenCatalog,
-}: Readonly<{ campaignId: string; catalog: readonly MerchantCatalogItem[]; onOpenCatalog: () => void }>) {
+  onAdjust,
+}: Readonly<{
+  campaignId: string;
+  catalog: readonly MerchantCatalogItem[];
+  onOpenCatalog: () => void;
+  /** Leva os itens do envio para a seleção manual, para ajustar antes de enviar. */
+  onAdjust: (draw: MerchantStockDraw) => void;
+}>) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const sendTriggerRef = useRef<HTMLButtonElement>(null);
@@ -235,12 +242,19 @@ export function StockDrawTab({
         <section className="space-y-5" aria-labelledby="stock-preview-title">
           <PanelHeader
             id="stock-preview-title"
-            eyebrow={latest.status === "preview" ? "Prévia" : "Último sorteio"}
-            title={`${latest.entries.length} ${latest.entries.length === 1 ? "item sorteado" : "itens sorteados"}`}
-            description={`${criteriaSummary(latest.criteria)} · por ${latest.createdByName} em ${formatDateTime(latest.createdAt)}`}
+            eyebrow={latest.status === "preview" ? "Prévia" : latest.mode === "manual" ? "Último envio" : "Último sorteio"}
+            title={`${latest.entries.length} ${
+              latest.mode === "manual"
+                ? latest.entries.length === 1 ? "item escolhido" : "itens escolhidos"
+                : latest.entries.length === 1 ? "item sorteado" : "itens sorteados"
+            }`}
+            description={`${drawSummary(latest)} · por ${latest.createdByName} em ${formatDateTime(latest.createdAt)}`}
             actions={
               <>
                 <Badge tone={drawStatusContent[latest.status].tone}>{drawStatusContent[latest.status].label}</Badge>
+                <Button variant="secondary" onClick={() => onAdjust(latest)}>
+                  Ajustar à mão
+                </Button>
                 {latest.status === "preview" || latest.status === "failed" ? (
                   <Button
                     ref={sendTriggerRef}
@@ -353,19 +367,24 @@ function CategoryPicker({
   );
 }
 
-function DeliveryNotice({
+/** Situação do envio mais recente, ou por que ainda não dá para enviar. */
+export function DeliveryNotice({
   draw,
   targets,
   targetsError,
-}: Readonly<{ draw: MerchantStockDraw; targets: readonly MerchantStockTarget[]; targetsError: string | null }>) {
-  if (draw.status === "pending_delivery") {
+}: Readonly<{
+  draw: MerchantStockDraw | null;
+  targets: readonly MerchantStockTarget[];
+  targetsError: string | null;
+}>) {
+  if (draw?.status === "pending_delivery") {
     return (
       <Notice tone="info" role="status" title="Aguardando o Foundry">
         O estoque está na fila e é aplicado assim que o mestre entrar no mundo com o módulo conectado.
       </Notice>
     );
   }
-  if (draw.status === "applied") {
+  if (draw?.status === "applied") {
     return (
       <Notice tone="success" title="Estoque aplicado no Lojista">
         {draw.appliedAt ? `Aplicado em ${formatDateTime(draw.appliedAt)}. ` : null}O catálogo público se atualiza
@@ -373,7 +392,7 @@ function DeliveryNotice({
       </Notice>
     );
   }
-  if (draw.status === "failed") {
+  if (draw?.status === "failed") {
     return (
       <Notice tone="danger" role="alert" title="O Foundry não aplicou este estoque">
         {draw.error ?? "Tente enviar de novo."}

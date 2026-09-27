@@ -933,6 +933,44 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.equal(delivered.status, 200, JSON.stringify(delivered.data));
       assert.equal(delivered.data.status, "applied");
       assert.equal(delivered.data.appliedAt, "2026-09-25T12:00:00.000Z");
+
+      // Seleção manual: itens escolhidos à mão viram uma prévia do mesmo fluxo.
+      const selectionsPath = `/api/campaigns/${defaultCampaignId}/merchant/stock/selections`;
+      const rope = catalog.data.data.find((item: Json) => item.active && item.id !== longbow.id);
+      const selection = { entries: [{ catalogItemId: rope.id, quantity: 4 }] };
+      assert.equal(
+        (await api(mf, selectionsPath, { token: identities.playerOne.token, method: "POST", body: selection })).status,
+        403,
+      );
+      const repeated = await api(mf, selectionsPath, {
+        token: identities.gm.token,
+        method: "POST",
+        body: { entries: [...selection.entries, ...selection.entries] },
+      });
+      assert.equal(repeated.status, 422);
+      const withInactive = await api(mf, selectionsPath, {
+        token: identities.gm.token,
+        method: "POST",
+        body: { entries: [...selection.entries, { catalogItemId: longbow.id, quantity: 1 }] },
+      });
+      assert.equal(withInactive.status, 409);
+      assert.equal(withInactive.data.error.code, "catalog_items_unavailable");
+
+      const manual = await api(mf, selectionsPath, { token: identities.gm.token, method: "POST", body: selection });
+      assert.equal(manual.status, 201, JSON.stringify(manual.data));
+      assert.deepEqual(
+        [manual.data.mode, manual.data.criteria, manual.data.status, manual.data.entries.length],
+        ["manual", null, "preview", 1],
+      );
+      assert.deepEqual([manual.data.entries[0].catalogItemId, manual.data.entries[0].quantity], [rope.id, 4]);
+      const afterSelection = await api(mf, drawsPath, { token: identities.gm.token });
+      assert.deepEqual(
+        afterSelection.data.data.map((item: Json) => [item.mode, item.status]),
+        [
+          ["manual", "preview"],
+          ["draw", "applied"],
+        ],
+      );
     });
 
     test("importa o compêndio e mantém a biblioteca de criaturas com RBAC", async () => {
@@ -1108,6 +1146,7 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
         "merchant.catalog.deactivated",
         "merchant.stock.drawn",
         "merchant.stock.applied",
+        "merchant.stock.selected",
         "compendium.imported",
         "creature.created",
         "creature.updated",

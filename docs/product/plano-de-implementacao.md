@@ -376,7 +376,14 @@ Próximos passos registrados:
 - importação de `.xlsx` pelo painel, peso por raridade e vários lojistas, se
   fizerem falta.
 
-### 7.2 Criador de criaturas para mestres — em implementação
+### 7.1.2 Seleção manual do estoque do Lojista — em implementação
+
+Além do sorteio, o mestre escolhe o estoque item a item no painel, a partir do
+catálogo, do estoque atual ou de uma prévia sorteada. O envio usa o mesmo
+comando do sorteio e troca só os itens que o portal colocou no Lojista.
+Especificação em `docs/product/specs/lojista-sorteio-de-estoque.md`.
+
+### 7.2 Criador de criaturas para mestres — concluído
 
 Antecipado para antes da área do jogador. Especificação em
 `docs/product/specs/criador-de-criaturas.md`.
@@ -552,7 +559,8 @@ Estado atual
   -> Lojista: vitrine, pedido assistido, moedas e detalhes do item (concluídos)
   -> Refatoração completa do front em três fases (concluída)
   -> Sorteador de estoque do Lojista (concluído)
-  -> Criador de criaturas para mestres (em implementação)
+  -> Criador de criaturas para mestres (concluído)
+  -> Seleção manual do estoque do Lojista (em implementação)
   -> Área do jogador e ficha (inventário, magias, edição autorizada)
   -> Compra automática no Lojista (adiada)
   -> Otimizações de polling, eventos/deltas e escala
