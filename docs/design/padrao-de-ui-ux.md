@@ -116,7 +116,7 @@ Conformidade com WCAG 2.2 AA.
 
 Superfícies separadas:
 
-- **Portal público:** início, missões, crônicas, diário, Mercador e o Código.
+- **Portal público:** início, missões, crônicas, diário, Lojista e o Código.
 - **Área do jogador (`/eu`):** personagem, inscrições e pedidos.
 - **Painel de gestão (`/dashboard/[area]`):** uma URL por área (sessões,
   diário, automações, missões, publicações, Foundry, personagens, pedidos,

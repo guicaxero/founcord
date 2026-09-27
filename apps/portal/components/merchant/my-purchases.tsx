@@ -16,7 +16,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { PurchaseCard } from "./purchase-card";
 
 /**
- * Pedidos do próprio jogador. Usado tanto na página do Mercador quanto na área
+ * Pedidos do próprio jogador. Usado tanto na página do Lojista quanto na área
  * do jogador, sempre com escopo `self`: ninguém vê o pedido de outra pessoa.
  */
 export function MyPurchaseRequests({
@@ -85,7 +85,7 @@ export function MyPurchaseRequests({
   if (data.length === 0) {
     return (
       <FeedbackState title="Nenhum pedido enviado">
-        Quando você solicitar um item do Mercador, o andamento aparece aqui.
+        Quando você solicitar um item do Lojista, o andamento aparece aqui.
       </FeedbackState>
     );
   }

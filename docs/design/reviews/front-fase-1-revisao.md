@@ -7,14 +7,14 @@ Revisão da implementação contra o [padrão de UI/UX](../padrao-de-ui-ux.md) e
 
 - `bun run dev` com o D1 local migrado (16 migrations) e uma sessão de
   desenvolvimento semeada, para ver as superfícies autenticadas.
-- Larguras 1440, 768 e 375 px, em `/`, `/missoes`, `/mercador`, `/ordem` e `/eu`.
+- Larguras 1440, 768 e 375 px, em `/`, `/missoes`, `/lojista`, `/ordem` e `/eu`.
 
 ## Resultados
 
 | Item verificado | Resultado |
 | --- | --- |
 | Tema escuro em todas as superfícies, inclusive nas telas ainda em CSS legado | Atendido pela ponte de tokens em `globals.css`. |
-| Navegação cobre as áreas do produto | Missões, Crônicas, Diário, Mercador e A Ordem aparecem em toda superfície pública. |
+| Navegação cobre as áreas do produto | Missões, Crônicas, Diário, Lojista e A Ordem aparecem em toda superfície pública. |
 | Navegação consciente de papel | Autenticado mostra "Minha área"; com permissão de gestão aparece "Gestão". Verificado com sessão de `owner`. |
 | Rota atual marcada | `aria-current="page"` e sublinhado de acento na rota ativa, inclusive em rotas filhas. |
 | Menu compacto | Abaixo de 1024 px a navegação vira menu; o botão tem nome acessível. |
@@ -33,9 +33,9 @@ Revisão da implementação contra o [padrão de UI/UX](../padrao-de-ui-ux.md) e
 
 ## Pendências aceitas
 
-- **Telas ainda em CSS legado.** Mercador, Código, personagem e painel herdaram o
+- **Telas ainda em CSS legado.** Lojista, Código, personagem e painel herdaram o
   tema pela ponte de tokens, mas mantêm a composição antiga: tipografia grande
-  demais no herói do Mercador e densidade irregular. É exatamente o escopo das
+  demais no herói do Lojista e densidade irregular. É exatamente o escopo das
   fases 2 e 3.
 - **`prefers-reduced-motion`** está implementado no `MotionProvider` e no reset
   global, mas não foi possível emular a preferência pelo navegador embutido; a

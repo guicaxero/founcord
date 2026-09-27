@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { FoundryCommandInputSchema } from "./foundry";
 import {
   MerchantCatalogItemSchema,
+  MerchantStockSelectionInputSchema,
   drawMerchantStock,
+  selectMerchantStock,
   moduleSupportsStockReplace,
   type MerchantCatalogItem,
   type MerchantStockCriteria,
@@ -136,5 +138,46 @@ describe("contrato do comando de estoque", () => {
     expect(moduleSupportsStockReplace("0.8.0")).toBe(true);
     expect(moduleSupportsStockReplace("0.10.2")).toBe(true);
     expect(moduleSupportsStockReplace("1.0.0")).toBe(true);
+  });
+});
+
+describe("selectMerchantStock", () => {
+  it("monta a seleção manual com quantidades, aceitando itens sem preço", () => {
+    const rope = item({ name: "Corda", category: "Ferramentas" });
+    const lantern = item({ name: "Lanterna", category: "Equipamentos Pessoais", price: null });
+    const { entries, missing } = selectMerchantStock([rope, lantern], {
+      entries: [
+        { catalogItemId: rope.id, quantity: 3 },
+        { catalogItemId: lantern.id, quantity: 1 },
+      ],
+    });
+    expect(missing).toEqual([]);
+    // Mesma ordem do sorteio: categoria, disponibilidade e nome.
+    expect(entries.map((entry) => [entry.name, entry.quantity, entry.price])).toEqual([
+      ["Lanterna", 1, null],
+      ["Corda", 3, "1 cc"],
+    ]);
+  });
+
+  it("aponta itens desativados ou que não existem mais", () => {
+    const inactive = item({ active: false });
+    const gone = "99999999-9999-4999-8999-999999999999";
+    const { entries, missing } = selectMerchantStock([inactive], {
+      entries: [
+        { catalogItemId: inactive.id, quantity: 1 },
+        { catalogItemId: gone, quantity: 2 },
+      ],
+    });
+    expect(entries).toEqual([]);
+    expect(missing).toEqual([inactive.id, gone]);
+  });
+
+  it("recusa item repetido, quantidade fora do limite e seleção vazia", () => {
+    const id = item().id;
+    const parse = (entries: unknown) => MerchantStockSelectionInputSchema.safeParse({ entries }).success;
+    expect(parse([{ catalogItemId: id, quantity: 2 }])).toBe(true);
+    expect(parse([{ catalogItemId: id, quantity: 1 }, { catalogItemId: id, quantity: 1 }])).toBe(false);
+    expect(parse([{ catalogItemId: id, quantity: 101 }])).toBe(false);
+    expect(parse([])).toBe(false);
   });
 });

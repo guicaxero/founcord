@@ -177,8 +177,8 @@ function SiteFooter() {
               </Link>
             </li>
             <li>
-              <Link className="hover:text-fg" href="/mercador">
-                Mercador
+              <Link className="hover:text-fg" href="/lojista">
+                Lojista
               </Link>
             </li>
           </ul>

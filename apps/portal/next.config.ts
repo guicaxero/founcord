@@ -2,7 +2,10 @@ import type { NextConfig } from "next";
 import { PHASE_DEVELOPMENT_SERVER } from "next/constants";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // A página do Lojista se chamava Mercador; links antigos continuam funcionando.
+  async redirects() {
+    return [{ source: "/mercador", destination: "/lojista", permanent: true }];
+  },
 };
 
 export default async function configureNext(phase: string): Promise<NextConfig> {

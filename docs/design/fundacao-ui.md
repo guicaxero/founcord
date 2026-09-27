@@ -3,7 +3,7 @@
 ## Estado e escopo
 
 Esta especificação cobre o primeiro corte da reestruturação visual do portal. O
-objetivo é corrigir a fundação compartilhada antes de acrescentar Mercador,
+objetivo é corrigir a fundação compartilhada antes de acrescentar Lojista,
 ficha de personagem ou criador de criaturas.
 
 Este corte inclui:
@@ -19,7 +19,7 @@ Este corte inclui:
 Ficam explicitamente fora deste corte:
 
 - novas regras de negócio;
-- Mercador, ficha de personagem e criador de criaturas;
+- Lojista, ficha de personagem e criador de criaturas;
 - separação de resumos no modelo de dados;
 - alteração dos contratos do Discord ou Foundry;
 - criação de uma área do jogador sem funcionalidades próprias já disponíveis.

@@ -128,7 +128,7 @@ describe("contratos públicos", () => {
     ).toBe("actor.sync.request");
   });
 
-  it("distingue estoque desconhecido, esgotado e disponível no Mercador", () => {
+  it("distingue estoque desconhecido, esgotado e disponível no Lojista", () => {
     const baseItem = {
       name: "Tocha",
       description: null,
@@ -197,7 +197,7 @@ describe("contratos públicos", () => {
     ).toThrow();
   });
 
-  it("aceita somente pedidos tipados e comandos declarativos do Mercador", () => {
+  it("aceita somente pedidos tipados e comandos declarativos do Lojista", () => {
     const requestId = "15151515-1515-4515-8515-151515151515";
     expect(MerchantPurchaseRequestInputSchema.parse({
       requestId,

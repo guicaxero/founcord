@@ -10,7 +10,7 @@ Aceito em 23 de setembro de 2026. Substitui a seção de identidade visual
 - **A navegação não cobria o produto.** O menu público tinha cinco itens, três
   deles âncoras de uma página longa. Missões, crônicas e diário não tinham rota
   própria, e o jogador não tinha onde acompanhar seus pedidos fora do catálogo
-  do Mercador.
+  do Lojista.
 - **O visual não acompanhava o resto do produto.** Eram 6.544 linhas de CSS
   artesanal, sem biblioteca de componentes, quase sem animação e com diálogos e
   menus implementados à mão, o que já custava acessibilidade.

@@ -280,7 +280,7 @@ describe("Foundry Bridge Worker", () => {
     );
   });
 
-  it("sincroniza o catálogo sanitizado do Mercador no banco de integração", async () => {
+  it("sincroniza o catálogo sanitizado do Lojista no banco de integração", async () => {
     const sync = merchantSync();
     const response = await request(`/v1/worlds/${worldId}/merchant/sync`, {
       method: "POST",
@@ -303,7 +303,7 @@ describe("Foundry Bridge Worker", () => {
     );
   });
 
-  it("protege a leitura do Mercador com o token entre serviços", async () => {
+  it("protege a leitura do Lojista com o token entre serviços", async () => {
     const path = `/internal/foundry/campaigns/${campaignId}/merchant`;
     expect((await request(path)).status).toBe(401);
     const response = await request(path, { headers: bearer(serviceToken) });
@@ -374,7 +374,7 @@ describe("Foundry Bridge Worker", () => {
     expect(repository.completeFoundryCommand).toHaveBeenCalledOnce();
   });
 
-  it("confirma a entrega de pedido do Mercador ao portal", async () => {
+  it("confirma a entrega de pedido do Lojista ao portal", async () => {
     const requestId = "88888888-8888-4888-8888-888888888888";
     const commandId = "44444444-4444-4444-8444-444444444444";
     repository.completeFoundryCommand.mockResolvedValue({

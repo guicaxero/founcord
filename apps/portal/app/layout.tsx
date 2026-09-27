@@ -7,7 +7,7 @@ import { Providers } from "./providers";
 
 const siteTitle = "Ordem da Última Luz";
 const siteDescription =
-  "Portal da campanha da Ordem da Última Luz em Shadow of the Demon Lord: missões, crônicas, diário de sessões e Mercador.";
+  "Portal da campanha da Ordem da Última Luz em Shadow of the Demon Lord: missões, crônicas, diário de sessões e Lojista.";
 const siteOrigin = process.env.SITE_URL ?? "http://localhost:3000";
 
 export async function generateMetadata(): Promise<Metadata> {

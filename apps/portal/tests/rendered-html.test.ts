@@ -53,7 +53,7 @@ test("renderiza a primeira superfície do portal", async () => {
   assert.match(html, /Chamados da Ordem/);
   assert.match(html, /Diário de Sessões/);
   assert.match(html, /O Império está em crise/);
-  assert.match(html, /Mercador/);
+  assert.match(html, /Lojista/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|Your site is taking shape/i);
 });
 
@@ -67,14 +67,20 @@ test("renderiza o Código oficial da Ordem", async () => {
   assert.match(html, /Cinco verdades do mundo/i);
 });
 
-test("renderiza a vitrine pública do Mercador", async () => {
-  const response = await render("/mercador");
+test("renderiza a vitrine pública do Lojista", async () => {
+  const response = await render("/lojista");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /Mercador/i);
+  assert.match(html, /Lojista/i);
   assert.match(html, /enviar um pedido para o mestre/i);
   assert.match(html, /Estoque da campanha/i);
   assert.match(html, /Carregando|Consultando o catálogo/i);
+});
+
+test("redireciona o endereço antigo do Mercador para o Lojista", async () => {
+  const response = await render("/mercador", { redirect: "manual" });
+  assert.equal(response.status, 308);
+  assert.match(response.headers.get("location") ?? "", /\/lojista$/);
 });
 
 test("renderiza a área autenticada do jogador sem expor uma ficha no HTML", async () => {
@@ -150,7 +156,7 @@ test("mantém a navegação essencial acessível nas superfícies públicas", as
     assert.match(html, /id="main-content"/i);
     assert.match(html, /aria-label="Navegação principal"/i);
     // As rotas do produto aparecem na navegação de toda superfície pública.
-    for (const route of ["/missoes", "/cronicas", "/diario", "/mercador", "/ordem"]) {
+    for (const route of ["/missoes", "/cronicas", "/diario", "/lojista", "/ordem"]) {
       assert.match(html, new RegExp(`href="${route}"`, "i"));
     }
     assert.match(html, /aria-label="Abrir navegação"/i);
@@ -175,7 +181,7 @@ test("o painel de gestão tem uma rota por área, com navegação por teclado e 
   // O AppShell já entrega o <main id="main-content">; o painel não pode abrir outro.
   assert.doesNotMatch(dashboard, /<main\b/);
   assert.doesNotMatch(dashboard, /role="tab(list|panel)?"/);
-  for (const label of ["Sessões", "Diário de Sessões", "Pedidos do Mercador", "Mundos do Foundry", "Configurações"]) {
+  for (const label of ["Sessões", "Diário de Sessões", "Pedidos do Lojista", "Mundos do Foundry", "Configurações"]) {
     assert.match(areas, new RegExp(`label: "${label}"`));
   }
   for (const permission of ["foundry:world:manage", "session:manage", "merchant:purchase:manage"]) {
@@ -202,7 +208,7 @@ test("cada área do painel responde na própria URL e endereços desconhecidos d
 test("o portal usa tema escuro e não conserva os termos inventados", async () => {
   const [home, merchant] = await Promise.all([
     render().then((response) => response.text()),
-    render("/mercador").then((response) => response.text()),
+    render("/lojista").then((response) => response.text()),
   ]);
   const globals = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 

@@ -316,7 +316,7 @@ foundryApp.post("/v1/worlds/:worldId/merchant/sync", async (context) => {
     throw new FoundryBridgeError(
       409,
       "merchant_sync_in_progress",
-      "Esta sincronização do Mercador já está em processamento.",
+      "Esta sincronização do Lojista já está em processamento.",
     );
   }
 

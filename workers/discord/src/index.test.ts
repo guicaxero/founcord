@@ -76,7 +76,7 @@ describe("Discord integration Worker", () => {
     expect(response.status).toBe(401);
   });
 
-  it("registra /post, /mercador e /personagem sem expor o Bot Token", async () => {
+  it("registra /post, /lojista e /personagem sem expor o Bot Token", async () => {
     const discordFetch = vi.fn(
       async (input: string | URL | Request, init?: RequestInit) => {
         void input;
@@ -123,7 +123,7 @@ describe("Discord integration Worker", () => {
         expect.objectContaining({ name: "tag", autocomplete: true }),
       ]),
     );
-    expect(commands[1]).toMatchObject({ name: "mercador" });
+    expect(commands[1]).toMatchObject({ name: "lojista" });
     expect(commands[2]).toMatchObject({
       name: "personagem",
       description: "Abre sua ficha vinculada à campanha no portal da Ordem.",
@@ -186,7 +186,7 @@ describe("Discord integration Worker", () => {
     expect(JSON.stringify(body)).toContain("post_avatar_url");
   });
 
-  it("consulta o Mercador com filtro de disponibilidade e link para o portal", async () => {
+  it("consulta o Lojista com filtro de disponibilidade e link para o portal", async () => {
     db.merchantCatalog = {
       campaign_id: campaignId,
       last_seen_at: new Date().toISOString(),
@@ -225,7 +225,7 @@ describe("Discord integration Worker", () => {
           token: "merchant-command",
           guild_id: guildId,
           data: {
-            name: "mercador",
+            name: "lojista",
             options: [
               { name: "busca", type: 3, value: "tocha" },
               { name: "disponibilidade", type: 3, value: "available" },
@@ -247,7 +247,27 @@ describe("Discord integration Worker", () => {
         value: expect.stringContaining("**Preço:** 1 centavo de cobre"),
       }),
     ]);
-    expect(JSON.stringify(body.data.components)).toContain("https://ordem.example/mercador");
+    expect(JSON.stringify(body.data.components)).toContain("https://ordem.example/lojista");
+  });
+
+  it("aceita o nome antigo /mercador até o novo registro de comandos", async () => {
+    const response = await integrationApp.fetch(
+      await signedRequest(
+        {
+          id: "323461",
+          application_id: applicationId,
+          type: 2,
+          token: "legacy-merchant-command",
+          guild_id: guildId,
+          data: { name: "mercador", options: [] },
+        },
+        keys.privateKey,
+      ),
+      env,
+      executionContext(),
+    );
+    expect(response.status).toBe(200);
+    expect(JSON.stringify(await response.json())).toContain("https://ordem.example/lojista");
   });
 
   it("encaminha /personagem de forma privada para a área autenticada", async () => {

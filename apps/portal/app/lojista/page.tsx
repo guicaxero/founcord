@@ -4,12 +4,12 @@ import { MerchantCatalog } from "@/components/merchant/merchant-catalog";
 import { DEFAULT_CAMPAIGN_ID } from "@/server/shared/constants";
 
 const description =
-  "Consulte os itens, preços e quantidades disponíveis no Mercador da Ordem da Última Luz.";
+  "Consulte os itens, preços e quantidades disponíveis no Lojista da Ordem da Última Luz.";
 
 export const metadata: Metadata = {
-  title: "Mercador",
+  title: "Lojista",
   description,
-  openGraph: { title: "Mercador — Ordem da Última Luz", description },
+  openGraph: { title: "Lojista — Ordem da Última Luz", description },
 };
 
 export const dynamic = "force-dynamic";

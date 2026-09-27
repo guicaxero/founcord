@@ -4,7 +4,7 @@
 
 Criar uma associação explícita, auditável e segura entre um membro da campanha no
 portal e um ator do tipo `character` sincronizado pelo módulo do Foundry. Este
-vínculo será a fonte de identidade para a futura compra no Mercador e para a área
+vínculo será a fonte de identidade para a futura compra no Lojista e para a área
 de ficha do jogador.
 
 Este incremento não movimenta moedas, itens ou documentos do Foundry.

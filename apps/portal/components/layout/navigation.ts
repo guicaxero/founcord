@@ -14,7 +14,7 @@ export const publicNavigation: readonly NavigationItem[] = [
   { href: "/missoes", label: "Missões", hint: "Chamados abertos e concluídos" },
   { href: "/cronicas", label: "Crônicas", hint: "Publicações da campanha" },
   { href: "/diario", label: "Diário", hint: "Registros das sessões" },
-  { href: "/mercador", label: "Mercador", hint: "Estoque e pedidos" },
+  { href: "/lojista", label: "Lojista", hint: "Estoque e pedidos" },
   { href: "/ordem", label: "A Ordem", hint: "Código e ambientação" },
 ];
 

@@ -243,7 +243,7 @@ export function MerchantPurchasePreview() {
         <MerchantCatalog campaignId={campaignId} pollingEnabled={false} />
         <Section
           eyebrow="Prévia de gestão"
-          title="Pedidos do Mercador"
+          title="Pedidos do Lojista"
           description="Estado local usado para revisar a fila e as decisões do mestre."
           id="merchant-preview-management"
         >

@@ -17,7 +17,7 @@ Revisão da implementação contra o [padrão de UI/UX](../padrao-de-ui-ux.md) e
 | Superfície | O que mudou |
 | --- | --- |
 | Rotas | `/dashboard/[area]`, com 11 áreas. `/dashboard` abre a primeira área liberada. Endereço desconhecido responde 404; área sem permissão explica o motivo e aponta uma área liberada. |
-| Navegação | Barra lateral agrupada (mesa de jogo, conteúdo, Foundry e Mercador, campanha) com indicador animado. Abaixo de 1024 px, seletores de campanha e de área. A campanha escolhida persiste entre áreas, porque o painel vive no layout. |
+| Navegação | Barra lateral agrupada (mesa de jogo, conteúdo, Foundry e Lojista, campanha) com indicador animado. Abaixo de 1024 px, seletores de campanha e de área. A campanha escolhida persiste entre áreas, porque o painel vive no layout. |
 | Estrutura | O painel deixou de abrir um segundo `<main id="main-content">` dentro do AppShell. |
 | Missões, Publicações, Diário, Histórico | `DataTable` com ordenação por teclado e `aria-sort`, busca e filtros com contagem. Abaixo de 768 px, cada linha vira cartão. |
 | Formulários | Criação e edição em diálogo (missão, publicação, resumo, sessão, fontes da sessão, automação, membro, campanha). |
