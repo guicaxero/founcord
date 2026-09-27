@@ -1,4 +1,4 @@
-# Lojista — sorteio de estoque do Lojista
+# Lojista — sorteio e seleção do estoque
 
 ## Objetivo
 
@@ -46,6 +46,31 @@ Painel › Estoque do Lojista
   - mundo com módulo anterior ao 0.8.0;
   - mundo sem ator de Lojista configurado;
   - mundo desconectado.
+
+## Seleção manual
+
+O mestre também escolhe o estoque item a item, na aba **Seleção manual** de
+`/dashboard/estoque`.
+
+- **Montagem:**
+  - busca e filtro por categoria no catálogo ativo;
+  - "Adicionar" põe o item com quantidade 1, e a quantidade vai de 1 a 100;
+  - até 100 itens diferentes;
+  - itens sem preço podem entrar (o sorteio continua exigindo preço).
+- **Pontos de partida:**
+  - vazio;
+  - "Carregar o estoque atual": o último envio aplicado ou a caminho do Foundry;
+  - "Ajustar à mão" na prévia do sorteio, que leva os itens sorteados para a
+    seleção.
+- **Envio:**
+  - vira uma prévia com `mode: "manual"` e segue o mesmo comando
+    `merchant.stock.replace`, sem exigir módulo novo;
+  - o módulo troca só os itens enviados antes pelo portal; os itens colocados à
+    mão no Foundry continuam no ator;
+  - itens desativados ou removidos do catálogo antes do envio fazem o portal
+    recusar a seleção (409) e pedir revisão.
+- **Histórico:** o envio aparece como "Seleção manual", com a contagem de itens
+  e unidades.
 
 ## Dados
 

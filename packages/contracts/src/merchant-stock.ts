@@ -114,11 +114,16 @@ export const MerchantStockDrawStatusSchema = z.enum([
   "discarded",
 ]);
 
+/** Como o estoque foi montado: sorteio pelos critérios ou escolha item a item. */
+export const MerchantStockModeSchema = z.enum(["draw", "manual"]);
+
 export const MerchantStockDrawSchema = z
   .object({
     id: EntityIdSchema,
     campaignId: EntityIdSchema,
-    criteria: MerchantStockCriteriaSchema,
+    mode: MerchantStockModeSchema,
+    /** Critérios do sorteio; `null` numa seleção manual. */
+    criteria: MerchantStockCriteriaSchema.nullable(),
     eligibleCount: z.number().int().nonnegative(),
     entries: z.array(MerchantStockEntrySchema).max(100),
     status: MerchantStockDrawStatusSchema,
@@ -133,6 +138,23 @@ export const MerchantStockDrawSchema = z
 
 export const MerchantStockDrawListResponseSchema = z
   .object({ data: z.array(MerchantStockDrawSchema) })
+  .strict();
+
+/** Seleção manual: itens do catálogo e a quantidade de cada um. */
+export const MerchantStockSelectionInputSchema = z
+  .object({
+    entries: z
+      .array(
+        z
+          .object({ catalogItemId: EntityIdSchema, quantity: z.number().int().min(1).max(100) })
+          .strict(),
+      )
+      .min(1)
+      .max(100)
+      .refine((entries) => new Set(entries.map((entry) => entry.catalogItemId)).size === entries.length, {
+        message: "Cada item só pode aparecer uma vez na seleção.",
+      }),
+  })
   .strict();
 
 export const MerchantStockApplyInputSchema = z.object({ worldId: EntityIdSchema }).strict();
@@ -182,6 +204,8 @@ export type MerchantStockEntry = z.infer<typeof MerchantStockEntrySchema>;
 export type MerchantStockDrawStatus = z.infer<typeof MerchantStockDrawStatusSchema>;
 export type MerchantStockDraw = z.infer<typeof MerchantStockDrawSchema>;
 export type MerchantStockDrawListResponse = z.infer<typeof MerchantStockDrawListResponseSchema>;
+export type MerchantStockMode = z.infer<typeof MerchantStockModeSchema>;
+export type MerchantStockSelectionInput = z.infer<typeof MerchantStockSelectionInputSchema>;
 export type MerchantStockApplyInput = z.infer<typeof MerchantStockApplyInputSchema>;
 export type MerchantStockTarget = z.infer<typeof MerchantStockTargetSchema>;
 export type MerchantStockTargetListResponse = z.infer<typeof MerchantStockTargetListResponseSchema>;
@@ -237,32 +261,60 @@ export function drawMerchantStock(
   }
 
   const byId = new Map(eligible.map((item) => [item.id, item]));
-  const entries = [...counts.entries()].map(([id, quantity]) => {
-    const item = byId.get(id)!;
-    return MerchantStockEntrySchema.parse({
-      catalogItemId: item.id,
-      quantity,
-      name: item.name,
-      category: item.category,
-      kind: item.kind,
-      availability: item.availability,
-      price: item.price,
-      damage: item.damage,
-      hands: item.hands,
-      agility: item.agility,
-      fixed: item.fixed,
-      requirement: item.requirement,
-      properties: item.properties,
-      description: item.description,
-      icon: item.icon,
-      source: item.source,
-    });
+  const entries = sortStockEntries(
+    [...counts.entries()].map(([id, quantity]) => stockEntryFromCatalog(byId.get(id)!, quantity)),
+  );
+  return { eligibleCount: eligible.length, entries };
+}
+
+/** Cópia do item do catálogo como entrada do estoque, com a quantidade. */
+export function stockEntryFromCatalog(item: MerchantCatalogItem, quantity: number): MerchantStockEntry {
+  return MerchantStockEntrySchema.parse({
+    catalogItemId: item.id,
+    quantity,
+    name: item.name,
+    category: item.category,
+    kind: item.kind,
+    availability: item.availability,
+    price: item.price,
+    damage: item.damage,
+    hands: item.hands,
+    agility: item.agility,
+    fixed: item.fixed,
+    requirement: item.requirement,
+    properties: item.properties,
+    description: item.description,
+    icon: item.icon,
+    source: item.source,
   });
-  entries.sort(
+}
+
+/** Ordem de exibição e de envio: categoria, disponibilidade e nome. */
+export function sortStockEntries(entries: MerchantStockEntry[]): MerchantStockEntry[] {
+  return entries.sort(
     (left, right) =>
       left.category.localeCompare(right.category, "pt-BR") ||
       availabilityRank(left.availability) - availabilityRank(right.availability) ||
       left.name.localeCompare(right.name, "pt-BR"),
   );
-  return { eligibleCount: eligible.length, entries };
+}
+
+/**
+ * Monta o estoque escolhido à mão. Diferente do sorteio, aceita itens sem
+ * preço; só recusa itens desativados ou que não existem mais no catálogo.
+ */
+export function selectMerchantStock(
+  items: readonly MerchantCatalogItem[],
+  selection: MerchantStockSelectionInput,
+): Readonly<{ entries: MerchantStockEntry[]; missing: string[] }> {
+  const byId = new Map(items.filter((item) => item.active).map((item) => [item.id, item]));
+  const missing = selection.entries
+    .filter((entry) => !byId.has(entry.catalogItemId))
+    .map((entry) => entry.catalogItemId);
+  const entries = sortStockEntries(
+    selection.entries
+      .filter((entry) => byId.has(entry.catalogItemId))
+      .map((entry) => stockEntryFromCatalog(byId.get(entry.catalogItemId)!, entry.quantity)),
+  );
+  return { entries, missing };
 }

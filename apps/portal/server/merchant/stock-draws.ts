@@ -4,10 +4,13 @@ import {
   MerchantStockDrawSchema,
   MerchantStockEntrySchema,
   drawMerchantStock,
+  selectMerchantStock,
   moduleSupportsStockReplace,
   type MerchantStockCriteria,
   type MerchantStockDeliveryCallback,
   type MerchantStockDraw,
+  type MerchantStockEntry,
+  type MerchantStockSelectionInput,
   type MerchantStockTarget,
 } from "@ordem/contracts";
 import { z } from "zod";
@@ -23,6 +26,7 @@ import { loadCatalog, requireCatalogManager } from "./catalog";
 type DrawRow = Readonly<{
   id: string;
   campaign_id: string;
+  mode: MerchantStockDraw["mode"];
   criteria_json: string;
   entries_json: string;
   eligible_count: number;
@@ -35,7 +39,7 @@ type DrawRow = Readonly<{
   applied_at: string | null;
 }>;
 
-const DRAW_SELECT = `SELECT d.id, d.campaign_id, d.criteria_json, d.entries_json, d.eligible_count,
+const DRAW_SELECT = `SELECT d.id, d.campaign_id, d.mode, d.criteria_json, d.entries_json, d.eligible_count,
     d.status, d.world_id, d.error, u.display_name AS created_by_name, d.created_at,
     d.updated_at, d.applied_at
   FROM merchant_stock_draws d
@@ -45,7 +49,8 @@ function mapDraw(row: DrawRow): MerchantStockDraw {
   return MerchantStockDrawSchema.parse({
     id: row.id,
     campaignId: row.campaign_id,
-    criteria: MerchantStockCriteriaSchema.parse(JSON.parse(row.criteria_json)),
+    mode: row.mode,
+    criteria: row.mode === "manual" ? null : MerchantStockCriteriaSchema.parse(JSON.parse(row.criteria_json)),
     eligibleCount: row.eligible_count,
     entries: z.array(MerchantStockEntrySchema).parse(JSON.parse(row.entries_json)),
     status: row.status,
@@ -110,6 +115,61 @@ export async function createStockDraw(
       "Nenhum item do catálogo atende a esses critérios. Aumente a disponibilidade ou escolha outras categorias.",
     );
   }
+  return insertPreview(session, campaignId, correlationId, {
+    mode: "draw",
+    criteria,
+    entries,
+    eligibleCount,
+    action: "merchant.stock.drawn",
+    details: { ...criteria, items: entries.length, eligibleCount },
+  });
+}
+
+/**
+ * Estoque escolhido à mão. Vira uma prévia como a do sorteio e segue o mesmo
+ * envio: o módulo troca os itens enviados antes pelo portal.
+ */
+export async function createStockSelection(
+  session: AuthenticatedSession,
+  campaignId: string,
+  selection: MerchantStockSelectionInput,
+  correlationId: string,
+): Promise<MerchantStockDraw> {
+  requireCatalogManager(session, campaignId);
+  const { entries, missing } = selectMerchantStock(await loadCatalog(campaignId), selection);
+  if (missing.length > 0) {
+    throw new HttpError(
+      409,
+      "catalog_items_unavailable",
+      missing.length === 1
+        ? "Um item da seleção foi desativado ou removido do catálogo. Atualize a página e revise a seleção."
+        : `${missing.length} itens da seleção foram desativados ou removidos do catálogo. Atualize a página e revise a seleção.`,
+    );
+  }
+  return insertPreview(session, campaignId, correlationId, {
+    mode: "manual",
+    criteria: null,
+    entries,
+    eligibleCount: entries.length,
+    action: "merchant.stock.selected",
+    details: { items: entries.length, units: entries.reduce((total, entry) => total + entry.quantity, 0) },
+  });
+}
+
+/** Grava a prévia nova e descarta as anteriores ainda não enviadas. */
+async function insertPreview(
+  session: AuthenticatedSession,
+  campaignId: string,
+  correlationId: string,
+  preview: Readonly<{
+    mode: MerchantStockDraw["mode"];
+    criteria: MerchantStockCriteria | null;
+    entries: readonly MerchantStockEntry[];
+    eligibleCount: number;
+    action: string;
+    details: Readonly<Record<string, unknown>>;
+  }>,
+): Promise<MerchantStockDraw> {
   const id = crypto.randomUUID();
   const db = getD1();
   await db.batch([
@@ -122,18 +182,26 @@ export async function createStockDraw(
     db
       .prepare(
         `INSERT INTO merchant_stock_draws (
-           id, campaign_id, created_by_user_id, criteria_json, entries_json, eligible_count, status
-         ) VALUES (?, ?, ?, ?, ?, ?, 'preview')`,
+           id, campaign_id, created_by_user_id, mode, criteria_json, entries_json, eligible_count, status
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, 'preview')`,
       )
-      .bind(id, campaignId, session.user.id, JSON.stringify(criteria), JSON.stringify(entries), eligibleCount),
+      .bind(
+        id,
+        campaignId,
+        session.user.id,
+        preview.mode,
+        JSON.stringify(preview.criteria),
+        JSON.stringify(preview.entries),
+        preview.eligibleCount,
+      ),
     prepareAudit(db, {
       actorUserId: session.user.id,
       campaignId,
-      action: "merchant.stock.drawn",
+      action: preview.action,
       entityType: "merchant_stock_draw",
       entityId: id,
       correlationId,
-      details: { ...criteria, items: entries.length, eligibleCount },
+      details: preview.details,
     }),
   ]);
   return requiredDraw(campaignId, id);
@@ -197,7 +265,7 @@ export async function applyStockDraw(
   const draw = await requiredDraw(campaignId, drawId);
   if (draw.status === "pending_delivery" || draw.status === "applied") return draw;
   if (draw.status === "discarded") {
-    throw new HttpError(409, "stock_draw_discarded", "Esta prévia foi substituída por um sorteio mais novo.");
+    throw new HttpError(409, "stock_draw_discarded", "Esta prévia foi substituída por uma mais nova.");
   }
   const target = (await listStockTargets(session, campaignId, correlationId)).find(
     (candidate) => candidate.worldId === worldId,

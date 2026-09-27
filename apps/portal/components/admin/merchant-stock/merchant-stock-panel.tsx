@@ -20,12 +20,13 @@ import { queryKeys } from "@/lib/query-keys";
 import { PanelLoading } from "../kit";
 import { timestamp } from "../status";
 import { CatalogTab } from "./catalog-tab";
-import { criteriaSummary, drawStatusContent } from "./presentation";
+import { drawStatusContent, drawSummary } from "./presentation";
+import { SelectionTab, type SelectedEntry } from "./selection-tab";
 import { DrawEntriesTable, StockDrawTab } from "./stock-draw-tab";
 
 /**
- * Estoque do Lojista: catálogo de itens, sorteio e histórico. O sorteio só
- * vira estoque de verdade quando o módulo cria os itens no ator do Foundry.
+ * Estoque do Lojista: sorteio, seleção manual, catálogo e histórico. O estoque
+ * só vira realidade quando o módulo cria os itens no ator do Foundry.
  */
 export function MerchantStockPanel({ campaignId }: Readonly<{ campaignId: string }>) {
   return (
@@ -40,6 +41,8 @@ function MerchantStockTabs({ campaignId }: Readonly<{ campaignId: string }>) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // A seleção sobrevive à troca de abas enquanto o painel estiver aberto.
+  const [selection, setSelection] = useState<readonly SelectedEntry[]>([]);
   const catalog = useQuery({
     queryKey: queryKeys.merchantCatalog(campaignId),
     queryFn: () => apiFetch<MerchantCatalogListResponse>(`/api/campaigns/${campaignId}/merchant/catalog`),
@@ -59,10 +62,20 @@ function MerchantStockTabs({ campaignId }: Readonly<{ campaignId: string }>) {
     );
   }
 
-  const openCatalog = () => {
+  const openTab = (tab: "catalogo" | "selecao") => {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("aba", "catalogo");
+    params.set("aba", tab);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+  const openCatalog = () => openTab("catalogo");
+  const adjust = (draw: MerchantStockDraw) => {
+    const active = new Set(catalog.data.data.filter((item) => item.active).map((item) => item.id));
+    setSelection(
+      draw.entries
+        .filter((entry) => active.has(entry.catalogItemId))
+        .map((entry) => ({ catalogItemId: entry.catalogItemId, quantity: entry.quantity })),
+    );
+    openTab("selecao");
   };
 
   return (
@@ -72,7 +85,27 @@ function MerchantStockTabs({ campaignId }: Readonly<{ campaignId: string }>) {
         {
           value: "sorteio",
           label: "Sorteio",
-          content: <StockDrawTab campaignId={campaignId} catalog={catalog.data.data} onOpenCatalog={openCatalog} />,
+          content: (
+            <StockDrawTab
+              campaignId={campaignId}
+              catalog={catalog.data.data}
+              onOpenCatalog={openCatalog}
+              onAdjust={adjust}
+            />
+          ),
+        },
+        {
+          value: "selecao",
+          label: selection.length > 0 ? `Seleção (${selection.length})` : "Seleção",
+          content: (
+            <SelectionTab
+              campaignId={campaignId}
+              catalog={catalog.data.data}
+              selection={selection}
+              onSelectionChange={setSelection}
+              onOpenCatalog={openCatalog}
+            />
+          ),
         },
         {
           value: "catalogo",
@@ -132,7 +165,7 @@ function DrawHistory({ campaignId }: Readonly<{ campaignId: string }>) {
             header: "Critérios",
             cell: (draw) => (
               <div className="space-y-1">
-                <p className="text-fg">{criteriaSummary(draw.criteria)}</p>
+                <p className="text-fg">{drawSummary(draw)}</p>
                 <p className="text-xs text-fg-subtle">por {draw.createdByName}</p>
               </div>
             ),
@@ -169,7 +202,7 @@ function DrawHistory({ campaignId }: Readonly<{ campaignId: string }>) {
           if (!next) setOpen(null);
         }}
         title="Itens do sorteio"
-        description={open ? `${criteriaSummary(open.criteria)} · ${formatDateTime(open.createdAt)}` : undefined}
+        description={open ? `${drawSummary(open)} · ${formatDateTime(open.createdAt)}` : undefined}
         returnFocusRef={triggerRef}
         className="max-w-5xl"
       >

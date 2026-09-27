@@ -4,6 +4,7 @@ import {
   type MerchantCatalogKind,
   type MerchantItemAvailability,
   type MerchantStockCriteria,
+  type MerchantStockDraw,
   type MerchantStockDrawStatus,
 } from "@ordem/contracts";
 import type { Tone } from "../status";
@@ -93,4 +94,13 @@ export function criteriaSummary(criteria: MerchantStockCriteria): string {
     `${criteria.quantity} ${criteria.quantity === 1 ? "item" : "itens"}`,
     criteria.allowRepeat ? "com repetição" : "sem repetição",
   ].join(" · ");
+}
+
+/** Resumo de um envio: os critérios do sorteio ou o tamanho da seleção manual. */
+export function drawSummary(draw: Pick<MerchantStockDraw, "mode" | "criteria" | "entries">): string {
+  if (draw.mode === "manual" || !draw.criteria) {
+    const units = draw.entries.reduce((total, entry) => total + entry.quantity, 0);
+    return `Seleção manual · ${draw.entries.length} ${draw.entries.length === 1 ? "item" : "itens"} · ${units} ${units === 1 ? "unidade" : "unidades"}`;
+  }
+  return criteriaSummary(draw.criteria);
 }

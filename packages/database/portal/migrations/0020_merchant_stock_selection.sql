@@ -1,0 +1,1 @@
+ALTER TABLE `merchant_stock_draws` ADD `mode` text DEFAULT 'draw' NOT NULL;

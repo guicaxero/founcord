@@ -543,6 +543,7 @@ export const merchantStockDraws = sqliteTable(
     createdByUserId: text("created_by_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
+    mode: text("mode", { enum: ["draw", "manual"] }).notNull().default("draw"),
     criteriaJson: text("criteria_json").notNull(),
     entriesJson: text("entries_json").notNull(),
     eligibleCount: integer("eligible_count").notNull(),
