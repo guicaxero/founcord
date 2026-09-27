@@ -1,19 +1,19 @@
-# Mercador — vitrine somente leitura
+# Lojista — vitrine somente leitura
 
 ## Resultado do marco
 
 Disponibilizar no portal público e no Discord uma projeção sanitizada do ator
-Mercador existente no Foundry VTT. O Foundry permanece como fonte de verdade;
+Lojista existente no Foundry VTT. O Foundry permanece como fonte de verdade;
 portal e bot nunca calculam saldo, alteram quantidade ou transferem itens neste
 corte.
 
 ```text
-Ator Mercador no Foundry
+Ator Lojista no Foundry
   -> módulo cliente (HTTPS autenticado)
   -> Foundry Bridge
   -> ordem-integration-db
-       -> Portal /mercador
-       -> Discord /mercador
+       -> Portal /lojista
+       -> Discord /lojista
 ```
 
 O código do módulo cliente continua exclusivamente em
@@ -71,9 +71,9 @@ offline e integração ainda não sincronizada.
 
 ### Superfície e hierarquia
 
-- Página pública dedicada `/mercador`, presente na navegação principal e usada
+- Página pública dedicada `/lojista`, presente na navegação principal e usada
   como destino do comando Discord.
-- Título “Mercador”, descrição objetiva e aviso de que a vitrine é somente para
+- Título “Lojista”, descrição objetiva e aviso de que a vitrine é somente para
   consulta.
 - A data da última atualização do estoque fica próxima do cabeçalho, com o
   tempo relativo entre parênteses.
@@ -112,7 +112,7 @@ Falha ao atualizar não remove um catálogo já renderizado.
 
 ## Discord
 
-`/mercador` consulta a mesma projeção no Integration D1. A resposta mostra o
+`/lojista` consulta a mesma projeção no Integration D1. A resposta mostra o
 estado do catálogo e uma seleção compacta dos itens filtrados, com link rotulado
 “Consultar estoque completo” para o portal. O limite de mensagem do Discord não
 é contornado por truncamento silencioso: a resposta informa quantos itens foram

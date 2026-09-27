@@ -24,6 +24,7 @@ import {
 import {
   CHARACTER_COMMAND_NAME,
   extractModalValues,
+  LEGACY_MERCHANT_COMMAND_NAME,
   MERCHANT_COMMAND_NAME,
   POST_COMMAND_NAME,
   postModalResponse,
@@ -146,7 +147,11 @@ integrationApp.post("/interactions", async (context) => {
   if (interaction.type === 2 && interaction.data?.name === CHARACTER_COMMAND_NAME) {
     return context.json(characterInteractionResponse(context.env));
   }
-  if (interaction.type === 2 && interaction.data?.name === MERCHANT_COMMAND_NAME) {
+  const commandName = interaction.data?.name;
+  if (
+    interaction.type === 2 &&
+    (commandName === MERCHANT_COMMAND_NAME || commandName === LEGACY_MERCHANT_COMMAND_NAME)
+  ) {
     try {
       return context.json(
         merchantInteractionResponse(
@@ -170,7 +175,7 @@ integrationApp.post("/interactions", async (context) => {
       return context.json({
         type: 4,
         data: {
-          content: "Não foi possível consultar o Mercador agora. Tente novamente.",
+          content: "Não foi possível consultar o Lojista agora. Tente novamente.",
           flags: 64,
         },
       });
@@ -404,7 +409,7 @@ function merchantInteractionResponse(
           type: 2,
           style: 5,
           label: "Consultar estoque completo",
-          url: `${env.SITE_URL}/mercador`,
+          url: `${env.SITE_URL}/lojista`,
         },
       ],
     },
@@ -415,8 +420,8 @@ function merchantInteractionResponse(
       type: 4,
       data: {
         content: offline
-          ? "O Mercador está indisponível no momento. O mundo está offline e ainda não há um catálogo sincronizado."
-          : "O estoque do Mercador ainda não está disponível.",
+          ? "O Lojista está indisponível no momento. O mundo está offline e ainda não há um catálogo sincronizado."
+          : "O estoque do Lojista ainda não está disponível.",
         flags: 64,
         components: portalButton,
         allowed_mentions: { parse: [] },

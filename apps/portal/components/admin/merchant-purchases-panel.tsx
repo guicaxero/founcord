@@ -75,7 +75,7 @@ export function MerchantPurchasesPanel({
     },
   });
 
-  if (purchases.isPending) return <PanelLoading label="Consultando pedidos do Mercador" />;
+  if (purchases.isPending) return <PanelLoading label="Consultando pedidos do Lojista" />;
   if (purchases.isError) {
     return (
       <FeedbackState

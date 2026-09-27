@@ -27,8 +27,8 @@ const destinations = [
     description: "Registros factuais de cada noite jogada.",
   },
   {
-    href: "/mercador",
-    label: "Mercador",
+    href: "/lojista",
+    label: "Lojista",
     description: "Estoque sincronizado do Foundry e pedidos ao mestre.",
   },
 ];

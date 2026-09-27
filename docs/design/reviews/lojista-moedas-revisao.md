@@ -1,7 +1,7 @@
-# Revisão de UI/UX — moedas do Mercador e saldo do personagem
+# Revisão de UI/UX — moedas do Lojista e saldo do personagem
 
 Revisão da implementação contra
-[`docs/product/specs/mercador-moedas-e-saldo.md`](../../product/specs/mercador-moedas-e-saldo.md)
+[`docs/product/specs/lojista-moedas-e-saldo.md`](../../product/specs/lojista-moedas-e-saldo.md)
 e o [padrão de UI/UX](../padrao-de-ui-ux.md).
 
 ## Execução

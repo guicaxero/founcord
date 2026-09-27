@@ -38,7 +38,7 @@ Organização de `apps/portal/server/`:
 | Pasta | Conteúdo |
 | --- | --- |
 | `identity/` | Discord OAuth com PKCE, cookies, sessões e capabilities. |
-| `campaign/` | Campanhas, membros, missões, posts, sessões, diário, personagens, pedidos do Mercador e auditoria. |
+| `campaign/` | Campanhas, membros, missões, posts, sessões, diário, personagens, pedidos do Lojista e auditoria. |
 | `automation/` | Cliente do Automation Worker e materialização de rascunhos. |
 | `integrations/` | Clientes e callbacks do Discord e do Foundry Bridge e a autenticação entre serviços. |
 | `shared/` | HTTP, D1, auditoria/outbox, datas e constantes. |

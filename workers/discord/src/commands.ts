@@ -30,7 +30,7 @@ export const guildCommands = [
   },
   {
     name: MERCHANT_COMMAND_NAME,
-    description: "Consulta o estoque sincronizado do Mercador da campanha.",
+    description: "Consulta o estoque sincronizado do Lojista da campanha.",
     type: 1,
     dm_permission: false,
     options: [

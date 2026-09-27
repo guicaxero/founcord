@@ -74,7 +74,7 @@ IA, cota e falhas de inferência.
 | Mensagens e tópicos publicados | Discord, referenciados pelo Integration Service |
 | Jobs e fontes temporárias de automação | Automation Service |
 | Eventos públicos temporários de sessão Foundry | Foundry Bridge / Integration D1 |
-| Catálogo sanitizado do Mercador | Foundry VTT, projetado no Integration D1 |
+| Catálogo sanitizado do Lojista | Foundry VTT, projetado no Integration D1 |
 | Rascunho editorial gerado | Campaign Service, após callback interno |
 
 O portal guarda apenas uma projeção sanitizada da ficha necessária para a
@@ -151,7 +151,7 @@ explícita.
 - Comandos Foundry usam tipos permitidos, idempotência e lease; macros e código
   arbitrário não fazem parte do contrato.
 - Integration Workers não recebem binding para o banco do portal.
-- O Mercador é um read model no Integration D1: Foundry publica snapshots
+- O Lojista é um read model no Integration D1: Foundry publica snapshots
   completos e idempotentes; Portal e Discord consomem a mesma projeção.
 - Filas usam entrega pelo menos uma vez; consumidores devem ser idempotentes.
 - Automações e IA produzem rascunhos, nunca conteúdo publicado diretamente.

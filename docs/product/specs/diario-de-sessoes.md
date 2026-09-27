@@ -221,7 +221,7 @@ estado e a policy correspondente.
 
 - importação de mensagens do Discord para a fonte da IA;
 - edição mecânica de fichas Foundry;
-- Mercador;
+- Lojista;
 - criador de criaturas;
 - redesign fora das superfícies tocadas;
 - publicação automática sem revisão humana.

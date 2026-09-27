@@ -7,7 +7,7 @@ Revisão da implementação contra o [padrão de UI/UX](../padrao-de-ui-ux.md) e
 
 - **Ambiente:** `bun run dev` com D1 local, missões e registro de diário
   semeados, e sessão de desenvolvimento com papel `owner`.
-- **Mercador:** revisado pela rota `/dev/merchant-purchase`, cujas fixtures
+- **Lojista:** revisado pela rota `/dev/merchant-purchase`, cujas fixtures
   cobrem preço estruturado, preço especial, item esgotado e saldo insuficiente.
 - **Larguras:** 1440, 768 e 375 px.
 
@@ -19,7 +19,7 @@ Revisão da implementação contra o [padrão de UI/UX](../padrao-de-ui-ux.md) e
 | `/missoes` | Busca, filtros por situação (recrutando, lista de espera, minhas inscrições), cartões com risco, companhia e data relativa. |
 | `/missoes/[id]` | Página de detalhe com inscrição, estado da pessoa e link para o Código. |
 | `/cronicas`, `/diario` | Arquivo com busca e cartões de prévia; página de leitura com largura controlada. |
-| `/mercador` | Catálogo em cartões, diálogo de pedido em Radix, pedidos do jogador reaproveitados na área do jogador. |
+| `/lojista` | Catálogo em cartões, diálogo de pedido em Radix, pedidos do jogador reaproveitados na área do jogador. |
 | `/ordem` | Documento reescrito em seções e cartões, com sub-navegação fixa. |
 | `/eu` | Nova aba **Minhas inscrições**, que usa o `currentUserSignup` que a lista de missões já trazia, sem endpoint novo. |
 

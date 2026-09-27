@@ -35,7 +35,7 @@ export type AreaDefinition = Readonly<{
 export const areaGroups: readonly Readonly<{ id: AreaGroup; label: string }>[] = [
   { id: "mesa", label: "Mesa de jogo" },
   { id: "conteudo", label: "Conteúdo" },
-  { id: "integracao", label: "Foundry e Mercador" },
+  { id: "integracao", label: "Foundry e Lojista" },
   { id: "campanha", label: "Campanha" },
 ];
 
@@ -106,7 +106,7 @@ export const areas: readonly AreaDefinition[] = [
   },
   {
     slug: "pedidos",
-    label: "Pedidos do Mercador",
+    label: "Pedidos do Lojista",
     eyebrow: "Acertos da campanha",
     description: "Acompanhe solicitações, faça o acerto no Foundry e registre a decisão.",
     group: "integracao",

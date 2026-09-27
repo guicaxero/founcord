@@ -1,4 +1,4 @@
-# Moedas do Mercador e saldo do personagem — especificação
+# Moedas do Lojista e saldo do personagem — especificação
 
 ## Contexto
 
@@ -75,7 +75,7 @@ como ser atendidos.
 
 ## Superfícies e hierarquia
 
-### Catálogo do Mercador (`/mercador`, público)
+### Catálogo do Lojista (`/lojista`, público)
 
 - A coluna **Preço** mostra o preço formatado como informação principal.
 - Quando o texto do mestre difere do formatado, ele aparece como detalhe
@@ -128,7 +128,7 @@ por saldo.
 - **Preço registrado** passa a mostrar o preço formatado.
 - Um novo item **Custo total** aparece quando o preço é estruturado.
 
-### Bot do Discord (`/mercador`)
+### Bot do Discord (`/lojista`)
 
 - O campo **Preço** usa a mesma formatação do portal.
 
@@ -184,6 +184,6 @@ por saldo.
    consegue enviar o pedido.
 6. `/personagem` mostra os quatro valores do saldo, inclusive zeros, e o estado
    sem saldo quando o módulo ainda não o enviou.
-7. `/mercador` no Discord mostra o preço formatado.
+7. `/lojista` no Discord mostra o preço formatado.
 8. Em 375, 768 e 1440 px não há rolagem horizontal no catálogo, no diálogo nem
    em `/personagem`. O diálogo continua operável só pelo teclado.

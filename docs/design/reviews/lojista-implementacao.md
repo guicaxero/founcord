@@ -1,8 +1,8 @@
-# Mercador — contrato de implementação do frontend
+# Lojista — contrato de implementação do frontend
 
 ## Objetivo
 
-Entregar em `/mercador` uma vitrine pública e somente leitura da projeção
+Entregar em `/lojista` uma vitrine pública e somente leitura da projeção
 `MerchantCatalogResponse`, sem sugerir compra, reserva, edição ou acesso ao ator
 do Foundry.
 
@@ -50,7 +50,7 @@ atrasado e catálogo offline com cache.
 - O componente de imagem usa elemento nativo porque as origens HTTPS do Foundry
   são dinâmicas e não podem ser enumeradas no `next.config`; a imagem é
   decorativa porque o nome do item já está no mesmo cabeçalho.
-- O Código da Ordem mantém sua navegação interna própria; o link do Mercador foi
+- O Código da Ordem mantém sua navegação interna própria; o link do Lojista foi
   acrescentado à navegação principal do portal e a nova página oferece retorno
   a todas as superfícies públicas.
 

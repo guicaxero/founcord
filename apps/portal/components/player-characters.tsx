@@ -197,8 +197,8 @@ function CharacterSheet({ character }: Readonly<{ character: CampaignCharacterPr
           Esta é uma projeção somente para consulta. Moedas, itens e ficha continuam sendo alterados
           pelo mestre no Foundry.
         </p>
-        <ButtonLink variant="link" href="/mercador">
-          Consultar o Mercador →
+        <ButtonLink variant="link" href="/lojista">
+          Consultar o Lojista →
         </ButtonLink>
       </footer>
     </div>

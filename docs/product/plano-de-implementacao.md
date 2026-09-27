@@ -122,7 +122,7 @@ segurança, escala ou ciclo de release em uma separação adicional.
   painel de gestão com uma URL por área (`/dashboard/[area]`).
 - CI protegido e workflow manual de produção.
 - Deploy da PR #24 validado em produção no commit `5914126`.
-- Mercador publicado no portal e no Discord, com catálogo vindo do ator
+- Lojista publicado no portal e no Discord, com catálogo vindo do ator
   configurado no Foundry: ícones, raridade, tipo de consumível, propriedades,
   dados de arma e armadura, moeda padrão para preços só com número (módulo 0.7.0)
   e pedidos assistidos com saldo informativo.
@@ -131,7 +131,7 @@ segurança, escala ou ciclo de release em uma separação adicional.
 
 - A identidade narrativa por webhook depende de `MANAGE_WEBHOOKS`; sem essa
   permissão a publicação usa o bot com atribuição textual.
-- Compra no Mercador e edição completa de ficha ainda não existem.
+- Compra no Lojista e edição completa de ficha ainda não existem.
 - A estrutura de moedas foi confirmada: o saldo fica em `actor.system.wealth`
   (`gc`, `ss`, `cp`, `bits`) e o preço dos itens é texto livre em
   `item.system.value`. O portal interpreta os preços e exibe o saldo; a compra
@@ -300,7 +300,7 @@ campanha.
 
 ## 7. Próxima entrega e funcionalidades posteriores
 
-### 7.1 Mercador — Etapa A concluída; Etapa B em pedido assistido
+### 7.1 Lojista — Etapa A concluída; Etapa B em pedido assistido
 
 > **Compra automática adiada (2026-09-25).** O desconto de moedas e a entrega
 > automática do item dependem de uma escrita segura e idempotente em
@@ -313,16 +313,16 @@ Implementar em duas etapas para reduzir risco.
 
 #### Etapa A — vitrine somente leitura
 
-- ator `mercador` no Foundry como fonte de verdade;
+- ator `lojista` no Foundry como fonte de verdade;
 - sincronização sanitizada de itens, preço, quantidade, descrição e imagem;
 - projeção no Integration D1 e no Portal;
-- aba **Mercador** no portal;
-- comando `/mercador` no Discord;
+- aba **Lojista** no portal;
+- comando `/lojista` no Discord;
 - filtros e indicação de estoque;
 - estado offline e data da última sincronização;
 - nenhuma alteração de ficha nesta etapa.
 
-O contrato, a persistência, a API, `/mercador`, a página pública e o comando
+O contrato, a persistência, a API, `/lojista`, a página pública e o comando
 Discord foram publicados. A captura do ator permanece exclusivamente no
 repositório público do módulo Foundry.
 
@@ -350,7 +350,7 @@ realiza escrita em moedas ou inventário.
 
 Segundo incremento (concluído): preços interpretados nas quatro moedas do
 sistema, custo total do pedido e saldo informativo do personagem, conforme
-`docs/product/specs/mercador-moedas-e-saldo.md`. Nenhum pedido é bloqueado
+`docs/product/specs/lojista-moedas-e-saldo.md`. Nenhum pedido é bloqueado
 por saldo.
 
 Fallback caso a escrita segura não seja possível:
@@ -366,7 +366,7 @@ O portal mantém a lista de itens que o Lojista pode vender (a lista base vem da
 planilha "Estoque Lojista", 137 itens) e sorteia o estoque por disponibilidade
 máxima, categorias, quantidade e repetição. Ao confirmar, o módulo cria os itens
 no ator do Lojista; o Foundry continua sendo a fonte de verdade. Especificação em
-`docs/product/specs/mercador-sorteio-de-estoque.md`.
+`docs/product/specs/lojista-sorteio-de-estoque.md`.
 
 Próximos passos registrados:
 
@@ -549,12 +549,12 @@ acoplar os bancos ou o ciclo de execução.
 ```text
 Estado atual
   -> Fundação visual, Diário de Sessões e Discord (concluídos)
-  -> Mercador: vitrine, pedido assistido, moedas e detalhes do item (concluídos)
+  -> Lojista: vitrine, pedido assistido, moedas e detalhes do item (concluídos)
   -> Refatoração completa do front em três fases (concluída)
   -> Sorteador de estoque do Lojista (concluído)
   -> Criador de criaturas para mestres (em implementação)
   -> Área do jogador e ficha (inventário, magias, edição autorizada)
-  -> Compra automática no Mercador (adiada)
+  -> Compra automática no Lojista (adiada)
   -> Otimizações de polling, eventos/deltas e escala
 ```
 

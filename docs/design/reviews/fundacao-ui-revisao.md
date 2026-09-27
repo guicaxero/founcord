@@ -58,7 +58,7 @@ Também foram verificados:
 
 ## Pendências aceitas neste corte
 
-- Mercador, ficha de jogador, criador de criaturas e separação de resumos não
+- Lojista, ficha de jogador, criador de criaturas e separação de resumos não
   pertencem à fundação visual e continuam nas fases funcionais do roadmap.
 - Os painéis extensos ainda conservam seletores CSS legados. O corte adiciona
   tokens e primitivas para migração gradual sem reescrever regras de negócio.

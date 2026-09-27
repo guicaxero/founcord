@@ -659,7 +659,7 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.ok(actions.includes("character.link.removed"));
     });
 
-    test("protege, acompanha e decide pedidos assistidos do Mercador", async () => {
+    test("protege, acompanha e decide pedidos assistidos do Lojista", async () => {
       const purchaseId = "a1111111-1111-4111-8111-111111111111";
       const callbackPurchaseId = "a2222222-2222-4222-8222-222222222222";
       const commandId = "a3333333-3333-4333-8333-333333333333";

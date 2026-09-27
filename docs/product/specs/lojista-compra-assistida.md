@@ -1,9 +1,9 @@
-# Compra assistida do Mercador — especificação
+# Compra assistida do Lojista — especificação
 
 ## Objetivo
 
 Permitir que um jogador vinculado a um personagem solicite um item do catálogo do
-Mercador. O pedido deve ser persistente, idempotente e auditável, aparecer para a
+Lojista. O pedido deve ser persistente, idempotente e auditável, aparecer para a
 equipe da campanha e gerar uma notificação privada para mestres no Foundry.
 
 Esta etapa **não movimenta moedas, estoque ou itens automaticamente**. O preço do
@@ -44,10 +44,10 @@ catálogo.
 
 ## Fluxo do mestre
 
-1. O módulo recebe o comando, revalida ator do Mercador, personagem e item.
+1. O módulo recebe o comando, revalida ator do Lojista, personagem e item.
 2. O módulo cria uma mensagem privada no chat para usuários GM. A mensagem deixa
    explícito que se trata de solicitação sem movimentação automática.
-3. O painel `Pedidos do Mercador` lista pedidos de toda a campanha.
+3. O painel `Pedidos do Lojista` lista pedidos de toda a campanha.
 4. O mestre realiza o acerto no Foundry e marca o pedido como `Atendido`, ou registra
    uma recusa. Uma nota de resolução é opcional.
 

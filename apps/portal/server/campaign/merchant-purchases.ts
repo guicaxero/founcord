@@ -132,7 +132,7 @@ export async function createMerchantPurchase(
     throw new HttpError(
       409,
       "merchant_catalog_unavailable",
-      "O mundo do seu personagem ainda não publicou o catálogo do Mercador.",
+      "O mundo do seu personagem ainda não publicou o catálogo do Lojista.",
     );
   }
   const item = context.catalog.items.find((candidate) => candidate.itemId === input.itemId);

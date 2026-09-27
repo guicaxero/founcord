@@ -14,7 +14,7 @@ import { apiFetch } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { DEFAULT_CAMPAIGN_ID } from "@/server/shared/constants";
 
-/** Área privada do jogador: personagem, inscrições e pedidos do Mercador. */
+/** Área privada do jogador: personagem, inscrições e pedidos do Lojista. */
 export function PlayerArea() {
   const pathname = usePathname();
   const me = useQuery({
@@ -38,7 +38,7 @@ export function PlayerArea() {
         }
       >
         Sua conta do Discord identifica com segurança o personagem vinculado pela equipe da
-        campanha e os pedidos que você enviou ao Mercador.
+        campanha e os pedidos que você enviou ao Lojista.
       </FeedbackState>
     );
   }
@@ -69,7 +69,7 @@ export function PlayerArea() {
         },
         {
           value: "pedidos",
-          label: "Pedidos do Mercador",
+          label: "Pedidos do Lojista",
           content: <MyPurchaseRequests campaignId={DEFAULT_CAMPAIGN_ID} />,
         },
       ]}

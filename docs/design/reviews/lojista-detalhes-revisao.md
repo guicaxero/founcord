@@ -1,7 +1,7 @@
-# Revisão de UI/UX — detalhes do item no Mercador
+# Revisão de UI/UX — detalhes do item no Lojista
 
 Revisão contra o [padrão de UI/UX](../padrao-de-ui-ux.md) e a
-[especificação da vitrine](../../product/specs/mercador-vitrine.md).
+[especificação da vitrine](../../product/specs/lojista-vitrine.md).
 
 ## Pedido
 

@@ -1,4 +1,4 @@
-# Mercador — sorteio de estoque do Lojista
+# Lojista — sorteio de estoque do Lojista
 
 ## Objetivo
 
@@ -12,7 +12,7 @@ disponibilidade máxima, categoria, quantidade e repetição.
 - **O Foundry continua sendo a fonte de verdade.** O portal sorteia, mas o
   estoque só existe quando o módulo cria os itens no ator do Lojista. A
   vitrine, os ícones e os pedidos seguem o fluxo que já existia.
-- **Um Lojista por campanha:** o ator escolhido como Mercador na tela de
+- **Um Lojista por campanha:** o ator escolhido como Lojista na tela de
   conexão do módulo.
 - **Sorteio uniforme**, como na planilha. A disponibilidade máxima só define o
   teto:
@@ -34,7 +34,7 @@ Painel › Estoque do Lojista
   Histórico → sorteios anteriores e seus itens
         ↓ comando merchant.stock.replace (fila do Foundry Bridge, 7 dias)
         ↓ módulo 0.8.0: troca os itens sorteados antes, preserva os manuais
-        ↓ sincronização normal do Mercador → /mercador
+        ↓ sincronização normal do Lojista → /lojista
         ↓ resultado do comando → portal marca o sorteio como aplicado ou falho
 ```
 

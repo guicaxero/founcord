@@ -1,14 +1,14 @@
 # Revisão de UI/UX — Estoque do Lojista
 
 Revisão contra o [padrão de UI/UX](../padrao-de-ui-ux.md) e a
-[especificação do sorteio](../../product/specs/mercador-sorteio-de-estoque.md).
+[especificação do sorteio](../../product/specs/lojista-sorteio-de-estoque.md).
 
 ## Especificação
 
 - **Usuário:** mestre ou gestor da campanha (`merchant:catalog:manage`).
 - **Objetivo:** montar o estoque do Lojista sem cadastrar item por item no
   Foundry.
-- **Área:** `/dashboard/estoque`, no grupo "Foundry e Mercador", com três abas
+- **Área:** `/dashboard/estoque`, no grupo "Foundry e Lojista", com três abas
   na URL (`?aba=`):
   - **Sorteio.**
     - Critérios: teto de disponibilidade em chips com a explicação logo abaixo;

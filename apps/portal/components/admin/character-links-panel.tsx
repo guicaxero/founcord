@@ -195,7 +195,7 @@ export function CharacterLinksPanel({
       <ConfirmDialog
         open={Boolean(unlinking)}
         title={`Desvincular ${unlinking?.link.actorName ?? ""}?`}
-        description={`${unlinking?.member.user.displayName ?? "O membro"} perde a ficha integrada e os pedidos ao Mercador até receber outro vínculo.`}
+        description={`${unlinking?.member.user.displayName ?? "O membro"} perde a ficha integrada e os pedidos ao Lojista até receber outro vínculo.`}
         confirmLabel="Desvincular personagem"
         busyLabel="Desvinculando…"
         cancelLabel="Manter vínculo"
@@ -275,7 +275,7 @@ function CharacterLinkCard({
         </div>
       ) : (
         <p className="text-sm text-fg-muted">
-          Sem personagem vinculado. A ficha integrada e os pedidos ao Mercador ficam indisponíveis para este membro.
+          Sem personagem vinculado. A ficha integrada e os pedidos ao Lojista ficam indisponíveis para este membro.
         </p>
       )}
 

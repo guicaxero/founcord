@@ -24,7 +24,7 @@ const otherCampaignId = "99999999-9999-4999-8999-999999999999";
 const serviceToken = "test-integration-token-with-at-least-32-bytes";
 const staleSyncId = "66666666-6666-4666-8666-666666666666";
 
-test("Marcos 3, 4.1 e Mercador: conexão, projeções e captura pública do Foundry", async () => {
+test("Marcos 3, 4.1 e Lojista: conexão, projeções e captura pública do Foundry", async () => {
   const serverRoot = join(workerRoot, ".wrangler", "bundle");
   const portalCalls: Array<{ url: string; body: Json }> = [];
   const mf = new Miniflare(

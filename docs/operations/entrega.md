@@ -171,7 +171,7 @@ módulo não faz nenhuma requisição. A partir do módulo `0.6.0`:
 
 Isso dá cerca de 180 requisições por hora, contra ~840 no módulo `0.5.0`.
 Uma sessão de quatro horas fica perto de 720 requisições, muito abaixo do
-limite diário do plano gratuito. Um pedido do Mercador chega ao mestre em até
+limite diário do plano gratuito. Um pedido do Lojista chega ao mestre em até
 30 segundos.
 
 Evolução futura: sincronização de personagens e itens por deltas em vez de

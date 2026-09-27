@@ -369,7 +369,7 @@ function DeliveryNotice({
     return (
       <Notice tone="success" title="Estoque aplicado no Lojista">
         {draw.appliedAt ? `Aplicado em ${formatDateTime(draw.appliedAt)}. ` : null}O catálogo público se atualiza
-        na próxima sincronização do Mercador.
+        na próxima sincronização do Lojista.
       </Notice>
     );
   }

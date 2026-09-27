@@ -99,7 +99,7 @@ export function MerchantCatalog({
     <>
       <PageHeader
         eyebrow="Estoque da campanha"
-        title="Mercador"
+        title="Lojista"
         description="Consulte os itens conhecidos, seus preços e a quantidade registrada no Foundry. Jogadores vinculados podem enviar um pedido para o mestre realizar o acerto na mesa."
         actions={<Badge tone="accent">Compra assistida</Badge>}
       />
@@ -388,7 +388,7 @@ function UnavailableCatalog({
         }
       >
         O portal ainda não recebeu um estoque para manter em consulta. Quando o mundo voltar a se
-        conectar e sincronizar o Mercador, os itens aparecem aqui.
+        conectar e sincronizar o Lojista, os itens aparecem aqui.
       </FeedbackState>
     );
   }
@@ -402,7 +402,7 @@ function UnavailableCatalog({
         </Button>
       }
     >
-      O mundo está conectado, mas ainda não enviou o catálogo do Mercador.
+      O mundo está conectado, mas ainda não enviou o catálogo do Lojista.
     </FeedbackState>
   );
 }
