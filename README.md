@@ -77,7 +77,7 @@ Discord e rode `bun run db:migrate:portal:local`.
 | `bun run ci` | Lint seguido do quality gate, igual ao GitHub Actions. |
 | `bun run db:generate:<portal\|integration\|automation>` | Gera uma migration após alterar o schema correspondente. |
 | `bun run db:migrate:<banco>:local` | Aplica migrations no D1 local. |
-| `bun run discord:register` | Registra os comandos de guild do bot. |
+| `bun run discord:register` | Registra os comandos de guild do bot na hora (o Worker também sincroniza de hora em hora). |
 
 ## Entrega
 

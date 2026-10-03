@@ -36,6 +36,9 @@
     "DEFAULT_CAMPAIGN_ID": "11111111-1111-4111-8111-111111111111",
     "SITE_URL": "https://ordem-da-ultima-luz.ordem-da-ultima-luz.workers.dev"
   },
+  "triggers": {
+    "crons": ["23 * * * *"]
+  },
   "observability": {
     "enabled": true
   }
