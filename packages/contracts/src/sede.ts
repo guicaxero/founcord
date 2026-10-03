@@ -94,6 +94,8 @@ export const SedeDeclarationSchema = z
     resolvedAt: IsoDateTimeSchema.nullable(),
     /** Início do período em que a atividade foi declarada (a inscrição anterior), ou `null` no primeiro período. */
     periodStartedAt: IsoDateTimeSchema.nullable(),
+    /** O Corvo tem um tópico no Registro do Corvo, onde o bot publica a atividade. */
+    registroLinked: z.boolean(),
     createdAt: IsoDateTimeSchema,
   })
   .strict();

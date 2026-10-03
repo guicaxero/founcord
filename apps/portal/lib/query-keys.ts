@@ -37,6 +37,7 @@ export const queryKeys = {
     ["campaigns", campaignId, "compendium", kind] as const,
   compendiumEntry: (campaignId: string, entryId: string) =>
     ["campaigns", campaignId, "compendium", "entry", entryId] as const,
+  registroThreads: (campaignId: string) => ["campaigns", campaignId, "registro-threads"] as const,
   characterLinks: (campaignId: string) =>
     ["campaigns", campaignId, "character-links"] as const,
   sede: (campaignId: string) => ["campaigns", campaignId, "sede"] as const,

@@ -548,6 +548,79 @@ describe("Discord integration Worker", () => {
     ).toHaveLength(1);
   });
 
+  it("publica a atividade da Sede no tópico do Corvo sem menções", async () => {
+    const threadId = "523456789012345678";
+    const discordFetch = vi.fn(async () => Response.json({ id: "623456789012345678" }));
+    vi.stubGlobal("fetch", discordFetch);
+    const ack = vi.fn();
+    const retry = vi.fn();
+    const body = {
+      type: "discord.registro.message",
+      version: 1,
+      campaignId,
+      threadId,
+      content: "🪶 **Vida na Sede** · Aster escolheu **Escriba — Pesquisa** @everyone",
+      correlationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      reference: { kind: "sede_declaration", id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", event: "declared" },
+    };
+    await handlePublicationBatch({ messages: [{ body, ack, retry, attempts: 1 }] } as unknown as PublicationBatch, env);
+    expect(ack).toHaveBeenCalledOnce();
+    expect(retry).not.toHaveBeenCalled();
+    const [url, init] = discordFetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain(`/channels/${threadId}/messages`);
+    expect(JSON.parse(String(init.body))).toEqual({ content: body.content, allowed_mentions: { parse: [] } });
+
+    // Falha do Discord: repete pela fila e, na sexta tentativa, desiste sem travar a fila.
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ message: "Missing Access", code: 50001 }, { status: 403 })));
+    const failingRetry = vi.fn();
+    await handlePublicationBatch(
+      { messages: [{ body, ack: vi.fn(), retry: failingRetry, attempts: 1 }] } as unknown as PublicationBatch,
+      env,
+    );
+    expect(failingRetry).toHaveBeenCalledOnce();
+    const lastAck = vi.fn();
+    await handlePublicationBatch(
+      { messages: [{ body, ack: lastAck, retry: vi.fn(), attempts: 6 }] } as unknown as PublicationBatch,
+      env,
+    );
+    expect(lastAck).toHaveBeenCalledOnce();
+  });
+
+  it("lista os tópicos do Registro do Corvo só para o portal", async () => {
+    const forumId = "1536153443985531000";
+    const registroEnv = { ...env, REGISTRO_DO_CORVO_CHANNEL_ID: forumId };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) =>
+        String(input).includes("/threads/active")
+          ? Response.json({
+              threads: [
+                { id: "711111111111111111", name: "Aster", parent_id: forumId, thread_metadata: { archived: false } },
+                { id: "722222222222222222", name: "Outro fórum", parent_id: "999999999999999999" },
+              ],
+            })
+          : Response.json({
+              threads: [{ id: "733333333333333333", name: "Vesper", parent_id: forumId, thread_metadata: { archived: true } }],
+            }),
+      ),
+    );
+    const path = "https://integration.example/internal/discord/registro/threads";
+    const unauthorized = await integrationApp.fetch(new Request(path), registroEnv, executionContext());
+    expect(unauthorized.status).toBe(401);
+    const response = await integrationApp.fetch(
+      new Request(path, { headers: { authorization: `Bearer ${env.INTEGRATION_SERVICE_TOKEN}` } }),
+      registroEnv,
+      executionContext(),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      data: [
+        { id: "711111111111111111", name: "Aster", archived: false, guildId },
+        { id: "733333333333333333", name: "Vesper", archived: true, guildId },
+      ],
+    });
+  });
+
   it("mantém compatibilidade com identificadores dos modais anteriores", () => {
     expect(postTargetFromModal(`post:create:v2:${forumChannelId}:${forumTagId}`)).toEqual({
       forumChannelId,

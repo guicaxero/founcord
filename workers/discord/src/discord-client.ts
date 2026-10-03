@@ -446,3 +446,48 @@ export async function syncGuildCommands(
   const registered = await registerGuildCommands(env);
   return { changed: true, commands: registered.map((command) => command.name) };
 }
+
+/** Publica no tópico do Corvo, sem menções (o texto vem de jogadores e do mestre). */
+export async function sendThreadMessage(env: IntegrationEnv, threadId: string, content: string): Promise<void> {
+  const response = await fetch(`${apiBase(env)}/channels/${threadId}/messages`, {
+    method: "POST",
+    headers: {
+      authorization: `Bot ${env.DISCORD_BOT_TOKEN}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) throw discordApiError("thread message", response.status, body);
+}
+
+type ThreadShape = Readonly<{ id?: unknown; name?: unknown; parent_id?: unknown; thread_metadata?: { archived?: unknown } }>;
+
+/** Tópicos do fórum Registro do Corvo: os ativos e os arquivados públicos. */
+export async function listForumThreads(
+  env: IntegrationEnv,
+  forumChannelId: string,
+): Promise<readonly Readonly<{ id: string; name: string; archived: boolean }>[]> {
+  const headers = { authorization: `Bot ${env.DISCORD_BOT_TOKEN}` };
+  const [active, archived] = await Promise.all([
+    fetch(`${apiBase(env)}/guilds/${env.DISCORD_GUILD_ID}/threads/active`, { headers }),
+    fetch(`${apiBase(env)}/channels/${forumChannelId}/threads/archived/public?limit=100`, { headers }),
+  ]);
+  const activeBody: unknown = await active.json().catch(() => null);
+  if (!active.ok) throw discordApiError("active threads", active.status, activeBody);
+  const archivedBody: unknown = await archived.json().catch(() => null);
+  if (!archived.ok) throw discordApiError("archived threads", archived.status, archivedBody);
+  const threadsOf = (body: unknown): ThreadShape[] =>
+    body && typeof body === "object" && Array.isArray((body as { threads?: unknown }).threads)
+      ? ((body as { threads: ThreadShape[] }).threads)
+      : [];
+  const seen = new Set<string>();
+  return [...threadsOf(activeBody), ...threadsOf(archivedBody)]
+    .filter((thread) => thread.parent_id === forumChannelId && typeof thread.id === "string")
+    .filter((thread) => (seen.has(thread.id as string) ? false : (seen.add(thread.id as string), true)))
+    .map((thread) => ({
+      id: thread.id as string,
+      name: String(thread.name ?? "").slice(0, 200),
+      archived: thread.thread_metadata?.archived === true,
+    }));
+}

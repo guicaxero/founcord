@@ -421,6 +421,9 @@ export const campaignCharacterLinks = sqliteTable(
     worldId: text("world_id").notNull(),
     foundryActorId: text("foundry_actor_id").notNull(),
     actorName: text("actor_name").notNull(),
+    // Tópico do Corvo no fórum Registro do Corvo do Discord.
+    registroThreadId: text("registro_thread_id"),
+    registroGuildId: text("registro_guild_id"),
     linkedByUserId: text("linked_by_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),

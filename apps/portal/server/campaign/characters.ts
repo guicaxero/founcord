@@ -8,7 +8,11 @@ import {
   type CampaignCharacterLinkManagementResponse,
   type CampaignCharacterProjection,
   type PlayerCharacterListResponse,
+  type CharacterRegistroInput,
+  type RegistroThread,
+  parseDiscordThreadReference,
 } from "@ordem/contracts";
+import { listRegistroThreads } from "@/server/integrations/discord-registro";
 import { getD1 } from "@/server/shared/db";
 import { prepareAudit } from "@/server/shared/audit";
 import type { AuthenticatedSession } from "@/server/identity/session";
@@ -48,6 +52,8 @@ type LinkRow = Readonly<{
   world_id: string;
   foundry_actor_id: string;
   actor_name: string;
+  registro_thread_id: string | null;
+  registro_guild_id: string | null;
   created_at: string;
   updated_at: string;
   projection_world_id: string | null;
@@ -290,6 +296,58 @@ export async function removeCampaignCharacterLink(
   return { removed: true };
 }
 
+/**
+ * Liga o vínculo ao tópico do Corvo no Registro do Corvo (Discord). Aceita o
+ * link copiado do Discord ou o ID; `null` remove.
+ */
+export async function setCampaignCharacterRegistro(
+  session: AuthenticatedSession,
+  campaignId: string,
+  userId: string,
+  input: CharacterRegistroInput,
+  correlationId: string,
+): Promise<CampaignCharacterLink> {
+  requirePermission(session.principal, "character:link:manage", { kind: "campaign", campaignId });
+  const current = await getLink(campaignId, userId);
+  const reference = input.thread ? parseDiscordThreadReference(input.thread) : null;
+  if (input.thread && !reference) {
+    throw new HttpError(
+      422,
+      "registro_thread_invalid",
+      "Cole o link do tópico copiado no Discord (discord.com/channels/…) ou o ID do tópico.",
+    );
+  }
+  const db = getD1();
+  await db.batch([
+    db
+      .prepare(
+        `UPDATE campaign_character_links
+         SET registro_thread_id = ?, registro_guild_id = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE campaign_id = ? AND user_id = ?`,
+      )
+      .bind(reference?.threadId ?? null, reference?.guildId ?? null, campaignId, userId),
+    prepareAudit(db, {
+      actorUserId: session.user.id,
+      campaignId,
+      action: reference ? "character.registro.linked" : "character.registro.removed",
+      entityType: "campaign_character_link",
+      entityId: current.id,
+      correlationId,
+      details: { userId, threadId: reference?.threadId ?? null },
+    }),
+  ]);
+  return getLink(campaignId, userId);
+}
+
+export async function listCampaignRegistroThreads(
+  session: AuthenticatedSession,
+  campaignId: string,
+  correlationId: string,
+): Promise<RegistroThread[]> {
+  requirePermission(session.principal, "character:link:manage", { kind: "campaign", campaignId });
+  return listRegistroThreads(correlationId);
+}
+
 export async function listMyCharacters(
   session: AuthenticatedSession,
 ): Promise<PlayerCharacterListResponse> {
@@ -356,7 +414,8 @@ async function assertCampaignExists(campaignId: string): Promise<void> {
 
 function linkSelect(suffix: string): string {
   return `SELECT l.id, l.campaign_id, l.user_id, l.world_id,
-                 l.foundry_actor_id, l.actor_name, l.created_at, l.updated_at,
+                 l.foundry_actor_id, l.actor_name, l.registro_thread_id, l.registro_guild_id,
+                 l.created_at, l.updated_at,
                  p.world_id AS projection_world_id,
                  p.foundry_actor_id AS projection_actor_id,
                  p.name AS projection_name, p.level, p.ancestry,
@@ -419,6 +478,9 @@ function mapLink(row: LinkRow): CampaignCharacterLink {
     worldId: row.world_id,
     actorId: row.foundry_actor_id,
     actorName: row.actor_name,
+    registro: row.registro_thread_id
+      ? { threadId: row.registro_thread_id, guildId: row.registro_guild_id }
+      : null,
     createdAt: requiredIsoDateTime(row.created_at),
     updatedAt: requiredIsoDateTime(row.updated_at),
     character,

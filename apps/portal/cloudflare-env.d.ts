@@ -6,8 +6,11 @@ interface CloudflareEnv {
   SESSION_SECRET?: string;
   SITE_URL?: string;
   FOUNDRY_BRIDGE_URL?: string;
+  DISCORD_INTEGRATION_URL?: string;
   AUTOMATION_WORKER_URL?: string;
   INTEGRATION_SERVICE_TOKEN?: string;
   AUTOMATION_SERVICE_TOKEN?: string;
-  DISCORD_PUBLICATIONS?: Queue<import("@ordem/contracts").DiscordPostPublication>;
+  DISCORD_PUBLICATIONS?: Queue<
+    import("@ordem/contracts").DiscordPostPublication | import("@ordem/contracts").DiscordRegistroMessage
+  >;
 }
