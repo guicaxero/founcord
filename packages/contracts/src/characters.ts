@@ -51,6 +51,11 @@ export const CampaignCharacterLinkSchema = z
     worldId: FoundryReferenceSchema,
     actorId: FoundryReferenceSchema,
     actorName: z.string().trim().min(1).max(120),
+    /** Tópico do Corvo no Registro do Corvo (Discord), com o servidor para montar o link. */
+    registro: z
+      .object({ threadId: z.string().regex(/^\d{6,32}$/u), guildId: z.string().regex(/^\d{6,32}$/u).nullable() })
+      .strict()
+      .nullable(),
     createdAt: IsoDateTimeSchema,
     updatedAt: IsoDateTimeSchema,
     character: CampaignCharacterProjectionSchema.nullable(),

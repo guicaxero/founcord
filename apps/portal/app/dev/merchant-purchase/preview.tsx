@@ -43,6 +43,7 @@ const characters: PlayerCharacterListResponse = {
       worldId,
       actorId: "alaric-001",
       actorName: "Alaric, Portador da Cinza",
+      registro: null,
       createdAt: "2026-09-07T15:02:00.000Z",
       updatedAt: "2026-09-07T15:02:00.000Z",
       character: {

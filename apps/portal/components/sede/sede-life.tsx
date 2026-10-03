@@ -241,6 +241,12 @@ export function DeclarationCard({
         </div>
         <Badge tone={resolved ? "success" : "info"}>{resolved ? "Resolvida" : "Aguardando o Guardião"}</Badge>
       </div>
+      {showPlayer && !declaration.registroLinked ? (
+        <p className="text-xs text-warning">
+          Sem tópico no Registro do Corvo: a atividade e o resultado não vão para o Discord. Ligue o tópico em
+          Personagens.
+        </p>
+      ) : null}
       {declaration.note ? (
         <p className="text-sm text-fg-muted whitespace-pre-line">
           <strong className="text-fg">Pedido:</strong> {declaration.note}

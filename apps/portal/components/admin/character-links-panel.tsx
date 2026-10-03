@@ -26,6 +26,7 @@ import { apiFetch, errorMessage } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 import { DetailList, Initial, PanelLoading, Stats } from "./kit";
+import { RegistroField } from "./registro-field";
 
 type LinkMutation = Readonly<{ userId: string; input: CampaignCharacterLinkInput }>;
 type Filter = "all" | "linked" | "unlinked";
@@ -169,6 +170,7 @@ export function CharacterLinksPanel({
                 return (
                   <motion.li key={`${member.user.id}:${current?.id ?? "unlinked"}:${current?.actorId ?? "none"}`} variants={listItem}>
                     <CharacterLinkCard
+                      campaignId={campaignId}
                       member={member}
                       current={current}
                       candidates={candidates}
@@ -212,6 +214,7 @@ export function CharacterLinksPanel({
 }
 
 function CharacterLinkCard({
+  campaignId,
   member,
   current,
   candidates,
@@ -222,6 +225,7 @@ function CharacterLinkCard({
   onSave,
   onUnlink,
 }: Readonly<{
+  campaignId: string;
   member: CampaignMember;
   current: CampaignCharacterLink | null;
   candidates: readonly CampaignCharacterProjection[];
@@ -278,6 +282,8 @@ function CharacterLinkCard({
           Sem personagem vinculado. A ficha integrada e os pedidos ao Lojista ficam indisponíveis para este membro.
         </p>
       )}
+
+      {current ? <RegistroField campaignId={campaignId} link={current} /> : null}
 
       <div className="mt-auto space-y-3 border-t border-line-soft pt-4">
         <Field

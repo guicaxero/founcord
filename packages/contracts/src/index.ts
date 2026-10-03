@@ -7,6 +7,7 @@ export * from "./session-summaries";
 export * from "./common";
 export * from "./character-sheet";
 export * from "./creatures";
+export * from "./registro";
 export * from "./sede";
 export * from "./creatures-import";
 export * from "./currency";

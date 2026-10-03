@@ -1281,6 +1281,17 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
         body: { worldId: "22222222-2222-4222-8222-222222222222", actorId: "aster-001" },
       });
       assert.equal(link.status, 200, JSON.stringify(link.data));
+      assert.equal(link.data.registro, null);
+
+      // Tópico do Corvo no Registro do Corvo (Discord).
+      const registroPath = `/api/campaigns/${defaultCampaignId}/members/${identities.playerOne.id}/character-link/registro`;
+      const threadUrl = "https://discord.com/channels/1529124400694300702/1536160000000000000";
+      assert.equal((await api(mf, registroPath, { token: identities.playerOne.token, method: "PUT", body: { thread: threadUrl } })).status, 403);
+      const invalidThread = await api(mf, registroPath, { token: identities.gm.token, method: "PUT", body: { thread: "https://example.com/x" } });
+      assert.equal(invalidThread.status, 422);
+      const registro = await api(mf, registroPath, { token: identities.gm.token, method: "PUT", body: { thread: threadUrl } });
+      assert.equal(registro.status, 200, JSON.stringify(registro.data));
+      assert.deepEqual(registro.data.registro, { threadId: "1536160000000000000", guildId: "1529124400694300702" });
 
       const state = await api(mf, base, { token: identities.playerOne.token });
       assert.deepEqual([state.data.level, state.data.actorName, state.data.period.remaining], [1, "Aster", 1]);
@@ -1317,6 +1328,7 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.equal(manage.status, 200, JSON.stringify(manage.data));
       assert.deepEqual(manage.data.pending.map((entry: Json) => entry.activity.npc), ["Escriba", "Zelador"]);
       assert.equal(manage.data.pending[0].playerName.length > 0, true);
+      assert.equal(manage.data.pending.every((entry: Json) => entry.registroLinked === true), true);
 
       assert.equal((await post(`${base}/declarations/${chores.data.id}/resolve`, identities.playerOne.token, { result: "x" })).status, 403);
       const resolved = await post(`${base}/declarations/${chores.data.id}/resolve`, identities.gm.token, {
@@ -1389,6 +1401,7 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
         "sede.level.updated",
         "sede.activity.resolved",
         "sede.activity.cancelled",
+        "character.registro.linked",
         "compendium.imported",
         "creature.created",
         "creature.updated",

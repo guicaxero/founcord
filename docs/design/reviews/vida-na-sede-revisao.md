@@ -38,6 +38,9 @@ sintético.
 | Resultado para o jogador | "Resolvida", com o texto do resultado, o autor e a data. |
 | 375 px | Sem rolagem horizontal; as quatro abas da área do jogador quebram em duas linhas com 44 px; os cartões ficam em uma coluna. |
 | 1440 px | Cartões de atividades em três colunas. |
+| Registro do Corvo (Personagens) | O cartão do personagem mostra "Sem tópico ligado"; salvar um link troca para "O bot publica neste tópico…" com "Abrir tópico no Discord" e "Remover tópico". |
+| Sugestão sem Discord | "Sugerir pelo nome" sem a conexão local mostra o aviso "A conexão com o Discord ainda não está configurada." sem perder o que estava na tela. |
+| Painel da Sede | Corvo sem tópico mostra o aviso "Sem tópico no Registro do Corvo" no cartão da atividade. |
 
 ## Achados
 
@@ -47,7 +50,8 @@ sintético.
 
 ## Pendências aceitas
 
-- Publicação no Registro do Corvo do Discord e escolha de itens do Lojista vêm
-  nas entregas seguintes.
+- A escolha de itens do Lojista vem na entrega seguinte.
+- As sugestões de tópico só aparecem com o portal ligado ao Worker do Discord
+  (produção); localmente, o aviso de conexão é o comportamento esperado.
 - A rolagem é mostrada como números; a tabela do 2d20 do Zelador continua com
   o Guardião.

@@ -15,6 +15,7 @@ import {
   type SedeStateResponse,
 } from "@ordem/contracts";
 import type { AuthenticatedSession } from "@/server/identity/session";
+import { enqueueRegistroMessage } from "@/server/integrations/discord-registro";
 import { prepareAudit } from "@/server/shared/audit";
 import { getD1 } from "@/server/shared/db";
 import { HttpError } from "@/server/shared/http";
@@ -54,6 +55,7 @@ type DeclarationRow = Readonly<{
   resolved_by_name: string | null;
   resolved_at: string | null;
   period_started_at: string | null;
+  registro_thread_id: string | null;
   created_at: string;
 }>;
 
@@ -62,10 +64,11 @@ const ACTIVITY_COLUMNS = `id, campaign_id, npc, name, description, effect, min_l
 
 const DECLARATION_SELECT = `SELECT d.id, d.campaign_id, u.display_name AS player_name, d.actor_name,
     d.activity_id, d.activity_npc, d.activity_name, d.activity_effect, d.note, d.roll_json, d.status,
-    d.result, r.display_name AS resolved_by_name, d.resolved_at, d.period_started_at, d.created_at
+    d.result, r.display_name AS resolved_by_name, d.resolved_at, d.period_started_at, l.registro_thread_id, d.created_at
   FROM sede_declarations d
   INNER JOIN iam_users u ON u.id = d.user_id
-  LEFT JOIN iam_users r ON r.id = d.resolved_by_user_id`;
+  LEFT JOIN iam_users r ON r.id = d.resolved_by_user_id
+  LEFT JOIN campaign_character_links l ON l.campaign_id = d.campaign_id AND l.user_id = d.user_id`;
 
 function mapActivity(row: ActivityRow): SedeActivity {
   return SedeActivitySchema.parse({
@@ -100,6 +103,7 @@ function mapDeclaration(row: DeclarationRow): SedeDeclaration {
     resolvedByName: row.resolved_by_name,
     resolvedAt: toIsoDateTime(row.resolved_at),
     periodStartedAt: toIsoDateTime(row.period_started_at),
+    registroLinked: Boolean(row.registro_thread_id),
     createdAt: toIsoDateTime(row.created_at),
   });
 }
@@ -290,16 +294,62 @@ export async function declareSedeActivity(
       details: { activity: `${activity.npc} — ${activity.name}`, roll: roll?.total ?? null },
     }),
   ]);
-  return requiredDeclaration(campaignId, id);
+  const saved = await findDeclarationRow(campaignId, id);
+  publishToRegistro(saved, "declared", correlationId);
+  return mapDeclaration(saved);
 }
 
-async function requiredDeclaration(campaignId: string, declarationId: string): Promise<SedeDeclaration> {
+async function findDeclarationRow(campaignId: string, declarationId: string): Promise<DeclarationRow> {
   const row = await getD1()
     .prepare(`${DECLARATION_SELECT} WHERE d.id = ? AND d.campaign_id = ?`)
     .bind(declarationId, campaignId)
     .first<DeclarationRow>();
   if (!row) throw new HttpError(404, "sede_declaration_not_found", "Atividade não encontrada.");
-  return mapDeclaration(row);
+  return row;
+}
+
+async function requiredDeclaration(campaignId: string, declarationId: string): Promise<SedeDeclaration> {
+  return mapDeclaration(await findDeclarationRow(campaignId, declarationId));
+}
+
+/** Texto da mensagem no tópico do Corvo, sem menções. */
+export function registroContent(event: "declared" | "resolved" | "cancelled", declaration: SedeDeclaration): string {
+  const activity = `${declaration.activity.npc} — ${declaration.activity.name}`;
+  if (event === "resolved") {
+    return [`✅ **Vida na Sede** · Resultado de **${activity}** (${declaration.actorName})`, declaration.result ?? ""]
+      .filter(Boolean)
+      .join("\n");
+  }
+  if (event === "cancelled") {
+    return `↩️ **Vida na Sede** · A escolha de **${activity}** (${declaration.actorName}) foi desfeita.`;
+  }
+  return [
+    `🪶 **Vida na Sede** · ${declaration.actorName} escolheu **${activity}**`,
+    `> ${declaration.activity.effect}`,
+    declaration.note ? `**Pedido:** ${declaration.note}` : null,
+    declaration.roll
+      ? `**Rolagem ${declaration.roll.formula}:** ${declaration.roll.dice.join(" + ")} = **${declaration.roll.total}**`
+      : null,
+    "_Aguardando o Guardião._",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** Publica no tópico do Corvo, quando ele estiver ligado ao vínculo do personagem. */
+function publishToRegistro(
+  row: DeclarationRow,
+  event: "declared" | "resolved" | "cancelled",
+  correlationId: string,
+): void {
+  if (!row.registro_thread_id) return;
+  enqueueRegistroMessage({
+    campaignId: row.campaign_id,
+    threadId: row.registro_thread_id,
+    content: registroContent(event, mapDeclaration(row)),
+    correlationId,
+    reference: { kind: "sede_declaration", id: row.id, event },
+  });
 }
 
 /**
@@ -347,7 +397,9 @@ export async function cancelSedeDeclaration(
       details: { byManager: manager && row.user_id !== session.user.id },
     }),
   ]);
-  return requiredDeclaration(campaignId, declarationId);
+  const saved = await findDeclarationRow(campaignId, declarationId);
+  publishToRegistro(saved, "cancelled", correlationId);
+  return mapDeclaration(saved);
 }
 
 /* ------------------------------------------------------------------ */
@@ -444,7 +496,9 @@ export async function resolveSedeDeclaration(
       details: { activity: `${current.activity.npc} — ${current.activity.name}`, actorName: current.actorName },
     }),
   ]);
-  return requiredDeclaration(campaignId, declarationId);
+  const saved = await findDeclarationRow(campaignId, declarationId);
+  publishToRegistro(saved, "resolved", correlationId);
+  return mapDeclaration(saved);
 }
 
 async function requiredActivity(campaignId: string, activityId: string): Promise<SedeActivity> {

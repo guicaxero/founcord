@@ -120,6 +120,15 @@ Depois de testes, revisão e merge na `main`:
 O registro por guild aparece imediatamente e é indicado durante o
 desenvolvimento. Sem `DISCORD_GUILD_ID`, o script registra o comando global.
 
+## Registro do Corvo
+
+As atividades da Vida na Sede são publicadas no tópico de cada Corvo no fórum
+Registro do Corvo (`REGISTRO_DO_CORVO_CHANNEL_ID` em `workers/discord/wrangler.jsonc`).
+O bot precisa, nesse fórum, de **Ver canal**, **Ler histórico de mensagens** e
+**Enviar mensagens em tópicos**. O tópico de cada Corvo é ligado no painel de
+Personagens. O portal consulta a lista de tópicos em
+`GET /internal/discord/registro/threads`, com o token entre serviços.
+
 ## Validação ponta a ponta
 
 1. Confirmar `GET /health` no Integration Worker.

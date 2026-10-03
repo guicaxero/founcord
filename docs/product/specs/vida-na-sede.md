@@ -38,6 +38,23 @@ Ordem.
   - Lojista: escolha de itens Comuns até 1 xelim no catálogo, entregues no
     Foundry pelo módulo depois da aprovação do Guardião.
 
+## Registro do Corvo (Discord)
+
+- **Tópico do Corvo:** fica no vínculo do personagem. No painel de
+  Personagens, o Guardião cola o link do tópico do Corvo no fórum Registro do
+  Corvo, ou usa "Sugerir pelo nome", que lista os tópicos do fórum com o nome
+  do personagem. O tópico só vale depois de salvo.
+- **Publicações:** o bot publica no tópico quando o Corvo escolhe uma
+  atividade (efeito, pedido e rolagem), quando o Guardião registra o
+  resultado e quando a escolha é desfeita. As mensagens nunca mencionam
+  ninguém (`allowed_mentions` vazio).
+- **Sem tópico ligado:** a atividade fica só no portal, e o painel da Sede
+  avisa o Guardião.
+- **Entrega:** a publicação vai pela fila do Discord. Uma falha é repetida
+  até seis vezes, sem bloquear a ação no portal.
+- **Fórum:** configurado no Worker do Discord (`REGISTRO_DO_CORVO_CHANNEL_ID`).
+  O bot precisa ver o fórum e enviar mensagens nos tópicos.
+
 ## Atividades do nível 1
 
 | NPC | Atividade | O jogador informa | Rolagem |
