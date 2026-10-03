@@ -208,7 +208,7 @@ export const foundryCommands = sqliteTable(
       .notNull()
       .references(() => foundryWorlds.id, { onDelete: "cascade" }),
     commandType: text("command_type", {
-      enum: ["actor.sync.request", "chat.message.create", "merchant.purchase.request", "merchant.stock.replace", "creature.upsert"],
+      enum: ["actor.sync.request", "chat.message.create", "merchant.purchase.request", "merchant.stock.replace", "creature.upsert", "character.notes.update"],
     }).notNull(),
     payloadJson: text("payload_json").notNull(),
     idempotencyKey: text("idempotency_key").notNull(),

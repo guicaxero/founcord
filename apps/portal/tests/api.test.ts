@@ -699,6 +699,60 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       });
       assert.deepEqual((await api(mf, sheetPath, { token: identities.playerOne.token })).data.sheet, sheet);
 
+      // Anotações: só o jogador vinculado edita, uma por vez, e o módulo recusa se a descrição mudou.
+      const notesPath = `/api/me/characters/${defaultCampaignId}/notes`;
+      const notesBody = { text: "Veio do norte.\n\nProcura o irmão.", revision: sheet.notes.revision };
+      assert.equal((await api(mf, notesPath, { method: "POST", body: notesBody })).status, 401);
+      assert.equal((await api(mf, notesPath, { token: identities.playerTwo.token, method: "POST", body: notesBody })).status, 404);
+      const staleNotes = await api(mf, notesPath, {
+        token: identities.playerOne.token,
+        method: "POST",
+        body: { ...notesBody, revision: "outra" },
+      });
+      assert.equal(staleNotes.status, 409);
+      assert.equal(staleNotes.data.error.code, "notes_changed");
+      const unchanged = await api(mf, notesPath, {
+        token: identities.playerOne.token,
+        method: "POST",
+        body: { ...notesBody, text: sheet.notes.text },
+      });
+      assert.equal(unchanged.status, 422);
+
+      const requested = await api(mf, notesPath, { token: identities.playerOne.token, method: "POST", body: notesBody });
+      assert.equal(requested.status, 202, JSON.stringify(requested.data));
+      // Sem bridge no teste, o envio falha; simulamos o comando já na fila.
+      await db.prepare("UPDATE character_note_updates SET status = 'pending_delivery', error = NULL WHERE id = ?").bind(requested.data.id).run();
+      const stored = await db.prepare("SELECT text, foundry_actor_id FROM character_note_updates WHERE id = ?").bind(requested.data.id).first();
+      assert.deepEqual(stored, { text: notesBody.text, foundry_actor_id: "aster-001" });
+      const whilePending = await api(mf, notesPath, { token: identities.playerOne.token, method: "POST", body: notesBody });
+      assert.equal(whilePending.status, 409);
+      assert.equal(whilePending.data.error.code, "notes_update_pending");
+
+      const notesCallbackPath = "/api/internal/integration/foundry/character-notes/delivery";
+      const notesCallback = {
+        updateId: requested.data.id,
+        commandId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1",
+        outcome: "succeeded",
+        conflict: true,
+        error: null,
+        deliveredAt: "2026-10-03T12:00:00.000Z",
+      };
+      assert.equal((await api(mf, notesCallbackPath, { method: "POST", body: notesCallback })).status, 401);
+      const conflicted = await api(mf, notesCallbackPath, { method: "POST", body: notesCallback, headers: serviceAuth });
+      assert.equal(conflicted.status, 200, JSON.stringify(conflicted.data));
+      assert.equal(conflicted.data.status, "conflict");
+      assert.equal((await api(mf, sheetPath, { token: identities.playerOne.token })).data.notesUpdate.status, "conflict");
+
+      const retried = await api(mf, notesPath, { token: identities.playerOne.token, method: "POST", body: notesBody });
+      assert.equal(retried.status, 202, JSON.stringify(retried.data));
+      await db.prepare("UPDATE character_note_updates SET status = 'pending_delivery', error = NULL WHERE id = ?").bind(retried.data.id).run();
+      const applied = await api(mf, notesCallbackPath, {
+        method: "POST",
+        body: { ...notesCallback, updateId: retried.data.id, commandId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2", conflict: false },
+        headers: serviceAuth,
+      });
+      assert.deepEqual([applied.data.status, applied.data.appliedAt], ["applied", "2026-10-03T12:00:00.000Z"]);
+
       const collision = await api(mf, playerTwoPath, {
         token: identities.owner.token,
         method: "PUT",
@@ -1225,6 +1279,9 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
         "merchant.stock.drawn",
         "merchant.stock.applied",
         "merchant.stock.selected",
+        "character.notes.requested",
+        "character.notes.conflict",
+        "character.notes.applied",
         "compendium.imported",
         "creature.created",
         "creature.updated",
