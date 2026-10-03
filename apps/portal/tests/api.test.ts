@@ -1362,6 +1362,71 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       ]);
       assert.equal(nextPeriod.data.activities.every((activity: Json) => activity.chosenThisPeriod === false), true);
 
+      // Lojista: itens Comuns do catálogo até 1 xelim de prata, entregues pelo módulo depois da resolução.
+      const lojista = nextPeriod.data.activities.find((activity: Json) => activity.npc === "Lojista");
+      assert.deepEqual([lojista.inputMode, lojista.shopLimit], ["shop", "1 ss"]);
+      const shop = await api(mf, `${base}/activities/${lojista.id}/shop`, { token: identities.playerOne.token });
+      assert.equal(shop.status, 200, JSON.stringify(shop.data));
+      assert.equal(shop.data.limitBits, 100);
+      assert.ok(shop.data.items.length > 0);
+      assert.equal(shop.data.items.every((item: Json) => item.priceBits > 0 && item.priceBits <= 100), true);
+      const priciest = [...shop.data.items].sort((a: Json, b: Json) => b.priceBits - a.priceBits)[0];
+      const noItems = await post(`${base}/declarations`, identities.playerOne.token, { activityId: lojista.id, note: null, items: [] });
+      assert.equal(noItems.data.error.code, "sede_items_required");
+      const overLimitItems = await post(`${base}/declarations`, identities.playerOne.token, {
+        activityId: lojista.id,
+        note: null,
+        items: [{ catalogItemId: priciest.catalogItemId, quantity: Math.floor(100 / priciest.priceBits) + 1 }],
+      });
+      assert.equal(overLimitItems.data.error.code, "sede_items_over_limit");
+      const supplies = await post(`${base}/declarations`, identities.playerOne.token, {
+        activityId: lojista.id,
+        note: null,
+        items: [{ catalogItemId: priciest.catalogItemId, quantity: 1 }],
+      });
+      assert.equal(supplies.status, 201, JSON.stringify(supplies.data));
+      assert.deepEqual([supplies.data.items.length, supplies.data.items[0].quantity, supplies.data.delivery], [1, 1, null]);
+      assert.ok(supplies.data.itemsTotal);
+
+      // Sem bridge no teste, a entrega falha com a explicação; o reenvio tenta de novo.
+      const suppliesResolved = await post(`${base}/declarations/${supplies.data.id}/resolve`, identities.gm.token, {
+        result: "O Lojista separou os suprimentos.",
+      });
+      assert.equal(suppliesResolved.status, 200, JSON.stringify(suppliesResolved.data));
+      assert.equal(suppliesResolved.data.delivery.status, "failed");
+      assert.equal((await post(`${base}/declarations/${supplies.data.id}/deliver`, identities.playerOne.token)).status, 403);
+      const retried = await post(`${base}/declarations/${supplies.data.id}/deliver`, identities.gm.token);
+      assert.equal(retried.status, 200, JSON.stringify(retried.data));
+
+      await db.prepare("UPDATE sede_declarations SET delivery_status = 'pending_delivery' WHERE id = ?").bind(supplies.data.id).run();
+      const grantCallback = {
+        declarationId: supplies.data.id,
+        commandId: "ffffffff-ffff-4fff-8fff-fffffffffff1",
+        outcome: "succeeded",
+        error: null,
+        deliveredAt: "2026-10-03T13:00:00.000Z",
+      };
+      const grantPath = "/api/internal/integration/foundry/sede-grants/delivery";
+      assert.equal((await api(mf, grantPath, { method: "POST", body: grantCallback })).status, 401);
+      const granted = await api(mf, grantPath, {
+        method: "POST",
+        body: grantCallback,
+        headers: { authorization: "Bearer test-integration-token-with-at-least-32-bytes" },
+      });
+      assert.equal(granted.status, 200, JSON.stringify(granted.data));
+      assert.deepEqual([granted.data.delivery.status, granted.data.delivery.deliveredAt], ["delivered", "2026-10-03T13:00:00.000Z"]);
+
+      const shopWithoutLimit = await post(`${base}/activities`, identities.gm.token, {
+        npc: "Ferreiro",
+        name: "Encomenda",
+        description: "Pede uma peça ao ferreiro.",
+        effect: "Recebe uma peça.",
+        minLevel: 2,
+        inputMode: "shop",
+      });
+      assert.equal(shopWithoutLimit.status, 422);
+      assert.equal(shopWithoutLimit.data.error.code, "sede_shop_limit_invalid");
+
       const unlink = await api(mf, `/api/campaigns/${defaultCampaignId}/members/${identities.playerOne.id}/character-link`, {
         token: identities.gm.token,
         method: "DELETE",
@@ -1402,6 +1467,8 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
         "sede.activity.resolved",
         "sede.activity.cancelled",
         "character.registro.linked",
+        "sede.items.redelivered",
+        "sede.items.delivered",
         "compendium.imported",
         "creature.created",
         "creature.updated",

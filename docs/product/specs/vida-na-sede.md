@@ -55,6 +55,27 @@ Ordem.
 - **Fórum:** configurado no Worker do Discord (`REGISTRO_DO_CORVO_CHANNEL_ID`).
   O bot precisa ver o fórum e enviar mensagens nos tópicos.
 
+## Lojista: itens Comuns até um limite
+
+- **Tipo de atividade:** "Itens do Lojista" (`shop`), com um limite de valor
+  escrito como preço do Foundry. No nível 1, Preparar Suprimentos tem limite de
+  `1 ss` (1 Xelim de Prata).
+- **Escolha:**
+  - o jogador vê os itens Comuns, ativos e com preço até o limite do catálogo
+    do Lojista;
+  - ajusta as quantidades (até 20 por item) e acompanha o total e o que ainda
+    cabe;
+  - o servidor confere tudo de novo e recusa itens indisponíveis ou acima do
+    limite.
+- **Entrega:**
+  - quando o Guardião registra o resultado, o portal envia o comando
+    `character.items.grant` ao mundo do personagem (módulo 0.12.0+);
+  - o módulo cria os itens no ator do personagem, marcados com o ID da
+    atividade, e reenviar não duplica nada;
+  - a entrega aparece para o jogador e para o Guardião: a caminho, entregue ou
+    falhou com o motivo;
+  - em caso de falha (ex.: módulo antigo), "Entregar de novo" tenta outra vez.
+
 ## Atividades do nível 1
 
 | NPC | Atividade | O jogador informa | Rolagem |
@@ -63,7 +84,7 @@ Ordem.
 | Cervejeiro | Confraternizar | — | — |
 | Zelador | Ajudar na Sede | — | 2d20 |
 | Caçador | Treino de Caça | — | — |
-| Lojista | Preparar Suprimentos | pedido opcional | — |
+| Lojista | Preparar Suprimentos | itens Comuns até 1 ss | — |
 | Escriba | Pesquisa | pergunta obrigatória | — |
 
 O Guardião importa essa lista no painel e pode editar o texto, desativar

@@ -286,6 +286,7 @@ export const FoundryCommandTypeSchema = z.enum([
   "merchant.stock.replace",
   "creature.upsert",
   "character.notes.update",
+  "character.items.grant",
 ]);
 
 const ActorSyncCommandSchema = z
@@ -397,6 +398,25 @@ const CharacterNotesUpdateCommandSchema = z
   })
   .strict();
 
+/**
+ * Entrega itens no personagem (atividade do Lojista na Vida na Sede). O módulo
+ * marca cada item com `grantId`, e reenviar não duplica nada.
+ */
+const CharacterItemsGrantCommandSchema = z
+  .object({
+    type: z.literal("character.items.grant"),
+    payload: z
+      .object({
+        grantId: z.string().uuid(),
+        campaignId: z.string().uuid(),
+        actorId: foundryIdentifier,
+        items: z.array(MerchantStockEntrySchema).min(1).max(20),
+        requestedAt: isoDate,
+      })
+      .strict(),
+  })
+  .strict();
+
 export const FoundryCommandInputSchema = z.discriminatedUnion("type", [
   ActorSyncCommandSchema,
   ChatMessageCommandSchema,
@@ -404,6 +424,7 @@ export const FoundryCommandInputSchema = z.discriminatedUnion("type", [
   MerchantStockReplaceCommandSchema,
   CreatureUpsertCommandSchema,
   CharacterNotesUpdateCommandSchema,
+  CharacterItemsGrantCommandSchema,
 ]);
 
 export const FoundryCommandCreateRequestSchema = z
