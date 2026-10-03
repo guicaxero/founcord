@@ -414,7 +414,7 @@ Regras de segurança:
 Fora deste corte: comando equivalente no Discord, importação de texto livre e
 efeitos ativos do Foundry.
 
-### 7.3 Área do jogador e ficha — em implementação
+### 7.3 Área do jogador e ficha — concluído
 
 - aba autenticada de personagem para jogadores;
 - associação explícita entre usuário, campanha e ator do Foundry;
@@ -435,7 +435,7 @@ Primeiro corte implementado junto ao vínculo de identidade:
 - retrato e token do personagem (módulo 0.9.0), com a opção de alternar entre
   os dois e ampliar, na área do jogador e no cartão de Personagens do painel.
 
-Segundo corte, em implementação (especificação em
+Segundo corte, concluído com o módulo 0.11.0 (especificação em
 `docs/product/specs/ficha-do-jogador.md`):
 
 - ficha completa com atributos, características, aparência, inventário,
@@ -447,6 +447,21 @@ O comando `/personagem` do Discord já encaminha para esta área.
 
 O portal não substitui a ficha mecânica do Foundry. Em caso de divergência, o
 Foundry vence e a projeção é atualizada.
+
+### 7.4 Vida na Sede — em implementação
+
+Entre missões, cada Corvo escolhe no portal as atividades que faz na Sede, de
+acordo com o nível da Sede; o Guardião resolve e registra o resultado.
+Especificação em `docs/product/specs/vida-na-sede.md`.
+
+Entregas:
+
+1. portal: nível da Sede, catálogo de atividades (com as seis do nível 1),
+   escolha pelo jogador, rolagem automática e resolução pelo Guardião;
+2. Registro do Corvo no Discord: link do tópico de cada Corvo e publicação da
+   escolha e do resultado;
+3. Lojista: escolha de itens Comuns até 1 xelim no catálogo, entregues no
+   Foundry pelo módulo depois da aprovação do Guardião.
 
 ## 8. Front-end e design system
 
@@ -568,7 +583,8 @@ Estado atual
   -> Sorteador de estoque do Lojista (concluído)
   -> Criador de criaturas para mestres (concluído)
   -> Seleção manual do estoque do Lojista (concluída)
-  -> Área do jogador e ficha completa, com anotações (em implementação)
+  -> Área do jogador e ficha completa, com anotações (concluída)
+  -> Vida na Sede: atividades entre missões (em implementação)
   -> Compra automática no Lojista (adiada)
   -> Otimizações de polling, eventos/deltas e escala
 ```

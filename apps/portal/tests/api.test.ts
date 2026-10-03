@@ -1255,6 +1255,108 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.equal(sessionDraft.status, 422);
     });
 
+    test("Vida na Sede: período por inscrição, limite pelo nível e resolução pelo Guardião", async () => {
+      const base = `/api/campaigns/${defaultCampaignId}/sede`;
+      const sameOrigin = { "sec-fetch-site": "same-origin" };
+      const post = (path: string, token: string, body?: unknown) =>
+        api(mf, path, { token, method: "POST", ...(body === undefined ? { headers: sameOrigin } : { body }) });
+
+      assert.equal((await api(mf, `${base}/manage`, { token: identities.playerOne.token })).status, 403);
+      assert.equal((await post(`${base}/activities/import-base`, identities.playerOne.token)).status, 403);
+      const imported = await post(`${base}/activities/import-base`, identities.gm.token);
+      assert.deepEqual(imported.data, { created: 6, skipped: 0 });
+      assert.deepEqual((await post(`${base}/activities/import-base`, identities.gm.token)).data, { created: 0, skipped: 6 });
+
+      // Sem personagem vinculado, o jogador vê a Sede mas não escolhe.
+      const unlinked = await api(mf, base, { token: identities.playerOne.token });
+      assert.equal(unlinked.status, 200, JSON.stringify(unlinked.data));
+      assert.equal(unlinked.data.actorName, null);
+      const escriba = unlinked.data.activities.find((activity: Json) => activity.npc === "Escriba");
+      const zelador = unlinked.data.activities.find((activity: Json) => activity.npc === "Zelador");
+      assert.equal((await post(`${base}/declarations`, identities.playerOne.token, { activityId: escriba.id, note: "Quem é o Rei?" })).status, 409);
+
+      const link = await api(mf, `/api/campaigns/${defaultCampaignId}/members/${identities.playerOne.id}/character-link`, {
+        token: identities.gm.token,
+        method: "PUT",
+        body: { worldId: "22222222-2222-4222-8222-222222222222", actorId: "aster-001" },
+      });
+      assert.equal(link.status, 200, JSON.stringify(link.data));
+
+      const state = await api(mf, base, { token: identities.playerOne.token });
+      assert.deepEqual([state.data.level, state.data.actorName, state.data.period.remaining], [1, "Aster", 1]);
+      assert.equal(state.data.activities.length, 6);
+
+      const noQuestion = await post(`${base}/declarations`, identities.playerOne.token, { activityId: escriba.id, note: null });
+      assert.equal(noQuestion.status, 422);
+      const research = await post(`${base}/declarations`, identities.playerOne.token, {
+        activityId: escriba.id,
+        note: "Quem fundou a Ordem?",
+      });
+      assert.equal(research.status, 201, JSON.stringify(research.data));
+      assert.deepEqual([research.data.activity.name, research.data.note, research.data.status], [
+        "Pesquisa",
+        "Quem fundou a Ordem?",
+        "declared",
+      ]);
+      const overLimit = await post(`${base}/declarations`, identities.playerOne.token, { activityId: zelador.id, note: null });
+      assert.equal(overLimit.status, 409);
+      assert.equal(overLimit.data.error.code, "sede_allowance_used");
+
+      // Sede nível 2: duas atividades por período, sem repetir.
+      const level = await api(mf, `${base}/settings`, { token: identities.gm.token, method: "PUT", body: { level: 2 } });
+      assert.equal(level.status, 200, JSON.stringify(level.data));
+      const repeated = await post(`${base}/declarations`, identities.playerOne.token, { activityId: escriba.id, note: "De novo?" });
+      assert.equal(repeated.data.error.code, "sede_activity_repeated");
+      const chores = await post(`${base}/declarations`, identities.playerOne.token, { activityId: zelador.id, note: null });
+      assert.equal(chores.status, 201, JSON.stringify(chores.data));
+      assert.equal(chores.data.roll.formula, "2d20");
+      assert.equal(chores.data.roll.dice.length, 2);
+      assert.ok(chores.data.roll.total >= 2 && chores.data.roll.total <= 40);
+
+      const manage = await api(mf, `${base}/manage`, { token: identities.gm.token });
+      assert.equal(manage.status, 200, JSON.stringify(manage.data));
+      assert.deepEqual(manage.data.pending.map((entry: Json) => entry.activity.npc), ["Escriba", "Zelador"]);
+      assert.equal(manage.data.pending[0].playerName.length > 0, true);
+
+      assert.equal((await post(`${base}/declarations/${chores.data.id}/resolve`, identities.playerOne.token, { result: "x" })).status, 403);
+      const resolved = await post(`${base}/declarations/${chores.data.id}/resolve`, identities.gm.token, {
+        result: "Encontrou uma chave antiga atrás de uma tapeçaria.",
+      });
+      assert.equal(resolved.status, 200, JSON.stringify(resolved.data));
+      assert.equal(resolved.data.status, "resolved");
+
+      assert.equal((await post(`${base}/declarations/${research.data.id}/cancel`, identities.playerTwo.token)).status, 404);
+      assert.equal((await post(`${base}/declarations/${chores.data.id}/cancel`, identities.playerOne.token)).status, 409);
+      const cancelled = await post(`${base}/declarations/${research.data.id}/cancel`, identities.playerOne.token);
+      assert.equal(cancelled.data.status, "cancelled");
+
+      // A inscrição numa missão encerra o período; o resolvido vai para o histórico.
+      const mission = await db
+        .prepare("SELECT id FROM missions WHERE campaign_id = ? AND status = 'published' LIMIT 1")
+        .bind(defaultCampaignId)
+        .first<{ id: string }>();
+      await db
+        .prepare(
+          `INSERT INTO mission_signups (mission_id, user_id, status, created_at, updated_at)
+           VALUES (?, ?, 'confirmed', datetime('now', '+2 seconds'), datetime('now', '+2 seconds'))
+           ON CONFLICT(mission_id, user_id) DO UPDATE SET status = 'confirmed', created_at = excluded.created_at`,
+        )
+        .bind(mission?.id, identities.playerOne.id)
+        .run();
+      const nextPeriod = await api(mf, base, { token: identities.playerOne.token });
+      assert.deepEqual([nextPeriod.data.period.used, nextPeriod.data.period.remaining], [0, 2]);
+      assert.deepEqual(nextPeriod.data.history.map((entry: Json) => [entry.activity.npc, entry.result]), [
+        ["Zelador", "Encontrou uma chave antiga atrás de uma tapeçaria."],
+      ]);
+      assert.equal(nextPeriod.data.activities.every((activity: Json) => activity.chosenThisPeriod === false), true);
+
+      const unlink = await api(mf, `/api/campaigns/${defaultCampaignId}/members/${identities.playerOne.id}/character-link`, {
+        token: identities.gm.token,
+        method: "DELETE",
+      });
+      assert.equal(unlink.status, 200);
+    });
+
     test("registra as mutações na auditoria", async () => {
       const audit = await api(mf, `/api/campaigns/${defaultCampaignId}/audit`, {
         token: identities.owner.token,
@@ -1282,6 +1384,11 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
         "character.notes.requested",
         "character.notes.conflict",
         "character.notes.applied",
+        "sede.activity_type.imported",
+        "sede.activity.declared",
+        "sede.level.updated",
+        "sede.activity.resolved",
+        "sede.activity.cancelled",
         "compendium.imported",
         "creature.created",
         "creature.updated",

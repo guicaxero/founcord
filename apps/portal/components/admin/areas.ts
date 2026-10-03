@@ -11,6 +11,7 @@ export type AreaSlug =
   | "diario"
   | "automacoes"
   | "criaturas"
+  | "sede"
   | "missoes"
   | "cronicas"
   | "foundry"
@@ -71,6 +72,14 @@ export const areas: readonly AreaDefinition[] = [
     description: "Monte criaturas a partir do bestiário ou do zero e envie para o Foundry, que cria o ator pronto para a cena.",
     group: "mesa",
     permissions: ["creature:manage"],
+  },
+  {
+    slug: "sede",
+    label: "Vida na Sede",
+    eyebrow: "Entre missões",
+    description: "Defina o nível da Sede, resolva as atividades que os Corvos escolheram e mantenha o catálogo de atividades.",
+    group: "mesa",
+    permissions: ["sede:manage"],
   },
   {
     slug: "missoes",

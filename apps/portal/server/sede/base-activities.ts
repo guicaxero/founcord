@@ -1,0 +1,76 @@
+import type { SedeActivityInput } from "@ordem/contracts";
+
+/**
+ * Atividades da Sede nível 1, do texto "Vida na Sede" da campanha. O mestre
+ * importa esta lista no painel e pode editar, desativar ou criar outras.
+ */
+export const BASE_SEDE_ACTIVITIES: readonly SedeActivityInput[] = [
+  {
+    npc: "Cozinheiro",
+    name: "Refeição Reforçada",
+    description: "O Corvo passa um tempo ajudando ou fazendo uma refeição especial com o cozinheiro.",
+    effect: "+1 dádiva em um teste relacionado à força durante a próxima missão.",
+    minLevel: 1,
+    inputMode: "none",
+    roll: null,
+    active: true,
+    sort: 10,
+  },
+  {
+    npc: "Cervejeiro",
+    name: "Confraternizar",
+    description: "O Corvo passa a noite bebendo, conversando e conhecendo outros membros da Ordem.",
+    effect: "Pode descobrir um rumor, conhecer alguém ou receber uma informação útil.",
+    minLevel: 1,
+    inputMode: "none",
+    roll: null,
+    active: true,
+    sort: 20,
+  },
+  {
+    npc: "Zelador",
+    name: "Ajudar na Sede",
+    description: "O Corvo passa um tempo ajudando o Zelador a limpar, reparar ou organizar alguma parte da Sede.",
+    effect:
+      "Role 2d20 para determinar o que acontece durante o trabalho. O resultado pode gerar um pequeno benefício, descoberta, oportunidade ou acontecimento inesperado na Sede.",
+    minLevel: 1,
+    inputMode: "none",
+    roll: "2d20",
+    active: true,
+    sort: 30,
+  },
+  {
+    npc: "Caçador",
+    name: "Treino de Caça",
+    description: "O Corvo treina rastreamento, caça, armadilhas e sobrevivência.",
+    effect:
+      "+1 dádiva em um teste relacionado a rastrear, encontrar comida, identificar sinais ou sobreviver na natureza durante a próxima missão.",
+    minLevel: 1,
+    inputMode: "none",
+    roll: null,
+    active: true,
+    sort: 40,
+  },
+  {
+    npc: "Lojista",
+    name: "Preparar Suprimentos",
+    description: "O Corvo pede ao Lojista que prepare equipamentos para a próxima aventura.",
+    effect: "O personagem recebe um ou mais itens Comuns com valor limite de 1 Xelim de Prata.",
+    minLevel: 1,
+    inputMode: "note",
+    roll: null,
+    active: true,
+    sort: 50,
+  },
+  {
+    npc: "Escriba",
+    name: "Pesquisa",
+    description: "O Corvo entrega à Escriba uma pergunta para investigar.",
+    effect: "Recebe uma informação útil sobre uma criatura, pessoa, lugar, objeto, magia ou acontecimento.",
+    minLevel: 1,
+    inputMode: "question",
+    roll: null,
+    active: true,
+    sort: 60,
+  },
+];
