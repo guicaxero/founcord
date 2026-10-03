@@ -40,4 +40,5 @@ export const queryKeys = {
   characterLinks: (campaignId: string) =>
     ["campaigns", campaignId, "character-links"] as const,
   myCharacters: ["me", "characters"] as const,
+  myCharacterSheet: (campaignId: string) => ["me", "characters", campaignId, "sheet"] as const,
 } as const;

@@ -141,6 +141,13 @@
       "when": 1790521424475,
       "tag": "0020_merchant_stock_selection",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1791040963000,
+      "tag": "0021_character_sheet",
+      "breakpoints": true
     }
   ]
 }

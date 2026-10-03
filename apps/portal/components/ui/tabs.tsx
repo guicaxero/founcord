@@ -40,7 +40,8 @@ export function UrlTabs({
     >
       <RadixTabs.List
         aria-label={label}
-        className="flex w-full gap-1 rounded-lg border border-line-soft bg-surface p-1.5"
+        // Abas demais para a largura quebram em linhas, sem esconder nenhuma.
+        className="flex w-full flex-wrap gap-1 rounded-lg border border-line-soft bg-surface p-1.5"
       >
         {tabs.map((tab) => (
           <RadixTabs.Trigger

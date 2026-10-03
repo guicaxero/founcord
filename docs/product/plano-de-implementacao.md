@@ -376,7 +376,7 @@ Próximos passos registrados:
 - importação de `.xlsx` pelo painel, peso por raridade e vários lojistas, se
   fizerem falta.
 
-### 7.1.2 Seleção manual do estoque do Lojista — em implementação
+### 7.1.2 Seleção manual do estoque do Lojista — concluído
 
 Além do sorteio, o mestre escolhe o estoque item a item no painel, a partir do
 catálogo, do estoque atual ou de uma prévia sorteada. O envio usa o mesmo
@@ -414,7 +414,7 @@ Regras de segurança:
 Fora deste corte: comando equivalente no Discord, importação de texto livre e
 efeitos ativos do Foundry.
 
-### 7.3 Área do jogador e ficha
+### 7.3 Área do jogador e ficha — em implementação
 
 - aba autenticada de personagem para jogadores;
 - associação explícita entre usuário, campanha e ator do Foundry;
@@ -435,8 +435,15 @@ Primeiro corte implementado junto ao vínculo de identidade:
 - retrato e token do personagem (módulo 0.9.0), com a opção de alternar entre
   os dois e ampliar, na área do jogador e no cartão de Personagens do painel.
 
-Permanecem pendentes a projeção ampliada de inventário e magias, edição
-autorizada e o comando Discord que encaminha para esta área.
+Segundo corte, em implementação (especificação em
+`docs/product/specs/ficha-do-jogador.md`):
+
+- ficha completa com atributos, características, aparência, inventário,
+  magias, talentos e raízes, enviada pelo módulo 0.11.0;
+- anotações do personagem editáveis pelo portal e gravadas no Foundry pelo
+  módulo, com proteção contra sobrescrever edições feitas no Foundry.
+
+O comando `/personagem` do Discord já encaminha para esta área.
 
 O portal não substitui a ficha mecânica do Foundry. Em caso de divergência, o
 Foundry vence e a projeção é atualizada.
@@ -560,8 +567,8 @@ Estado atual
   -> Refatoração completa do front em três fases (concluída)
   -> Sorteador de estoque do Lojista (concluído)
   -> Criador de criaturas para mestres (concluído)
-  -> Seleção manual do estoque do Lojista (em implementação)
-  -> Área do jogador e ficha (inventário, magias, edição autorizada)
+  -> Seleção manual do estoque do Lojista (concluída)
+  -> Área do jogador e ficha completa, com anotações (em implementação)
   -> Compra automática no Lojista (adiada)
   -> Otimizações de polling, eventos/deltas e escala
 ```

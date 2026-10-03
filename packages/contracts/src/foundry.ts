@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CampaignSchema } from "./campaigns";
+import { CharacterSheetSchema, MAX_CHARACTER_SHEET_CHARS } from "./character-sheet";
 import { foundryImageSchema } from "./common";
 import { CreatureDraftSchema } from "./creatures";
 import { DemonLordCoinsSchema } from "./currency";
@@ -157,12 +158,22 @@ export const FoundryCharacterProjectionSchema = z
      */
     portraitUrl: CharacterImageSchema.nullable().optional(),
     tokenUrl: CharacterImageSchema.nullable().optional(),
+    /**
+     * Ficha completa, a partir do módulo 0.11.0. Ausente = módulo antigo, e o
+     * portal mantém a ficha que já tinha.
+     */
+    sheet: CharacterSheetSchema.refine((sheet) => JSON.stringify(sheet).length <= MAX_CHARACTER_SHEET_CHARS, {
+      message: "A ficha do personagem excede o tamanho máximo.",
+    }).optional(),
     sourceUpdatedAt: isoDate,
   })
   .strict();
 
 /** Soma máxima das imagens de uma sincronização de personagens, em caracteres. */
 export const MAX_CHARACTER_SYNC_IMAGE_CHARS = 1_500_000;
+
+/** Soma máxima das fichas de uma sincronização de personagens, em caracteres. */
+export const MAX_CHARACTER_SYNC_SHEET_CHARS = 4_000_000;
 
 export const FoundryCharacterSyncRequestSchema = z
   .object({
@@ -178,6 +189,14 @@ export const FoundryCharacterSyncRequestSchema = z
             0,
           ) <= MAX_CHARACTER_SYNC_IMAGE_CHARS,
         { message: "As imagens dos personagens excedem o limite total." },
+      )
+      .refine(
+        (characters) =>
+          characters.reduce(
+            (total, character) => total + (character.sheet ? JSON.stringify(character.sheet).length : 0),
+            0,
+          ) <= MAX_CHARACTER_SYNC_SHEET_CHARS,
+        { message: "As fichas dos personagens excedem o limite total." },
       ),
   })
   .strict();

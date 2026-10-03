@@ -621,6 +621,84 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       );
       assert.equal(JSON.stringify(ownCharacters.data).includes(identities.playerTwo.id), false);
 
+      // Ficha completa (módulo 0.11.0+): só o jogador vinculado a recebe.
+      const sheetPath = `/api/me/characters/${defaultCampaignId}/sheet`;
+      const beforeSheet = await api(mf, sheetPath, { token: identities.playerOne.token });
+      assert.equal(beforeSheet.status, 200, JSON.stringify(beforeSheet.data));
+      assert.equal(beforeSheet.data.sheet, null);
+      const sheet = {
+        attributes: { strength: 12, agility: 11, intellect: 10, will: 9, perception: 11 },
+        characteristics: { defense: 13, speed: 10, power: 0, size: "1", fortune: 1 },
+        appearance: { age: "27", sex: null, eyes: "Verdes", hair: null, height: null, weight: null, feature: null },
+        religion: null,
+        inventory: [
+          {
+            id: "espada-1",
+            name: "Espada",
+            description: "",
+            type: "weapon",
+            quantity: 1,
+            equipped: true,
+            price: "1 co",
+            availability: "C",
+            properties: null,
+            damage: "1d6",
+            hands: "one",
+            defense: null,
+            consumableType: null,
+          },
+        ],
+        spells: [],
+        talents: [
+          { id: "t-1", name: "Golpe Firme", description: "", kind: "talent", group: "Guerreiro", uses: { value: null, max: null } },
+        ],
+        roots: { ancestry: { name: "Humano", description: "" }, professions: [], languages: [{ name: "Comum", speak: true, read: true, write: false }] },
+        notes: { text: "Veio do norte.", revision: "a1b2c3" },
+      };
+      const syncPath = "/api/internal/integration/foundry/characters/sync";
+      const serviceAuth = { authorization: "Bearer test-integration-token-with-at-least-32-bytes" };
+      const sheetSync = {
+        worldId: input.worldId,
+        campaignId: defaultCampaignId,
+        syncId: "99999999-9999-4999-8999-999999999991",
+        capturedAt: "2026-08-23T07:00:00.000Z",
+        characters: [
+          {
+            actorId: "aster-001",
+            name: "Aster",
+            type: "character",
+            ownerUserIds: ["foundry-user-1"],
+            level: 2,
+            ancestry: "Humano",
+            paths: { novice: "Guerreiro", expert: null, master: null, legendary: null },
+            statistics: { healthMax: 18, damage: 3, healingRate: 4, insanity: 1, corruption: 0 },
+            wealth: { gc: 1, ss: 2, cp: 3, bits: 4 },
+            sheet,
+            sourceUpdatedAt: "2026-08-23T06:59:00.000Z",
+          },
+        ],
+      };
+      const synced = await api(mf, syncPath, { method: "POST", body: sheetSync, headers: serviceAuth });
+      assert.equal(synced.status, 200, JSON.stringify(synced.data));
+      const ownSheet = await api(mf, sheetPath, { token: identities.playerOne.token });
+      assert.equal(ownSheet.status, 200, JSON.stringify(ownSheet.data));
+      assert.deepEqual(ownSheet.data.sheet, sheet);
+      assert.equal(ownSheet.data.actorName, "Aster");
+      assert.equal((await api(mf, sheetPath, { token: identities.playerTwo.token })).status, 404);
+      assert.equal((await api(mf, sheetPath)).status, 401);
+      // Um módulo antigo não envia a ficha: a anterior é preservada.
+      await api(mf, syncPath, {
+        method: "POST",
+        body: {
+          ...sheetSync,
+          syncId: "99999999-9999-4999-8999-999999999992",
+          capturedAt: "2026-08-23T08:00:00.000Z",
+          characters: [{ ...sheetSync.characters[0], sheet: undefined }],
+        },
+        headers: serviceAuth,
+      });
+      assert.deepEqual((await api(mf, sheetPath, { token: identities.playerOne.token })).data.sheet, sheet);
+
       const collision = await api(mf, playerTwoPath, {
         token: identities.owner.token,
         method: "PUT",

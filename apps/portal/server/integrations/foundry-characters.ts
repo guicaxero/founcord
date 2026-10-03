@@ -139,9 +139,9 @@ function characterUpsert(
         owner_user_ids_json, level, ancestry, novice_path, expert_path,
         master_path, legendary_path, health_max, damage, healing_rate,
         insanity, corruption, wealth_gc, wealth_ss, wealth_cp, wealth_bits,
-        portrait_url, token_url, source_updated_at, last_synced_at, is_active
+        portrait_url, token_url, sheet_json, source_updated_at, last_synced_at, is_active
       )
-      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1
+      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1
       WHERE EXISTS (
         SELECT 1 FROM foundry_sync_cursors
         WHERE world_id = ? AND last_sync_id = ?
@@ -168,6 +168,8 @@ function characterUpsert(
         -- Módulos anteriores ao 0.9.0 não enviam imagens: preserva as que já existem.
         portrait_url = CASE WHEN ? = 1 THEN excluded.portrait_url ELSE foundry_character_projections.portrait_url END,
         token_url = CASE WHEN ? = 1 THEN excluded.token_url ELSE foundry_character_projections.token_url END,
+        -- Módulos anteriores ao 0.11.0 não enviam a ficha: preserva a que já existe.
+        sheet_json = CASE WHEN ? = 1 THEN excluded.sheet_json ELSE foundry_character_projections.sheet_json END,
         source_updated_at = excluded.source_updated_at,
         last_synced_at = excluded.last_synced_at,
         is_active = 1,
@@ -198,11 +200,13 @@ function characterUpsert(
       character.wealth?.bits ?? null,
       character.portraitUrl ?? null,
       character.tokenUrl ?? null,
+      character.sheet ? JSON.stringify(character.sheet) : null,
       character.sourceUpdatedAt,
       capturedAt,
       worldId,
       syncId,
       character.portraitUrl === undefined ? 0 : 1,
       character.tokenUrl === undefined ? 0 : 1,
+      character.sheet === undefined ? 0 : 1,
     );
 }
