@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CharacterSheetSchema, MAX_CHARACTER_SHEET_CHARS, type CharacterSheet } from "./character-sheet";
-import { FoundryCharacterProjectionSchema } from "./foundry";
+import { FoundryCharacterProjectionSchema, FoundryCommandInputSchema } from "./foundry";
 
 function sheet(overrides: Partial<CharacterSheet> = {}): CharacterSheet {
   return {
@@ -86,5 +86,31 @@ describe("ficha do personagem", () => {
     expect(CharacterSheetSchema.safeParse(huge).success).toBe(true);
     expect(JSON.stringify(huge).length).toBeGreaterThan(MAX_CHARACTER_SHEET_CHARS);
     expect(FoundryCharacterProjectionSchema.safeParse({ ...projection, sheet: huge }).success).toBe(false);
+  });
+});
+
+describe("comando de anotações", () => {
+  const command = {
+    type: "character.notes.update",
+    payload: {
+      updateId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      campaignId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      actorId: "aster-001",
+      text: "Veio do norte.",
+      revision: "e-1a2b3c4d",
+      requestedBy: "Jogadora",
+      requestedAt: "2026-10-03T12:00:00.000Z",
+    },
+  };
+
+  it("aceita o comando tipado", () => {
+    expect(FoundryCommandInputSchema.parse(command).type).toBe("character.notes.update");
+  });
+
+  it("recusa ator inválido e texto acima do limite", () => {
+    expect(FoundryCommandInputSchema.safeParse({ ...command, payload: { ...command.payload, actorId: "../x" } }).success).toBe(false);
+    expect(
+      FoundryCommandInputSchema.safeParse({ ...command, payload: { ...command.payload, text: "x".repeat(8_001) } }).success,
+    ).toBe(false);
   });
 });

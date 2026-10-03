@@ -687,3 +687,29 @@ export const auditLog = sqliteTable(
     index("idx_audit_log_correlation_id").on(table.correlationId),
   ],
 );
+
+/** Anotações do personagem editadas no portal, até o módulo gravar no Foundry. */
+export const characterNoteUpdates = sqliteTable(
+  "character_note_updates",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    worldId: text("world_id").notNull(),
+    foundryActorId: text("foundry_actor_id").notNull(),
+    text: text("text").notNull(),
+    baseRevision: text("base_revision").notNull(),
+    status: text("status", { enum: ["pending_delivery", "applied", "conflict", "failed"] })
+      .notNull()
+      .default("pending_delivery"),
+    commandId: text("command_id"),
+    error: text("error"),
+    appliedAt: text("applied_at"),
+    ...timestamps,
+  },
+  (table) => [index("idx_character_note_updates_owner").on(table.campaignId, table.userId, table.createdAt)],
+);

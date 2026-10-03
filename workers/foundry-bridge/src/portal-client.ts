@@ -1,4 +1,5 @@
 import {
+  CharacterNotesDeliveryCallbackSchema,
   CreatureDeliveryCallbackSchema,
   FoundryCharacterSyncResponseSchema,
   MerchantPurchaseDeliveryCallbackSchema,
@@ -6,6 +7,7 @@ import {
   type FoundryCharacterSyncCallback,
   type MerchantPurchaseDeliveryCallback,
   type MerchantStockDeliveryCallback,
+  type CharacterNotesDeliveryCallback,
   type CreatureDeliveryCallback,
 } from "@ordem/contracts";
 import type { FoundryEnv } from "./types";
@@ -97,5 +99,28 @@ export async function reportCreatureDelivery(
   );
   if (!response.ok) {
     throw new Error(`Portal creature callback failed with ${response.status}.`);
+  }
+}
+
+/** Resultado da gravação das anotações do personagem no Foundry. */
+export async function reportCharacterNotesDelivery(
+  env: FoundryEnv,
+  input: CharacterNotesDeliveryCallback,
+  correlationId: string,
+): Promise<void> {
+  const body = CharacterNotesDeliveryCallbackSchema.parse(input);
+  const response = await env.PORTAL.fetch(
+    new Request("https://portal.internal/api/internal/integration/foundry/character-notes/delivery", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${env.INTEGRATION_SERVICE_TOKEN}`,
+        "content-type": "application/json",
+        "x-correlation-id": correlationId,
+      },
+      body: JSON.stringify(body),
+    }),
+  );
+  if (!response.ok) {
+    throw new Error(`Portal character notes callback failed with ${response.status}.`);
   }
 }

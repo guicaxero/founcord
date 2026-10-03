@@ -19,22 +19,18 @@ import { Badge, Skeleton } from "@/components/ui/surface";
 import { UrlTabs } from "@/components/ui/tabs";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
+import { NotesSection } from "./notes-section";
 
 /**
- * Ficha completa do personagem vinculado, em seções. Só leitura: a mecânica
- * continua sendo alterada no Foundry.
+ * Ficha completa do personagem vinculado, em seções. A mecânica continua sendo
+ * alterada no Foundry; pelo portal, só as anotações.
  */
-export function CharacterSheetSections({
-  campaignId,
-  notesSection,
-}: Readonly<{
-  campaignId: string;
-  /** Conteúdo da aba Anotações; ausente, a aba não aparece. */
-  notesSection?: ((sheet: CharacterSheet) => ReactNode) | undefined;
-}>) {
+export function CharacterSheetSections({ campaignId }: Readonly<{ campaignId: string }>) {
   const query = useQuery({
     queryKey: queryKeys.myCharacterSheet(campaignId),
     queryFn: () => apiFetch<PlayerCharacterSheetResponse>(`/api/me/characters/${campaignId}/sheet`),
+    // O módulo só grava com o mestre no mundo; enquanto isso, consultamos devagar.
+    refetchInterval: (current) => (current.state.data?.notesUpdate?.status === "pending_delivery" ? 10_000 : false),
   });
 
   if (query.isPending) {
@@ -88,7 +84,11 @@ export function CharacterSheetSections({
           content: <TalentsSection talents={sheet.talents} />,
         },
         { value: "raizes", label: "Raízes", content: <RootsSection sheet={sheet} /> },
-        ...(notesSection ? [{ value: "anotacoes", label: "Anotações", content: notesSection(sheet) }] : []),
+        {
+          value: "anotacoes",
+          label: "Anotações",
+          content: <NotesSection campaignId={campaignId} sheet={sheet} notesUpdate={query.data.notesUpdate} />,
+        },
       ]}
     />
   );

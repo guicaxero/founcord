@@ -285,6 +285,7 @@ export const FoundryCommandTypeSchema = z.enum([
   "merchant.purchase.request",
   "merchant.stock.replace",
   "creature.upsert",
+  "character.notes.update",
 ]);
 
 const ActorSyncCommandSchema = z
@@ -375,12 +376,34 @@ const CreatureUpsertCommandSchema = z
   })
   .strict();
 
+/**
+ * Grava a descrição do personagem com o texto editado pelo jogador no portal.
+ * O módulo só grava se a descrição ainda estiver na versão `revision`.
+ */
+const CharacterNotesUpdateCommandSchema = z
+  .object({
+    type: z.literal("character.notes.update"),
+    payload: z
+      .object({
+        updateId: z.string().uuid(),
+        campaignId: z.string().uuid(),
+        actorId: foundryIdentifier,
+        text: z.string().max(8_000),
+        revision: z.string().min(1).max(64),
+        requestedBy: z.string().trim().min(1).max(100),
+        requestedAt: isoDate,
+      })
+      .strict(),
+  })
+  .strict();
+
 export const FoundryCommandInputSchema = z.discriminatedUnion("type", [
   ActorSyncCommandSchema,
   ChatMessageCommandSchema,
   MerchantPurchaseRequestCommandSchema,
   MerchantStockReplaceCommandSchema,
   CreatureUpsertCommandSchema,
+  CharacterNotesUpdateCommandSchema,
 ]);
 
 export const FoundryCommandCreateRequestSchema = z

@@ -137,6 +137,41 @@ export const CharacterSheetSchema = z
   })
   .strict();
 
+/** Anotações editadas no portal e o andamento da gravação no Foundry. */
+export const CharacterNotesUpdateStatusSchema = z.enum(["pending_delivery", "applied", "conflict", "failed"]);
+
+export const CharacterNotesUpdateSchema = z
+  .object({
+    id: z.string().uuid(),
+    status: CharacterNotesUpdateStatusSchema,
+    /** Texto enviado pelo próprio jogador. */
+    text: z.string().max(8_000),
+    error: z.string().max(1_000).nullable(),
+    requestedAt: IsoDateTimeSchema,
+    appliedAt: IsoDateTimeSchema.nullable(),
+  })
+  .strict();
+
+export const CharacterNotesUpdateInputSchema = z
+  .object({
+    text: z.string().max(8_000),
+    /** Versão da descrição que o jogador viu; o módulo recusa se mudou no Foundry. */
+    revision: z.string().min(1).max(64),
+  })
+  .strict();
+
+export const CharacterNotesDeliveryCallbackSchema = z
+  .object({
+    updateId: z.string().uuid(),
+    commandId: z.string().uuid(),
+    outcome: z.enum(["succeeded", "failed"]),
+    /** O módulo não gravou porque a descrição mudou no Foundry. */
+    conflict: z.boolean(),
+    error: z.string().trim().min(1).max(1_000).nullable(),
+    deliveredAt: IsoDateTimeSchema,
+  })
+  .strict();
+
 /** Ficha do personagem vinculado, como o jogador vê no portal. */
 export const PlayerCharacterSheetResponseSchema = z
   .object({
@@ -145,6 +180,8 @@ export const PlayerCharacterSheetResponseSchema = z
     /** `null` enquanto o mundo usa um módulo anterior ao 0.11.0. */
     sheet: CharacterSheetSchema.nullable(),
     lastSyncedAt: IsoDateTimeSchema.nullable(),
+    /** Última alteração de anotações pedida pelo jogador, se houver. */
+    notesUpdate: CharacterNotesUpdateSchema.nullable(),
   })
   .strict();
 
@@ -156,4 +193,7 @@ export type CharacterSheetInventoryItem = z.infer<typeof CharacterSheetInventory
 export type CharacterSheetSpell = z.infer<typeof CharacterSheetSpellSchema>;
 export type CharacterSheetTalent = z.infer<typeof CharacterSheetTalentSchema>;
 export type CharacterSheetLanguage = z.infer<typeof CharacterSheetLanguageSchema>;
+export type CharacterNotesUpdate = z.infer<typeof CharacterNotesUpdateSchema>;
+export type CharacterNotesUpdateInput = z.infer<typeof CharacterNotesUpdateInputSchema>;
+export type CharacterNotesDeliveryCallback = z.infer<typeof CharacterNotesDeliveryCallbackSchema>;
 export type PlayerCharacterSheetResponse = z.infer<typeof PlayerCharacterSheetResponseSchema>;

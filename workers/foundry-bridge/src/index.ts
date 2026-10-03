@@ -36,6 +36,7 @@ import {
   hashToken,
 } from "./auth";
 import {
+  reportCharacterNotesDelivery,
   reportCreatureDelivery,
   reportMerchantPurchaseDelivery,
   reportMerchantStockDelivery,
@@ -413,6 +414,20 @@ foundryApp.post(
           commandId,
           outcome: input.outcome,
           actorId: input.outcome === "succeeded" && typeof actorId === "string" ? actorId.slice(0, 128) : null,
+          error: input.outcome === "failed" ? input.error : null,
+          deliveredAt: new Date().toISOString(),
+        },
+        requestCorrelationId(context.req.raw),
+      );
+    }
+    if (completion.command.type === "character.notes.update") {
+      await reportCharacterNotesDelivery(
+        context.env,
+        {
+          updateId: completion.command.payload.updateId,
+          commandId,
+          outcome: input.outcome,
+          conflict: input.outcome === "succeeded" && input.result.conflict === true,
           error: input.outcome === "failed" ? input.error : null,
           deliveredAt: new Date().toISOString(),
         },
