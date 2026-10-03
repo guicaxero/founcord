@@ -37,6 +37,7 @@ import {
 } from "./auth";
 import {
   reportCharacterNotesDelivery,
+  reportSedeGrantDelivery,
   reportCreatureDelivery,
   reportMerchantPurchaseDelivery,
   reportMerchantStockDelivery,
@@ -428,6 +429,19 @@ foundryApp.post(
           commandId,
           outcome: input.outcome,
           conflict: input.outcome === "succeeded" && input.result.conflict === true,
+          error: input.outcome === "failed" ? input.error : null,
+          deliveredAt: new Date().toISOString(),
+        },
+        requestCorrelationId(context.req.raw),
+      );
+    }
+    if (completion.command.type === "character.items.grant") {
+      await reportSedeGrantDelivery(
+        context.env,
+        {
+          declarationId: completion.command.payload.grantId,
+          commandId,
+          outcome: input.outcome,
           error: input.outcome === "failed" ? input.error : null,
           deliveredAt: new Date().toISOString(),
         },
