@@ -6,6 +6,7 @@ import { motion } from "motion/react";
 import { usePathname } from "next/navigation";
 import { CharacterImage } from "@/components/character-image";
 import { CoinPurse } from "@/components/coins";
+import { CharacterSheetSections } from "@/components/player-sheet/character-sheet-sections";
 import { Button, ButtonAnchor, ButtonLink } from "@/components/ui/button";
 import { FeedbackState } from "@/components/ui/feedback-state";
 import { listItem, staggerList } from "@/components/ui/motion";
@@ -85,8 +86,8 @@ export function PlayerCharacters({
       animate="visible"
     >
       {entries.map((entry) => (
-        <motion.li key={entry.campaign.id} variants={listItem}>
-          <Card padding="lg" className="space-y-6">
+        <motion.li key={entry.campaign.id} variants={listItem} className="min-w-0">
+          <Card padding="lg" className="space-y-6 max-sm:p-5">
             <header className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-xs font-bold tracking-wider text-fg-subtle uppercase">
@@ -105,7 +106,7 @@ export function PlayerCharacters({
                 Peça a um mestre ou gestor da campanha para associar seu ator do Foundry.
               </FeedbackState>
             ) : entry.link.character ? (
-              <CharacterSheet character={entry.link.character} />
+              <CharacterSheet campaignId={entry.campaign.id} character={entry.link.character} />
             ) : (
               <FeedbackState title={`${entry.link.actorName} está temporariamente indisponível`}>
                 O vínculo foi preservado, mas o ator não apareceu na última sincronização do
@@ -119,7 +120,10 @@ export function PlayerCharacters({
   );
 }
 
-function CharacterSheet({ character }: Readonly<{ character: CampaignCharacterProjection }>) {
+function CharacterSheet({
+  campaignId,
+  character,
+}: Readonly<{ campaignId: string; character: CampaignCharacterProjection }>) {
   const paths = [
     character.paths.novice,
     character.paths.expert,
@@ -192,10 +196,14 @@ function CharacterSheet({ character }: Readonly<{ character: CampaignCharacterPr
         </div>
       </div>
 
+      <section className="space-y-3 border-t border-line-soft pt-6" aria-label="Ficha completa">
+        <CharacterSheetSections campaignId={campaignId} />
+      </section>
+
       <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-line-soft pt-4">
         <p className="max-w-[60ch] text-xs text-fg-subtle">
-          Esta é uma projeção somente para consulta. Moedas, itens e ficha continuam sendo alterados
-          pelo mestre no Foundry.
+          Esta é uma projeção da ficha do Foundry. Atributos, moedas, itens e magias continuam sendo
+          alterados no Foundry.
         </p>
         <ButtonLink variant="link" href="/lojista">
           Consultar o Lojista →

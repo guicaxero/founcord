@@ -1,0 +1,1 @@
+ALTER TABLE `foundry_character_projections` ADD `sheet_json` text;

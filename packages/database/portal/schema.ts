@@ -388,6 +388,8 @@ export const foundryCharacterProjections = sqliteTable(
     wealthBits: integer("wealth_bits"),
     portraitUrl: text("portrait_url"),
     tokenUrl: text("token_url"),
+    // Ficha completa (atributos, inventário, magias…) a partir do módulo 0.11.0.
+    sheetJson: text("sheet_json"),
     sourceUpdatedAt: text("source_updated_at").notNull(),
     lastSyncedAt: text("last_synced_at").notNull(),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
