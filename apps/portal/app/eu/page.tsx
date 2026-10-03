@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Minha área",
-  description: "Personagem vinculado, inscrições e pedidos do Lojista.",
+  description: "Personagem vinculado, Vida na Sede, inscrições e pedidos do Lojista.",
   robots: { index: false, follow: false },
 };
 
@@ -18,7 +18,7 @@ export default function PlayerAreaPage() {
       <PageHeader
         eyebrow="Área do jogador"
         title="Minha área"
-        description="Tudo que é seu na campanha: o personagem vinculado ao Foundry, suas inscrições e seus pedidos ao Lojista."
+        description="Tudo que é seu na campanha: o personagem vinculado ao Foundry, as atividades na Sede entre missões, suas inscrições e seus pedidos ao Lojista."
       />
       <Suspense fallback={<Skeleton className="h-64 w-full" />}>
         <PlayerArea />

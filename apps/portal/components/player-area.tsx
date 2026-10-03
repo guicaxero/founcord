@@ -13,8 +13,9 @@ import { Skeleton } from "@/components/ui/surface";
 import { apiFetch } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { DEFAULT_CAMPAIGN_ID } from "@/server/shared/constants";
+import { SedeLife } from "@/components/sede/sede-life";
 
-/** Área privada do jogador: personagem, inscrições e pedidos do Lojista. */
+/** Área privada do jogador: personagem, Vida na Sede, inscrições e pedidos do Lojista. */
 export function PlayerArea() {
   const pathname = usePathname();
   const me = useQuery({
@@ -51,6 +52,11 @@ export function PlayerArea() {
           value: "personagem",
           label: "Meu personagem",
           content: <PlayerCharacters />,
+        },
+        {
+          value: "sede",
+          label: "Vida na Sede",
+          content: <SedeLife campaignId={DEFAULT_CAMPAIGN_ID} />,
         },
         {
           value: "inscricoes",

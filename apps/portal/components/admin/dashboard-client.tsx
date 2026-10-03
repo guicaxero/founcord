@@ -37,6 +37,7 @@ import { MerchantStockPanel } from "./merchant-stock/merchant-stock-panel";
 import { MissionsPanel } from "./missions-panel";
 import { PostsPanel } from "./posts-panel";
 import { SessionSummariesPanel } from "./session-summaries-panel";
+import { SedePanel } from "./sede/sede-panel";
 import { SessionsPanel } from "./sessions-panel";
 
 /**
@@ -191,6 +192,9 @@ export function DashboardClient({
         break;
       case "criaturas":
         panel = <CreaturesPanel campaignId={campaignId} />;
+        break;
+      case "sede":
+        panel = <SedePanel campaignId={campaignId} />;
         break;
       case "missoes":
         panel = <MissionsPanel campaignId={campaignId} me={user} />;

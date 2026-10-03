@@ -713,3 +713,68 @@ export const characterNoteUpdates = sqliteTable(
   },
   (table) => [index("idx_character_note_updates_owner").on(table.campaignId, table.userId, table.createdAt)],
 );
+
+/** Nível da Sede da Ordem em cada campanha (1 a 4). */
+export const sedeSettings = sqliteTable("sede_settings", {
+  campaignId: text("campaign_id")
+    .primaryKey()
+    .references(() => campaigns.id, { onDelete: "cascade" }),
+  level: integer("level").notNull().default(1),
+  ...timestamps,
+});
+
+/** Atividades da Vida na Sede, por campanha. */
+export const sedeActivities = sqliteTable(
+  "sede_activities",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    npc: text("npc").notNull(),
+    name: text("name").notNull(),
+    description: text("description").notNull(),
+    effect: text("effect").notNull(),
+    minLevel: integer("min_level").notNull().default(1),
+    inputMode: text("input_mode", { enum: ["none", "note", "question"] }).notNull().default("none"),
+    roll: text("roll"),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    sort: integer("sort").notNull().default(0),
+    version: integer("version").notNull().default(1),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("uq_sede_activity_name").on(table.campaignId, table.npc, table.name)],
+);
+
+/** Atividades escolhidas pelos Corvos e o resultado registrado pelo Guardião. */
+export const sedeDeclarations = sqliteTable(
+  "sede_declarations",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    worldId: text("world_id").notNull(),
+    foundryActorId: text("foundry_actor_id").notNull(),
+    actorName: text("actor_name").notNull(),
+    activityId: text("activity_id").notNull(),
+    activityNpc: text("activity_npc").notNull(),
+    activityName: text("activity_name").notNull(),
+    activityEffect: text("activity_effect").notNull(),
+    note: text("note"),
+    rollJson: text("roll_json"),
+    periodStartedAt: text("period_started_at"),
+    status: text("status", { enum: ["declared", "resolved", "cancelled"] }).notNull().default("declared"),
+    result: text("result"),
+    resolvedByUserId: text("resolved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    resolvedAt: text("resolved_at"),
+    ...timestamps,
+  },
+  (table) => [
+    index("idx_sede_declarations_owner").on(table.campaignId, table.userId, table.createdAt),
+    index("idx_sede_declarations_status").on(table.campaignId, table.status, table.createdAt),
+  ],
+);

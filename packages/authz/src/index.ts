@@ -24,6 +24,8 @@ export const permissions = [
   "role:assign",
   "session:manage",
   "session:read",
+  "sede:declare",
+  "sede:manage",
 ] as const;
 
 export type Permission = (typeof permissions)[number];
@@ -87,8 +89,10 @@ export const rolePermissions = {
     "automation:run",
     "campaign:manage",
     "character:link:manage",
+    "sede:manage",
     "character:self:notes",
     "character:self:read",
+    "sede:declare",
     "foundry:world:manage",
     "integration:manage",
     "merchant:catalog:manage",
@@ -110,8 +114,10 @@ export const rolePermissions = {
     "automation:read",
     "automation:run",
     "character:link:manage",
+    "sede:manage",
     "character:self:notes",
     "character:self:read",
+    "sede:declare",
     "foundry:world:manage",
     "merchant:catalog:manage",
     "merchant:purchase:manage",
@@ -126,6 +132,7 @@ export const rolePermissions = {
     "automation:read",
     "character:self:notes",
     "character:self:read",
+    "sede:declare",
     "merchant:purchase:request",
     "mission:edit",
     "post:create",
@@ -135,12 +142,13 @@ export const rolePermissions = {
   moderator: [
     "character:self:notes",
     "character:self:read",
+    "sede:declare",
     "merchant:purchase:request",
     "mission:review",
     "post:publish",
     "post:review",
   ],
-  player: ["character:self:notes", "character:self:read", "merchant:purchase:request"],
+  player: ["character:self:notes", "character:self:read", "merchant:purchase:request", "sede:declare"],
   automation: ["post:create"],
 } as const satisfies Readonly<Record<RoleName, readonly Permission[]>>;
 

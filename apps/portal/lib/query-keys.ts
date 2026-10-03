@@ -39,6 +39,8 @@ export const queryKeys = {
     ["campaigns", campaignId, "compendium", "entry", entryId] as const,
   characterLinks: (campaignId: string) =>
     ["campaigns", campaignId, "character-links"] as const,
+  sede: (campaignId: string) => ["campaigns", campaignId, "sede"] as const,
+  sedeManage: (campaignId: string) => ["campaigns", campaignId, "sede", "manage"] as const,
   myCharacters: ["me", "characters"] as const,
   myCharacterSheet: (campaignId: string) => ["me", "characters", campaignId, "sheet"] as const,
 } as const;
