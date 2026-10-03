@@ -414,7 +414,7 @@ Regras de segurança:
 Fora deste corte: comando equivalente no Discord, importação de texto livre e
 efeitos ativos do Foundry.
 
-### 7.3 Área do jogador e ficha — em implementação
+### 7.3 Área do jogador e ficha — concluído
 
 - aba autenticada de personagem para jogadores;
 - associação explícita entre usuário, campanha e ator do Foundry;
@@ -435,7 +435,7 @@ Primeiro corte implementado junto ao vínculo de identidade:
 - retrato e token do personagem (módulo 0.9.0), com a opção de alternar entre
   os dois e ampliar, na área do jogador e no cartão de Personagens do painel.
 
-Segundo corte, em implementação (especificação em
+Segundo corte, concluído com o módulo 0.11.0 (especificação em
 `docs/product/specs/ficha-do-jogador.md`):
 
 - ficha completa com atributos, características, aparência, inventário,
@@ -568,7 +568,7 @@ Estado atual
   -> Sorteador de estoque do Lojista (concluído)
   -> Criador de criaturas para mestres (concluído)
   -> Seleção manual do estoque do Lojista (concluída)
-  -> Área do jogador e ficha completa, com anotações (em implementação)
+  -> Área do jogador e ficha completa, com anotações (concluída)
   -> Compra automática no Lojista (adiada)
   -> Otimizações de polling, eventos/deltas e escala
 ```
