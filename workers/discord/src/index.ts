@@ -19,6 +19,7 @@ import {
   forumTagChoices,
   getForumChannel,
   registerGuildCommands,
+  syncGuildCommands,
   sendDirectMessage,
 } from "./discord-client";
 import {
@@ -653,7 +654,32 @@ const integrationWorker: ExportedHandler<IntegrationEnv, DiscordPostPublication>
   queue(batch, env) {
     return handlePublicationBatch(batch, env);
   },
+  /** De hora em hora, alinha os comandos da guild com o código publicado. */
+  scheduled(_controller, env, executionContext) {
+    executionContext.waitUntil(syncCommandsOnSchedule(env));
+  },
 };
+
+async function syncCommandsOnSchedule(env: IntegrationEnv): Promise<void> {
+  try {
+    const result = await syncGuildCommands(env);
+    console.log(
+      JSON.stringify({
+        level: "info",
+        code: result.changed ? "discord_commands_registered" : "discord_commands_up_to_date",
+        commands: result.commands,
+      }),
+    );
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        level: "error",
+        code: "discord_command_sync_failed",
+        message: error instanceof Error ? error.message : "Unknown error",
+      }),
+    );
+  }
+}
 
 export { integrationApp, processPostModal, publishPost };
 export default integrationWorker;

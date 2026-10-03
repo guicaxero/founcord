@@ -390,3 +390,59 @@ class WebhookUnavailableError extends Error {}
 
 const FORUM_REQUIRE_TAG_FLAG = 1 << 4;
 const MANAGED_WEBHOOK_NAME = "Ordem · Publicações";
+
+type CommandShape = Readonly<Record<string, unknown>>;
+
+/** Campos que definem um comando ou opção; o resto é metadado do Discord. */
+function commandSignature(command: CommandShape): unknown {
+  const options = Array.isArray(command.options) ? (command.options as CommandShape[]) : [];
+  return {
+    name: command.name,
+    description: command.description,
+    type: command.type ?? 1,
+    options: options.map((option) => ({
+      type: option.type,
+      name: option.name,
+      description: option.description,
+      required: option.required ?? false,
+      autocomplete: option.autocomplete ?? false,
+      max_length: option.max_length ?? null,
+      channel_types: option.channel_types ?? [],
+      choices: Array.isArray(option.choices)
+        ? (option.choices as CommandShape[]).map((choice) => ({ name: choice.name, value: choice.value }))
+        : [],
+    })),
+  };
+}
+
+/** Compara os comandos registrados no Discord com a definição do código. */
+export function guildCommandsMatch(
+  remote: readonly CommandShape[],
+  local: readonly CommandShape[] = guildCommands,
+): boolean {
+  const sortKey = (command: CommandShape) => String(command.name);
+  const normalize = (commands: readonly CommandShape[]) =>
+    JSON.stringify([...commands].sort((a, b) => sortKey(a).localeCompare(sortKey(b))).map(commandSignature));
+  return normalize(remote) === normalize(local);
+}
+
+/**
+ * Mantém os comandos da guild iguais aos do código. Só reenvia a lista quando
+ * algo mudou, para não gastar o limite diário de criação de comandos.
+ */
+export async function syncGuildCommands(
+  env: IntegrationEnv,
+): Promise<Readonly<{ changed: boolean; commands: readonly string[] }>> {
+  const response = await fetch(
+    `${apiBase(env)}/applications/${env.DISCORD_APPLICATION_ID}/guilds/${env.DISCORD_GUILD_ID}/commands`,
+    { headers: { authorization: `Bot ${env.DISCORD_BOT_TOKEN}` } },
+  );
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) throw discordApiError("command lookup", response.status, body);
+  if (!Array.isArray(body)) throw new Error("Discord returned invalid commands.");
+  if (guildCommandsMatch(body as CommandShape[])) {
+    return { changed: false, commands: (body as CommandShape[]).map((command) => String(command.name)) };
+  }
+  const registered = await registerGuildCommands(env);
+  return { changed: true, commands: registered.map((command) => command.name) };
+}

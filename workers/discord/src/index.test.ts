@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DiscordPostPublication, Post } from "@ordem/contracts";
-import { handlePublicationBatch, integrationApp } from "./index";
+import integrationWorker, { handlePublicationBatch, integrationApp } from "./index";
+import { guildCommands } from "./commands";
+import { guildCommandsMatch } from "./discord-client";
 import { postTargetFromModal } from "./discord-components";
 import type { IntegrationEnv, PublicationBatch } from "./types";
 
@@ -128,6 +130,55 @@ describe("Discord integration Worker", () => {
       name: "personagem",
       description: "Abre sua ficha vinculada à campanha no portal da Ordem.",
     });
+  });
+
+  it("compara os comandos ignorando os metadados do Discord", () => {
+    // O Discord devolve ids, versões e omite campos falsos.
+    const remote = guildCommands.map((command, index) => {
+      const options = "options" in command ? (command.options as readonly Record<string, unknown>[]) : [];
+      return {
+        ...command,
+        id: `9${index}`,
+        version: "1",
+        application_id: applicationId,
+        options: options.map((option) => {
+          const copy: Record<string, unknown> = { ...option };
+          if (copy.required === false) delete copy.required;
+          return copy;
+        }),
+      };
+    });
+    expect(guildCommandsMatch([...remote].reverse())).toBe(true);
+    const renamed = remote.map((command) => (command.name === "lojista" ? { ...command, name: "mercador" } : command));
+    expect(guildCommandsMatch(renamed)).toBe(false);
+  });
+
+  it("registra os comandos no agendamento só quando mudaram", async () => {
+    let registered: unknown[] = guildCommands.map((command) => ({ ...command, name: command.name === "lojista" ? "mercador" : command.name }));
+    const discordFetch = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === "PUT") {
+        registered = JSON.parse(String(init.body)) as unknown[];
+        return Response.json(registered.map((command, index) => ({ id: String(index), ...(command as object) })));
+      }
+      return Response.json(registered);
+    });
+    vi.stubGlobal("fetch", discordFetch);
+    const runSchedule = async () => {
+      const pending: Promise<unknown>[] = [];
+      integrationWorker.scheduled?.(
+        { cron: "23 * * * *", scheduledTime: Date.now(), noRetry() {} } as ScheduledController,
+        env,
+        { waitUntil: (promise: Promise<unknown>) => pending.push(promise), passThroughOnException() {} } as unknown as ExecutionContext,
+      );
+      await Promise.all(pending);
+    };
+
+    await runSchedule();
+    expect(discordFetch.mock.calls.filter(([, init]) => init?.method === "PUT")).toHaveLength(1);
+    expect((registered as Array<{ name: string }>).map((command) => command.name)).toContain("lojista");
+
+    await runSchedule();
+    expect(discordFetch.mock.calls.filter(([, init]) => init?.method === "PUT")).toHaveLength(1);
   });
 
   it("responde ao PING assinado do Discord", async () => {

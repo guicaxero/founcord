@@ -109,9 +109,13 @@ Depois de testes, revisão e merge na `main`:
    canal, enviar mensagens, criar posts, enviar mensagens em posts e
    **Gerenciar webhooks**. Sem esta última permissão, a publicação continua pelo
    bot e mantém a autoria no corpo do texto.
-6. Definir `DISCORD_BOT_TOKEN` em `.env.local` e executar
-   `bun run discord:register`. O script carrega esse arquivo ignorado pelo Git e
-   registra o comando diretamente na guild oficial.
+6. Os comandos da guild se registram sozinhos: de hora em hora (minuto 23), o
+   Worker compara os comandos registrados com `src/commands.ts` e só reenvia a
+   lista quando houver diferença. Depois de um deploy que muda comandos, o
+   Discord mostra a versão nova em até uma hora. Para registrar na hora, use
+   `POST /internal/discord/register-commands` com o token entre serviços ou
+   defina `DISCORD_BOT_TOKEN` em `.env.local` e execute
+   `bun run discord:register`.
 
 O registro por guild aparece imediatamente e é indicado durante o
 desenvolvimento. Sem `DISCORD_GUILD_ID`, o script registra o comando global.
