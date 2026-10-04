@@ -21,6 +21,7 @@
     "DISCORD_REDIRECT_URI": "https://ordem-da-ultima-luz.ordem-da-ultima-luz.workers.dev/api/auth/discord/callback",
     "SITE_URL": "https://ordem-da-ultima-luz.ordem-da-ultima-luz.workers.dev",
     "FOUNDRY_BRIDGE_URL": "https://ordem-foundry-bridge.ordem-da-ultima-luz.workers.dev",
+    "DISCORD_INTEGRATION_URL": "https://ordem-discord-integration.ordem-da-ultima-luz.workers.dev",
     "AUTOMATION_WORKER_URL": "https://ordem-automation.ordem-da-ultima-luz.workers.dev"
   },
   "queues": {

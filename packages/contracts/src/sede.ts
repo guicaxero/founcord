@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { EntityIdSchema, IsoDateTimeSchema } from "./common";
+import { MerchantStockEntrySchema } from "./merchant-stock";
 
 /**
  * Vida na Sede: entre uma missão e outra, cada Corvo escolhe atividades na
@@ -18,9 +19,11 @@ export const SedeLevelSchema = z.number().int().min(1).max(SEDE_MAX_LEVEL);
  * O que o jogador informa ao escolher a atividade:
  * - `none`: nada;
  * - `note`: observação opcional (ex.: o que gostaria de comer);
- * - `question`: pergunta obrigatória (ex.: Pesquisa com a Escriba).
+ * - `question`: pergunta obrigatória (ex.: Pesquisa com a Escriba);
+ * - `shop`: itens Comuns do catálogo do Lojista até um limite de valor, que o
+ *   módulo coloca no personagem depois da resolução.
  */
-export const SedeActivityInputModeSchema = z.enum(["none", "note", "question"]);
+export const SedeActivityInputModeSchema = z.enum(["none", "note", "question", "shop"]);
 
 /** Rolagem feita pelo portal no momento da escolha, como `2d20`. */
 export const SedeRollFormulaSchema = z
@@ -39,6 +42,8 @@ export const SedeActivityInputSchema = z
     minLevel: SedeLevelSchema,
     inputMode: SedeActivityInputModeSchema.default("none"),
     roll: SedeRollFormulaSchema.nullable().default(null),
+    /** Limite de valor dos itens, como preço do Foundry (`1 ss`); obrigatório em `shop`. */
+    shopLimit: z.string().trim().min(1).max(40).nullable().default(null),
     active: z.boolean().default(true),
     sort: z.number().int().min(0).max(1_000).default(0),
   })
@@ -59,6 +64,7 @@ export const SedeActivitySchema = z
     minLevel: SedeLevelSchema,
     inputMode: SedeActivityInputModeSchema,
     roll: z.string().nullable(),
+    shopLimit: z.string().nullable(),
     active: z.boolean(),
     sort: z.number().int(),
     version: z.number().int().positive(),
@@ -75,6 +81,17 @@ export const SedeRollSchema = z
   })
   .strict();
 
+/** Item escolhido para a atividade do Lojista: cópia do catálogo com a quantidade. */
+export const SedeShopItemSchema = MerchantStockEntrySchema;
+
+export const SedeDeliverySchema = z
+  .object({
+    status: z.enum(["pending_delivery", "delivered", "failed"]),
+    error: z.string().nullable(),
+    deliveredAt: IsoDateTimeSchema.nullable(),
+  })
+  .strict();
+
 export const SedeDeclarationStatusSchema = z.enum(["declared", "resolved", "cancelled"]);
 
 export const SedeDeclarationSchema = z
@@ -88,12 +105,19 @@ export const SedeDeclarationSchema = z
       .strict(),
     note: z.string().nullable(),
     roll: SedeRollSchema.nullable(),
+    /** Itens escolhidos na atividade do Lojista e o total por extenso. */
+    items: z.array(SedeShopItemSchema),
+    itemsTotal: z.string().nullable(),
+    /** Entrega dos itens no Foundry, depois da resolução. */
+    delivery: SedeDeliverySchema.nullable(),
     status: SedeDeclarationStatusSchema,
     result: z.string().nullable(),
     resolvedByName: z.string().nullable(),
     resolvedAt: IsoDateTimeSchema.nullable(),
     /** Início do período em que a atividade foi declarada (a inscrição anterior), ou `null` no primeiro período. */
     periodStartedAt: IsoDateTimeSchema.nullable(),
+    /** O Corvo tem um tópico no Registro do Corvo, onde o bot publica a atividade. */
+    registroLinked: z.boolean(),
     createdAt: IsoDateTimeSchema,
   })
   .strict();
@@ -123,8 +147,54 @@ export const SedeDeclareInputSchema = z
   .object({
     activityId: EntityIdSchema,
     note: z.string().trim().max(1_000).nullable().default(null),
+    /** Só na atividade do Lojista. */
+    items: z
+      .array(z.object({ catalogItemId: EntityIdSchema, quantity: z.number().int().min(1).max(20) }).strict())
+      .max(20)
+      .default([]),
   })
   .strict();
+
+/** Itens que o jogador pode escolher na atividade do Lojista. */
+export const SedeShopResponseSchema = z
+  .object({
+    activityId: EntityIdSchema,
+    limit: z.string(),
+    limitLabel: z.string(),
+    limitBits: z.number().int().positive(),
+    items: z.array(
+      z
+        .object({
+          catalogItemId: EntityIdSchema,
+          name: z.string(),
+          category: z.string(),
+          price: z.string(),
+          priceLabel: z.string(),
+          priceBits: z.number().int().nonnegative(),
+          properties: z.string().nullable(),
+          description: z.string().nullable(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
+/** Resultado do módulo ao entregar os itens no personagem, repassado pelo bridge. */
+export const SedeGrantDeliveryCallbackSchema = z
+  .object({
+    declarationId: EntityIdSchema,
+    commandId: EntityIdSchema,
+    outcome: z.enum(["succeeded", "failed"]),
+    error: z.string().trim().min(1).max(1_000).nullable(),
+    deliveredAt: IsoDateTimeSchema,
+  })
+  .strict();
+
+/** Versão mínima do módulo que entende `character.items.grant`. */
+export function moduleSupportsItemGrant(version: string): boolean {
+  const [major = 0, minor = 0] = version.split(".").map((part) => Number.parseInt(part, 10) || 0);
+  return major > 0 || minor >= 12;
+}
 
 export const SedeResolveInputSchema = z.object({ result: text(1, 2_000) }).strict();
 
@@ -166,4 +236,8 @@ export type SedeDeclareInput = z.infer<typeof SedeDeclareInputSchema>;
 export type SedeResolveInput = z.infer<typeof SedeResolveInputSchema>;
 export type SedeSettingsInput = z.infer<typeof SedeSettingsInputSchema>;
 export type SedeManageResponse = z.infer<typeof SedeManageResponseSchema>;
+export type SedeShopItem = z.infer<typeof SedeShopItemSchema>;
+export type SedeDelivery = z.infer<typeof SedeDeliverySchema>;
+export type SedeShopResponse = z.infer<typeof SedeShopResponseSchema>;
+export type SedeGrantDeliveryCallback = z.infer<typeof SedeGrantDeliveryCallbackSchema>;
 export type SedeImportResponse = z.infer<typeof SedeImportResponseSchema>;

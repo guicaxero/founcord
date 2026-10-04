@@ -37,10 +37,12 @@ export const queryKeys = {
     ["campaigns", campaignId, "compendium", kind] as const,
   compendiumEntry: (campaignId: string, entryId: string) =>
     ["campaigns", campaignId, "compendium", "entry", entryId] as const,
+  registroThreads: (campaignId: string) => ["campaigns", campaignId, "registro-threads"] as const,
   characterLinks: (campaignId: string) =>
     ["campaigns", campaignId, "character-links"] as const,
   sede: (campaignId: string) => ["campaigns", campaignId, "sede"] as const,
   sedeManage: (campaignId: string) => ["campaigns", campaignId, "sede", "manage"] as const,
+  sedeShop: (campaignId: string, activityId: string) => ["campaigns", campaignId, "sede", "shop", activityId] as const,
   myCharacters: ["me", "characters"] as const,
   myCharacterSheet: (campaignId: string) => ["me", "characters", campaignId, "sheet"] as const,
 } as const;

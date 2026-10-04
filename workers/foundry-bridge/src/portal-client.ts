@@ -1,5 +1,6 @@
 import {
   CharacterNotesDeliveryCallbackSchema,
+  SedeGrantDeliveryCallbackSchema,
   CreatureDeliveryCallbackSchema,
   FoundryCharacterSyncResponseSchema,
   MerchantPurchaseDeliveryCallbackSchema,
@@ -8,6 +9,7 @@ import {
   type MerchantPurchaseDeliveryCallback,
   type MerchantStockDeliveryCallback,
   type CharacterNotesDeliveryCallback,
+  type SedeGrantDeliveryCallback,
   type CreatureDeliveryCallback,
 } from "@ordem/contracts";
 import type { FoundryEnv } from "./types";
@@ -122,5 +124,28 @@ export async function reportCharacterNotesDelivery(
   );
   if (!response.ok) {
     throw new Error(`Portal character notes callback failed with ${response.status}.`);
+  }
+}
+
+/** Resultado da entrega dos itens da Vida na Sede no personagem. */
+export async function reportSedeGrantDelivery(
+  env: FoundryEnv,
+  input: SedeGrantDeliveryCallback,
+  correlationId: string,
+): Promise<void> {
+  const body = SedeGrantDeliveryCallbackSchema.parse(input);
+  const response = await env.PORTAL.fetch(
+    new Request("https://portal.internal/api/internal/integration/foundry/sede-grants/delivery", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${env.INTEGRATION_SERVICE_TOKEN}`,
+        "content-type": "application/json",
+        "x-correlation-id": correlationId,
+      },
+      body: JSON.stringify(body),
+    }),
+  );
+  if (!response.ok) {
+    throw new Error(`Portal sede grant callback failed with ${response.status}.`);
   }
 }

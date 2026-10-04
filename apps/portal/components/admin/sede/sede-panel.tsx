@@ -29,6 +29,7 @@ const inputModeLabels: Readonly<Record<SedeActivityInputMode, string>> = {
   none: "Nada",
   note: "Pedido opcional",
   question: "Pergunta obrigatória",
+  shop: "Itens do Lojista",
 };
 
 /**
@@ -249,8 +250,22 @@ function ResolvedList({
   campaignId,
   declarations,
 }: Readonly<{ campaignId: string; declarations: readonly SedeDeclaration[] }>) {
+  const toast = useToast();
+  const invalidate = useInvalidate(campaignId);
   const triggerRef = useRef<HTMLElement | null>(null);
   const [editing, setEditing] = useState<SedeDeclaration | null>(null);
+  const redeliver = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<SedeDeclaration>(`/api/campaigns/${campaignId}/sede/declarations/${id}/deliver`, { method: "POST" }),
+    onSuccess: async (updated) => {
+      toast(
+        updated.delivery?.status === "failed"
+          ? { title: "Os itens não foram enviados", description: updated.delivery.error ?? undefined, tone: "danger" }
+          : { title: "Itens reenviados ao Foundry", description: "Eles chegam ao personagem quando o mestre estiver no mundo.", tone: "info" },
+      );
+      await invalidate();
+    },
+  });
   if (declarations.length === 0) {
     return <FeedbackState title="Nenhuma atividade resolvida ainda">Os resultados registrados aparecem aqui.</FeedbackState>;
   }
@@ -263,16 +278,28 @@ function ResolvedList({
               declaration={declaration}
               showPlayer
               actions={
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={(event) => {
-                    triggerRef.current = event.currentTarget;
-                    setEditing(declaration);
-                  }}
-                >
-                  Corrigir resultado
-                </Button>
+                <>
+                  {declaration.delivery?.status === "failed" ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={redeliver.isPending}
+                      onClick={() => redeliver.mutate(declaration.id)}
+                    >
+                      {redeliver.isPending && redeliver.variables === declaration.id ? "Enviando…" : "Entregar de novo"}
+                    </Button>
+                  ) : null}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(event) => {
+                      triggerRef.current = event.currentTarget;
+                      setEditing(declaration);
+                    }}
+                  >
+                    Corrigir resultado
+                  </Button>
+                </>
               }
             />
           </li>
@@ -345,6 +372,19 @@ function ResolveDialog({
               <div>
                 <dt className="font-semibold text-fg">Pedido do jogador</dt>
                 <dd className="text-fg-muted whitespace-pre-line">{declaration.note}</dd>
+              </div>
+            ) : null}
+            {declaration.items.length > 0 ? (
+              <div>
+                <dt className="font-semibold text-fg">Itens pedidos ao Lojista (total {declaration.itemsTotal})</dt>
+                <dd className="text-fg-muted">
+                  {declaration.items.map((item) => (item.quantity > 1 ? `${item.quantity}× ${item.name}` : item.name)).join(", ")}
+                </dd>
+                {declaration.status === "declared" ? (
+                  <dd className="mt-1 text-xs text-fg-subtle">
+                    Ao registrar o resultado, o módulo coloca estes itens no personagem no Foundry.
+                  </dd>
+                ) : null}
               </div>
             ) : null}
             {declaration.roll ? (
@@ -471,7 +511,14 @@ function ActivitiesTab({
             header: "O jogador informa",
             className: "md:w-44 text-fg-muted",
             cell: (activity) =>
-              [inputModeLabels[activity.inputMode], activity.roll ? `rola ${activity.roll}` : null].filter(Boolean).join(" · "),
+              [
+                activity.inputMode === "shop" && activity.shopLimit
+                  ? `${inputModeLabels.shop} até ${activity.shopLimit}`
+                  : inputModeLabels[activity.inputMode],
+                activity.roll ? `rola ${activity.roll}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · "),
           },
           {
             id: "status",
@@ -528,6 +575,7 @@ type ActivityForm = {
   minLevel: number;
   inputMode: SedeActivityInputMode;
   roll: string;
+  shopLimit: string;
   active: boolean;
   sort: number;
 };
@@ -540,6 +588,7 @@ const emptyForm: ActivityForm = {
   minLevel: 1,
   inputMode: "none",
   roll: "",
+  shopLimit: "",
   active: true,
   sort: 100,
 };
@@ -573,6 +622,7 @@ function ActivityEditor({
             minLevel: activity.minLevel,
             inputMode: activity.inputMode,
             roll: activity.roll ?? "",
+            shopLimit: activity.shopLimit ?? "",
             active: activity.active,
             sort: activity.sort,
           }
@@ -583,7 +633,11 @@ function ActivityEditor({
 
   const save = useMutation({
     mutationFn: () => {
-      const body = { ...form, roll: form.roll.trim() || null };
+      const body = {
+        ...form,
+        roll: form.roll.trim() || null,
+        shopLimit: form.inputMode === "shop" ? form.shopLimit.trim() || null : null,
+      };
       const activity = editor?.activity;
       return apiFetch<SedeActivity>(
         activity
@@ -668,6 +722,20 @@ function ActivityEditor({
               </Select>
             )}
           </Field>
+          {form.inputMode === "shop" ? (
+            <Field label="Limite de valor" hint="Soma máxima dos itens Comuns do Lojista, como preço: 1 ss, 5 cp.">
+              {({ id, describedBy }) => (
+                <Input
+                  id={id}
+                  aria-describedby={describedBy}
+                  required
+                  maxLength={40}
+                  value={form.shopLimit}
+                  onChange={(event) => update("shopLimit", event.target.value)}
+                />
+              )}
+            </Field>
+          ) : null}
           <Field label="Rolagem automática" optional hint="Ex.: 2d20. O portal rola quando o jogador escolhe.">
             {({ id, describedBy }) => (
               <Input

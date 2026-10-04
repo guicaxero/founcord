@@ -421,6 +421,9 @@ export const campaignCharacterLinks = sqliteTable(
     worldId: text("world_id").notNull(),
     foundryActorId: text("foundry_actor_id").notNull(),
     actorName: text("actor_name").notNull(),
+    // Tópico do Corvo no fórum Registro do Corvo do Discord.
+    registroThreadId: text("registro_thread_id"),
+    registroGuildId: text("registro_guild_id"),
     linkedByUserId: text("linked_by_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
@@ -736,8 +739,10 @@ export const sedeActivities = sqliteTable(
     description: text("description").notNull(),
     effect: text("effect").notNull(),
     minLevel: integer("min_level").notNull().default(1),
-    inputMode: text("input_mode", { enum: ["none", "note", "question"] }).notNull().default("none"),
+    inputMode: text("input_mode", { enum: ["none", "note", "question", "shop"] }).notNull().default("none"),
     roll: text("roll"),
+    // Limite de valor da atividade do Lojista, como preço do Foundry ("1 ss").
+    shopLimit: text("shop_limit"),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
     sort: integer("sort").notNull().default(0),
     version: integer("version").notNull().default(1),
@@ -766,6 +771,12 @@ export const sedeDeclarations = sqliteTable(
     activityEffect: text("activity_effect").notNull(),
     note: text("note"),
     rollJson: text("roll_json"),
+    // Itens escolhidos na atividade do Lojista e a entrega no Foundry.
+    itemsJson: text("items_json"),
+    deliveryStatus: text("delivery_status", { enum: ["pending_delivery", "delivered", "failed"] }),
+    deliveryError: text("delivery_error"),
+    deliveryCommandId: text("delivery_command_id"),
+    deliveredAt: text("delivered_at"),
     periodStartedAt: text("period_started_at"),
     status: text("status", { enum: ["declared", "resolved", "cancelled"] }).notNull().default("declared"),
     result: text("result"),

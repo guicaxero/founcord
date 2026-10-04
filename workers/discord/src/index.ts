@@ -3,6 +3,7 @@ import {
   CreateDiscordPostDraftSchema,
   DiscordInteractionSchema,
   DiscordPostPublicationSchema,
+  DiscordRegistroMessageSchema,
   formatParsedPrice,
   isBareAmount,
   MERCHANT_AVAILABILITY_LABELS,
@@ -10,10 +11,13 @@ import {
   parseDemonLordPrice,
   type DiscordInteraction,
   type DiscordPostPublication,
+  type DiscordRegistroMessage,
   type MerchantCatalogResponse,
   type MerchantItemProjection,
 } from "@ordem/contracts";
 import {
+  listForumThreads,
+  sendThreadMessage,
   createForumThread,
   editOriginalInteraction,
   forumTagChoices,
@@ -85,6 +89,29 @@ integrationApp.get("/openapi.json", (context) =>
     },
   }),
 );
+
+integrationApp.get("/internal/discord/registro/threads", async (context) => {
+  if (!(await verifyInternalRequest(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN))) {
+    return context.json({ error: "unauthorized" }, 401);
+  }
+  const forumId = context.env.REGISTRO_DO_CORVO_CHANNEL_ID;
+  if (!forumId) return context.json({ error: "registro_not_configured" }, 503);
+  try {
+    const threads = await listForumThreads(context.env, forumId);
+    return context.json({
+      data: threads.map((thread) => ({ ...thread, guildId: context.env.DISCORD_GUILD_ID })),
+    });
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        level: "error",
+        code: "discord_registro_threads_failed",
+        message: error instanceof Error ? error.message : "Unknown error",
+      }),
+    );
+    return context.json({ error: "discord_unavailable" }, 502);
+  }
+});
 
 integrationApp.post("/internal/discord/register-commands", async (context) => {
   if (
@@ -617,6 +644,11 @@ export async function handlePublicationBatch(
   env: IntegrationEnv,
 ): Promise<void> {
   for (const message of batch.messages) {
+    const registro = DiscordRegistroMessageSchema.safeParse(message.body);
+    if (registro.success) {
+      await deliverRegistroMessage(env, registro.data, message);
+      continue;
+    }
     const parsed = DiscordPostPublicationSchema.safeParse(message.body);
     if (!parsed.success) {
       console.error(JSON.stringify({ level: "error", code: "invalid_queue_message" }));
@@ -647,7 +679,35 @@ export async function handlePublicationBatch(
   }
 }
 
-const integrationWorker: ExportedHandler<IntegrationEnv, DiscordPostPublication> = {
+/**
+ * Publica no tópico do Corvo. Falhas são repetidas pela fila; depois de seis
+ * tentativas a mensagem é descartada com registro no log, sem travar a fila.
+ */
+async function deliverRegistroMessage(
+  env: IntegrationEnv,
+  input: DiscordRegistroMessage,
+  message: Message<unknown>,
+): Promise<void> {
+  try {
+    await sendThreadMessage(env, input.threadId, input.content);
+    message.ack();
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        level: "error",
+        code: "discord_registro_failed",
+        reference: input.reference,
+        correlationId: input.correlationId,
+        attempts: message.attempts,
+        message: error instanceof Error ? error.message : "Unknown error",
+      }),
+    );
+    if (message.attempts >= 6) message.ack();
+    else message.retry();
+  }
+}
+
+const integrationWorker: ExportedHandler<IntegrationEnv, DiscordPostPublication | DiscordRegistroMessage> = {
   fetch(request, env, executionContext) {
     return integrationApp.fetch(request, env, executionContext);
   },

@@ -38,6 +38,44 @@ Ordem.
   - Lojista: escolha de itens Comuns até 1 xelim no catálogo, entregues no
     Foundry pelo módulo depois da aprovação do Guardião.
 
+## Registro do Corvo (Discord)
+
+- **Tópico do Corvo:** fica no vínculo do personagem. No painel de
+  Personagens, o Guardião cola o link do tópico do Corvo no fórum Registro do
+  Corvo, ou usa "Sugerir pelo nome", que lista os tópicos do fórum com o nome
+  do personagem. O tópico só vale depois de salvo.
+- **Publicações:** o bot publica no tópico quando o Corvo escolhe uma
+  atividade (efeito, pedido e rolagem), quando o Guardião registra o
+  resultado e quando a escolha é desfeita. As mensagens nunca mencionam
+  ninguém (`allowed_mentions` vazio).
+- **Sem tópico ligado:** a atividade fica só no portal, e o painel da Sede
+  avisa o Guardião.
+- **Entrega:** a publicação vai pela fila do Discord. Uma falha é repetida
+  até seis vezes, sem bloquear a ação no portal.
+- **Fórum:** configurado no Worker do Discord (`REGISTRO_DO_CORVO_CHANNEL_ID`).
+  O bot precisa ver o fórum e enviar mensagens nos tópicos.
+
+## Lojista: itens Comuns até um limite
+
+- **Tipo de atividade:** "Itens do Lojista" (`shop`), com um limite de valor
+  escrito como preço do Foundry. No nível 1, Preparar Suprimentos tem limite de
+  `1 ss` (1 Xelim de Prata).
+- **Escolha:**
+  - o jogador vê os itens Comuns, ativos e com preço até o limite do catálogo
+    do Lojista;
+  - ajusta as quantidades (até 20 por item) e acompanha o total e o que ainda
+    cabe;
+  - o servidor confere tudo de novo e recusa itens indisponíveis ou acima do
+    limite.
+- **Entrega:**
+  - quando o Guardião registra o resultado, o portal envia o comando
+    `character.items.grant` ao mundo do personagem (módulo 0.12.0+);
+  - o módulo cria os itens no ator do personagem, marcados com o ID da
+    atividade, e reenviar não duplica nada;
+  - a entrega aparece para o jogador e para o Guardião: a caminho, entregue ou
+    falhou com o motivo;
+  - em caso de falha (ex.: módulo antigo), "Entregar de novo" tenta outra vez.
+
 ## Atividades do nível 1
 
 | NPC | Atividade | O jogador informa | Rolagem |
@@ -46,7 +84,7 @@ Ordem.
 | Cervejeiro | Confraternizar | — | — |
 | Zelador | Ajudar na Sede | — | 2d20 |
 | Caçador | Treino de Caça | — | — |
-| Lojista | Preparar Suprimentos | pedido opcional | — |
+| Lojista | Preparar Suprimentos | itens Comuns até 1 ss | — |
 | Escriba | Pesquisa | pergunta obrigatória | — |
 
 O Guardião importa essa lista no painel e pode editar o texto, desativar

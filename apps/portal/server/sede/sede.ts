@@ -1,9 +1,20 @@
 import { hasPermission, requirePermission } from "@ordem/authz";
 import {
+  FoundryWorldListResponseSchema,
   SedeActivitySchema,
   SedeDeclarationSchema,
   SedeRollSchema,
+  SedeShopItemSchema,
+  formatParsedPrice,
+  fromBits,
+  formatCoins,
+  moduleSupportsItemGrant,
+  parseDemonLordPrice,
   rollSede,
+  stockEntryFromCatalog,
+  type SedeGrantDeliveryCallback,
+  type SedeShopItem,
+  type SedeShopResponse,
   type SedeActivity,
   type SedeActivityInput,
   type SedeActivityUpdate,
@@ -15,6 +26,10 @@ import {
   type SedeStateResponse,
 } from "@ordem/contracts";
 import type { AuthenticatedSession } from "@/server/identity/session";
+import { enqueueRegistroMessage } from "@/server/integrations/discord-registro";
+import { foundryRequest } from "@/server/integrations/foundry-worlds";
+import { loadCatalog } from "@/server/merchant/catalog";
+import { z } from "zod";
 import { prepareAudit } from "@/server/shared/audit";
 import { getD1 } from "@/server/shared/db";
 import { HttpError } from "@/server/shared/http";
@@ -31,6 +46,7 @@ type ActivityRow = Readonly<{
   min_level: number;
   input_mode: SedeActivity["inputMode"];
   roll: string | null;
+  shop_limit: string | null;
   active: number;
   sort: number;
   version: number;
@@ -49,23 +65,32 @@ type DeclarationRow = Readonly<{
   activity_effect: string;
   note: string | null;
   roll_json: string | null;
+  items_json: string | null;
+  delivery_status: "pending_delivery" | "delivered" | "failed" | null;
+  delivery_error: string | null;
+  delivered_at: string | null;
+  world_id: string;
+  foundry_actor_id: string;
   status: SedeDeclaration["status"];
   result: string | null;
   resolved_by_name: string | null;
   resolved_at: string | null;
   period_started_at: string | null;
+  registro_thread_id: string | null;
   created_at: string;
 }>;
 
 const ACTIVITY_COLUMNS = `id, campaign_id, npc, name, description, effect, min_level, input_mode, roll,
-  active, sort, version, created_at, updated_at`;
+  shop_limit, active, sort, version, created_at, updated_at`;
 
 const DECLARATION_SELECT = `SELECT d.id, d.campaign_id, u.display_name AS player_name, d.actor_name,
-    d.activity_id, d.activity_npc, d.activity_name, d.activity_effect, d.note, d.roll_json, d.status,
-    d.result, r.display_name AS resolved_by_name, d.resolved_at, d.period_started_at, d.created_at
+    d.activity_id, d.activity_npc, d.activity_name, d.activity_effect, d.note, d.roll_json, d.items_json,
+    d.delivery_status, d.delivery_error, d.delivered_at, d.world_id, d.foundry_actor_id, d.status,
+    d.result, r.display_name AS resolved_by_name, d.resolved_at, d.period_started_at, l.registro_thread_id, d.created_at
   FROM sede_declarations d
   INNER JOIN iam_users u ON u.id = d.user_id
-  LEFT JOIN iam_users r ON r.id = d.resolved_by_user_id`;
+  LEFT JOIN iam_users r ON r.id = d.resolved_by_user_id
+  LEFT JOIN campaign_character_links l ON l.campaign_id = d.campaign_id AND l.user_id = d.user_id`;
 
 function mapActivity(row: ActivityRow): SedeActivity {
   return SedeActivitySchema.parse({
@@ -78,6 +103,7 @@ function mapActivity(row: ActivityRow): SedeActivity {
     minLevel: row.min_level,
     inputMode: row.input_mode,
     roll: row.roll,
+    shopLimit: row.shop_limit,
     active: Boolean(row.active),
     sort: row.sort,
     version: row.version,
@@ -86,7 +112,19 @@ function mapActivity(row: ActivityRow): SedeActivity {
   });
 }
 
+function declarationItems(row: Pick<DeclarationRow, "items_json">): SedeShopItem[] {
+  return row.items_json ? z.array(SedeShopItemSchema).parse(JSON.parse(row.items_json)) : [];
+}
+
+/** Soma dos preços dos itens, por extenso; `null` sem itens. */
+export function itemsTotalLabel(items: readonly SedeShopItem[]): string | null {
+  if (items.length === 0) return null;
+  const bits = items.reduce((total, item) => total + (parseDemonLordPrice(item.price)?.totalBits ?? 0) * item.quantity, 0);
+  return formatCoins(fromBits(bits));
+}
+
 function mapDeclaration(row: DeclarationRow): SedeDeclaration {
+  const items = declarationItems(row);
   return SedeDeclarationSchema.parse({
     id: row.id,
     campaignId: row.campaign_id,
@@ -95,11 +133,17 @@ function mapDeclaration(row: DeclarationRow): SedeDeclaration {
     activity: { id: row.activity_id, npc: row.activity_npc, name: row.activity_name, effect: row.activity_effect },
     note: row.note,
     roll: row.roll_json ? SedeRollSchema.parse(JSON.parse(row.roll_json)) : null,
+    items,
+    itemsTotal: itemsTotalLabel(items),
+    delivery: row.delivery_status
+      ? { status: row.delivery_status, error: row.delivery_error, deliveredAt: toIsoDateTime(row.delivered_at) }
+      : null,
     status: row.status,
     result: row.result,
     resolvedByName: row.resolved_by_name,
     resolvedAt: toIsoDateTime(row.resolved_at),
     periodStartedAt: toIsoDateTime(row.period_started_at),
+    registroLinked: Boolean(row.registro_thread_id),
     createdAt: toIsoDateTime(row.created_at),
   });
 }
@@ -216,6 +260,87 @@ function cryptoRandom(): number {
   return buffer[0]! / 2 ** 32;
 }
 
+/** Limite da atividade do Lojista em trocados; `null` se o texto não for um preço. */
+function shopLimitBits(activity: SedeActivity): number | null {
+  const parsed = parseDemonLordPrice(activity.shopLimit);
+  return parsed && parsed.totalBits > 0 ? parsed.totalBits : null;
+}
+
+/** Itens Comuns, ativos e com preço até o limite, do catálogo do Lojista. */
+async function eligibleShopItems(campaignId: string, limitBits: number) {
+  return (await loadCatalog(campaignId))
+    .filter((item) => item.active && item.availability === "common" && item.price)
+    .map((item) => ({ item, price: parseDemonLordPrice(item.price) }))
+    .filter((entry): entry is { item: typeof entry.item; price: NonNullable<typeof entry.price> } =>
+      Boolean(entry.price && entry.price.totalBits > 0 && entry.price.totalBits <= limitBits),
+    );
+}
+
+export async function getSedeShop(
+  session: AuthenticatedSession,
+  campaignId: string,
+  activityId: string,
+): Promise<SedeShopResponse> {
+  requirePermission(session.principal, "sede:declare", { kind: "campaign", campaignId });
+  const [level, activity] = await Promise.all([sedeLevel(campaignId), requiredActivity(campaignId, activityId)]);
+  const limitBits = shopLimitBits(activity);
+  if (activity.inputMode !== "shop" || !activity.active || activity.minLevel > level || !limitBits) {
+    throw new HttpError(409, "sede_activity_unavailable", "Esta atividade não oferece itens do Lojista agora.");
+  }
+  const items = await eligibleShopItems(campaignId, limitBits);
+  return {
+    activityId,
+    limit: activity.shopLimit!,
+    limitLabel: formatParsedPrice(parseDemonLordPrice(activity.shopLimit)!),
+    limitBits,
+    items: items.map(({ item, price }) => ({
+      catalogItemId: item.id,
+      name: item.name,
+      category: item.category,
+      price: item.price!,
+      priceLabel: formatParsedPrice(price),
+      priceBits: price.totalBits,
+      properties: item.properties,
+      description: item.description,
+    })),
+  };
+}
+
+async function pickShopItems(
+  campaignId: string,
+  activity: SedeActivity,
+  selection: SedeDeclareInput["items"],
+): Promise<SedeShopItem[]> {
+  const limitBits = shopLimitBits(activity);
+  if (!limitBits) {
+    throw new HttpError(409, "sede_activity_unavailable", "O Guardião ainda não definiu o limite de valor desta atividade.");
+  }
+  if (selection.length === 0) {
+    throw new HttpError(422, "sede_items_required", "Escolha pelo menos um item com o Lojista.");
+  }
+  if (new Set(selection.map((entry) => entry.catalogItemId)).size !== selection.length) {
+    throw new HttpError(422, "sede_items_repeated", "Cada item só pode aparecer uma vez; ajuste a quantidade.");
+  }
+  const eligible = new Map((await eligibleShopItems(campaignId, limitBits)).map((entry) => [entry.item.id, entry]));
+  let total = 0;
+  const items = selection.map((entry) => {
+    const found = eligible.get(entry.catalogItemId);
+    if (!found) {
+      throw new HttpError(409, "sede_item_unavailable", "Um dos itens não está mais disponível com o Lojista. Atualize a lista.");
+    }
+    total += found.price.totalBits * entry.quantity;
+    return stockEntryFromCatalog(found.item, entry.quantity);
+  });
+  if (total > limitBits) {
+    throw new HttpError(
+      422,
+      "sede_items_over_limit",
+      `Os itens somam ${formatCoins(fromBits(total))}, acima do limite de ${formatParsedPrice(parseDemonLordPrice(activity.shopLimit)!)}.`,
+    );
+  }
+  return items;
+}
+
 export async function declareSedeActivity(
   session: AuthenticatedSession,
   campaignId: string,
@@ -253,6 +378,7 @@ export async function declareSedeActivity(
   if (activity.inputMode === "question" && !note) {
     throw new HttpError(422, "sede_question_required", "Escreva a pergunta que o Corvo quer investigar.");
   }
+  const items = activity.inputMode === "shop" ? await pickShopItems(campaignId, activity, input.items) : [];
   const roll = activity.roll ? rollSede(activity.roll, cryptoRandom) : null;
 
   const id = crypto.randomUUID();
@@ -262,8 +388,8 @@ export async function declareSedeActivity(
       .prepare(
         `INSERT INTO sede_declarations (
            id, campaign_id, user_id, world_id, foundry_actor_id, actor_name, activity_id, activity_npc,
-           activity_name, activity_effect, note, roll_json, period_started_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           activity_name, activity_effect, note, roll_json, items_json, period_started_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         id,
@@ -278,6 +404,7 @@ export async function declareSedeActivity(
         activity.effect,
         activity.inputMode === "none" ? null : note,
         roll ? JSON.stringify(roll) : null,
+        items.length > 0 ? JSON.stringify(items) : null,
         start,
       ),
     prepareAudit(db, {
@@ -290,16 +417,73 @@ export async function declareSedeActivity(
       details: { activity: `${activity.npc} — ${activity.name}`, roll: roll?.total ?? null },
     }),
   ]);
-  return requiredDeclaration(campaignId, id);
+  const saved = await findDeclarationRow(campaignId, id);
+  publishToRegistro(saved, "declared", correlationId);
+  return mapDeclaration(saved);
 }
 
-async function requiredDeclaration(campaignId: string, declarationId: string): Promise<SedeDeclaration> {
+async function findDeclarationRow(campaignId: string, declarationId: string): Promise<DeclarationRow> {
   const row = await getD1()
     .prepare(`${DECLARATION_SELECT} WHERE d.id = ? AND d.campaign_id = ?`)
     .bind(declarationId, campaignId)
     .first<DeclarationRow>();
   if (!row) throw new HttpError(404, "sede_declaration_not_found", "Atividade não encontrada.");
-  return mapDeclaration(row);
+  return row;
+}
+
+async function requiredDeclaration(campaignId: string, declarationId: string): Promise<SedeDeclaration> {
+  return mapDeclaration(await findDeclarationRow(campaignId, declarationId));
+}
+
+function itemsSummary(items: readonly SedeShopItem[]): string {
+  return items.map((item) => (item.quantity > 1 ? `${item.quantity}× ${item.name}` : item.name)).join(", ");
+}
+
+/** Texto da mensagem no tópico do Corvo, sem menções. */
+export function registroContent(event: "declared" | "resolved" | "cancelled", declaration: SedeDeclaration): string {
+  const activity = `${declaration.activity.npc} — ${declaration.activity.name}`;
+  if (event === "resolved") {
+    return [
+      `✅ **Vida na Sede** · Resultado de **${activity}** (${declaration.actorName})`,
+      declaration.result ?? "",
+      declaration.items.length > 0 ? `**Itens entregues:** ${itemsSummary(declaration.items)}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+  if (event === "cancelled") {
+    return `↩️ **Vida na Sede** · A escolha de **${activity}** (${declaration.actorName}) foi desfeita.`;
+  }
+  return [
+    `🪶 **Vida na Sede** · ${declaration.actorName} escolheu **${activity}**`,
+    `> ${declaration.activity.effect}`,
+    declaration.note ? `**Pedido:** ${declaration.note}` : null,
+    declaration.roll
+      ? `**Rolagem ${declaration.roll.formula}:** ${declaration.roll.dice.join(" + ")} = **${declaration.roll.total}**`
+      : null,
+    declaration.items.length > 0
+      ? `**Itens:** ${itemsSummary(declaration.items)} (total ${declaration.itemsTotal})`
+      : null,
+    "_Aguardando o Guardião._",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** Publica no tópico do Corvo, quando ele estiver ligado ao vínculo do personagem. */
+function publishToRegistro(
+  row: DeclarationRow,
+  event: "declared" | "resolved" | "cancelled",
+  correlationId: string,
+): void {
+  if (!row.registro_thread_id) return;
+  enqueueRegistroMessage({
+    campaignId: row.campaign_id,
+    threadId: row.registro_thread_id,
+    content: registroContent(event, mapDeclaration(row)),
+    correlationId,
+    reference: { kind: "sede_declaration", id: row.id, event },
+  });
 }
 
 /**
@@ -347,7 +531,9 @@ export async function cancelSedeDeclaration(
       details: { byManager: manager && row.user_id !== session.user.id },
     }),
   ]);
-  return requiredDeclaration(campaignId, declarationId);
+  const saved = await findDeclarationRow(campaignId, declarationId);
+  publishToRegistro(saved, "cancelled", correlationId);
+  return mapDeclaration(saved);
 }
 
 /* ------------------------------------------------------------------ */
@@ -444,7 +630,151 @@ export async function resolveSedeDeclaration(
       details: { activity: `${current.activity.npc} — ${current.activity.name}`, actorName: current.actorName },
     }),
   ]);
-  return requiredDeclaration(campaignId, declarationId);
+  const resolvedRow = await findDeclarationRow(campaignId, declarationId);
+  if (resolvedRow.items_json && !resolvedRow.delivery_status) {
+    await deliverItems(resolvedRow, correlationId);
+  }
+  const saved = await findDeclarationRow(campaignId, declarationId);
+  publishToRegistro(saved, "resolved", correlationId);
+  return mapDeclaration(saved);
+}
+
+/**
+ * Pede ao módulo para colocar os itens no personagem. O mundo precisa do
+ * módulo 0.12.0 ou mais novo; sem ele, a entrega fica como falha com a
+ * explicação, e o Guardião pode tentar de novo depois de atualizar.
+ */
+async function deliverItems(row: DeclarationRow, correlationId: string): Promise<void> {
+  const db = getD1();
+  const fail = (message: string) =>
+    db
+      .prepare(
+        `UPDATE sede_declarations SET delivery_status = 'failed', delivery_error = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+      )
+      .bind(message.slice(0, 1_000), row.id)
+      .run();
+  const items = declarationItems(row);
+  try {
+    const response = await foundryRequest(`/internal/foundry/campaigns/${encodeURIComponent(row.campaign_id)}/worlds`, {
+      method: "GET",
+      correlationId,
+    });
+    const worlds = FoundryWorldListResponseSchema.parse({
+      data: response && typeof response === "object" && "worlds" in response ? (response as { worlds: unknown }).worlds : [],
+    }).data;
+    const world = worlds.find((candidate) => candidate.worldId === row.world_id);
+    if (!world || world.status === "revoked") {
+      await fail("O mundo do personagem não está mais conectado à campanha.");
+      return;
+    }
+    if (!moduleSupportsItemGrant(world.moduleVersion)) {
+      await fail(
+        `Atualize o módulo do Foundry para a versão 0.12.0 ou mais nova para entregar os itens (versão registrada: ${world.moduleVersion}).`,
+      );
+      return;
+    }
+    await db
+      .prepare(
+        `UPDATE sede_declarations SET delivery_status = 'pending_delivery', delivery_error = NULL, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+      )
+      .bind(row.id)
+      .run();
+    const delivery = (await foundryRequest(
+      `/internal/foundry/campaigns/${encodeURIComponent(row.campaign_id)}/worlds/${encodeURIComponent(row.world_id)}/commands`,
+      {
+        method: "POST",
+        correlationId,
+        idempotencyKey: `portal:sede-grant:${row.id}`,
+        body: {
+          command: {
+            type: "character.items.grant",
+            payload: {
+              grantId: row.id,
+              campaignId: row.campaign_id,
+              actorId: row.foundry_actor_id,
+              items,
+              requestedAt: new Date().toISOString(),
+            },
+          },
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1_000).toISOString(),
+        },
+      },
+    )) as Readonly<{ commandId: string }>;
+    await db
+      .prepare("UPDATE sede_declarations SET delivery_command_id = ? WHERE id = ?")
+      .bind(delivery.commandId, row.id)
+      .run();
+  } catch (error) {
+    await fail(error instanceof Error ? error.message : "Não foi possível avisar o Foundry.");
+  }
+}
+
+/** Tenta de novo a entrega que falhou (por exemplo, depois de atualizar o módulo). */
+export async function retrySedeDelivery(
+  session: AuthenticatedSession,
+  campaignId: string,
+  declarationId: string,
+  correlationId: string,
+): Promise<SedeDeclaration> {
+  requireSedeManager(session, campaignId);
+  const row = await findDeclarationRow(campaignId, declarationId);
+  if (row.status !== "resolved" || !row.items_json || row.delivery_status !== "failed") {
+    throw new HttpError(409, "sede_delivery_not_retryable", "Só dá para reenviar itens de uma atividade resolvida cuja entrega falhou.");
+  }
+  await deliverItems(row, correlationId);
+  await prepareAudit(getD1(), {
+    actorUserId: session.user.id,
+    campaignId,
+    action: "sede.items.redelivered",
+    entityType: "sede_declaration",
+    entityId: declarationId,
+    correlationId,
+  }).run();
+  return mapDeclaration(await findDeclarationRow(campaignId, declarationId));
+}
+
+/** Resultado do módulo ao entregar os itens, repassado pelo bridge. */
+export async function recordSedeGrantDelivery(
+  input: SedeGrantDeliveryCallback,
+  correlationId: string,
+): Promise<SedeDeclaration> {
+  const row = await getD1()
+    .prepare(`${DECLARATION_SELECT} WHERE d.id = ?`)
+    .bind(input.declarationId)
+    .first<DeclarationRow>();
+  if (!row) throw new HttpError(404, "sede_declaration_not_found", "Atividade não encontrada.");
+  if (row.delivery_status !== "pending_delivery") return mapDeclaration(row);
+  const delivered = input.outcome === "succeeded";
+  const db = getD1();
+  await db.batch([
+    db
+      .prepare(
+        `UPDATE sede_declarations
+         SET delivery_status = ?, delivery_error = ?, delivery_command_id = COALESCE(delivery_command_id, ?),
+             delivered_at = CASE WHEN ? = 'delivered' THEN ? ELSE delivered_at END, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND delivery_status = 'pending_delivery'`,
+      )
+      .bind(
+        delivered ? "delivered" : "failed",
+        delivered ? null : input.error,
+        input.commandId,
+        delivered ? "delivered" : "failed",
+        input.deliveredAt,
+        input.declarationId,
+      ),
+    prepareAudit(db, {
+      actorUserId: null,
+      campaignId: row.campaign_id,
+      action: delivered ? "sede.items.delivered" : "sede.items.failed",
+      entityType: "sede_declaration",
+      entityId: input.declarationId,
+      correlationId,
+      details: { commandId: input.commandId, error: input.error },
+    }),
+  ]);
+  return mapDeclaration((await findDeclarationRow(row.campaign_id, input.declarationId)));
 }
 
 async function requiredActivity(campaignId: string, activityId: string): Promise<SedeActivity> {
@@ -467,6 +797,14 @@ async function assertUniqueName(campaignId: string, npc: string, name: string, e
   if (found) throw new HttpError(409, "sede_activity_duplicate", "Já existe uma atividade com esse nome para esse NPC.");
 }
 
+function assertShopLimit(input: SedeActivityInput): void {
+  if (input.inputMode !== "shop") return;
+  const parsed = parseDemonLordPrice(input.shopLimit);
+  if (!parsed || parsed.totalBits <= 0) {
+    throw new HttpError(422, "sede_shop_limit_invalid", "Informe o limite de valor como um preço, por exemplo 1 ss.");
+  }
+}
+
 export async function createSedeActivity(
   session: AuthenticatedSession,
   campaignId: string,
@@ -475,14 +813,15 @@ export async function createSedeActivity(
 ): Promise<SedeActivity> {
   requireSedeManager(session, campaignId);
   await assertCampaignExists(campaignId);
+  assertShopLimit(input);
   await assertUniqueName(campaignId, input.npc, input.name, null);
   const id = crypto.randomUUID();
   const db = getD1();
   await db.batch([
     db
       .prepare(
-        `INSERT INTO sede_activities (id, campaign_id, npc, name, description, effect, min_level, input_mode, roll, active, sort)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO sede_activities (id, campaign_id, npc, name, description, effect, min_level, input_mode, roll, shop_limit, active, sort)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         id,
@@ -494,6 +833,7 @@ export async function createSedeActivity(
         input.minLevel,
         input.inputMode,
         input.roll,
+        input.inputMode === "shop" ? input.shopLimit : null,
         input.active ? 1 : 0,
         input.sort,
       ),
@@ -522,13 +862,14 @@ export async function updateSedeActivity(
   if (current.version !== input.version) {
     throw new HttpError(409, "version_conflict", "Esta atividade foi alterada em outro lugar. Recarregue para ver a versão atual.");
   }
+  assertShopLimit(input);
   await assertUniqueName(campaignId, input.npc, input.name, activityId);
   const db = getD1();
   const [update] = await db.batch([
     db
       .prepare(
         `UPDATE sede_activities
-         SET npc = ?, name = ?, description = ?, effect = ?, min_level = ?, input_mode = ?, roll = ?, active = ?,
+         SET npc = ?, name = ?, description = ?, effect = ?, min_level = ?, input_mode = ?, roll = ?, shop_limit = ?, active = ?,
              sort = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP
          WHERE id = ? AND version = ?`,
       )
@@ -540,6 +881,7 @@ export async function updateSedeActivity(
         input.minLevel,
         input.inputMode,
         input.roll,
+        input.inputMode === "shop" ? input.shopLimit : null,
         input.active ? 1 : 0,
         input.sort,
         activityId,
@@ -574,8 +916,8 @@ export async function importBaseSedeActivities(
     ...BASE_SEDE_ACTIVITIES.map((activity) =>
       db
         .prepare(
-          `INSERT OR IGNORE INTO sede_activities (id, campaign_id, npc, name, description, effect, min_level, input_mode, roll, active, sort)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT OR IGNORE INTO sede_activities (id, campaign_id, npc, name, description, effect, min_level, input_mode, roll, shop_limit, active, sort)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           crypto.randomUUID(),
@@ -587,6 +929,7 @@ export async function importBaseSedeActivities(
           activity.minLevel,
           activity.inputMode,
           activity.roll,
+          activity.shopLimit,
           activity.active ? 1 : 0,
           activity.sort,
         ),

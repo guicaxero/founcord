@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/toast";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
+import { ShopPicker, type ShopSelection } from "./shop-picker";
 
 type AvailableActivity = SedeStateResponse["activities"][number];
 
@@ -241,10 +242,25 @@ export function DeclarationCard({
         </div>
         <Badge tone={resolved ? "success" : "info"}>{resolved ? "Resolvida" : "Aguardando o Guardião"}</Badge>
       </div>
+      {showPlayer && !declaration.registroLinked ? (
+        <p className="text-xs text-warning">
+          Sem tópico no Registro do Corvo: a atividade e o resultado não vão para o Discord. Ligue o tópico em
+          Personagens.
+        </p>
+      ) : null}
       {declaration.note ? (
         <p className="text-sm text-fg-muted whitespace-pre-line">
           <strong className="text-fg">Pedido:</strong> {declaration.note}
         </p>
+      ) : null}
+      {declaration.items.length > 0 ? (
+        <div className="text-sm text-fg-muted">
+          <p>
+            <strong className="text-fg">Itens com o Lojista</strong> (total {declaration.itemsTotal}):{" "}
+            {declaration.items.map((item) => (item.quantity > 1 ? `${item.quantity}× ${item.name}` : item.name)).join(", ")}
+          </p>
+          {declaration.delivery ? <DeliveryStatus delivery={declaration.delivery} /> : null}
+        </div>
       ) : null}
       {declaration.roll ? (
         <p className="text-sm text-fg-muted">
@@ -277,6 +293,20 @@ export function DeclarationCard({
   );
 }
 
+function DeliveryStatus({ delivery }: Readonly<{ delivery: NonNullable<SedeDeclaration["delivery"]> }>) {
+  if (delivery.status === "delivered") {
+    return (
+      <p className="mt-1 text-xs text-success">
+        Itens entregues no Foundry{delivery.deliveredAt ? ` em ${formatDateTime(delivery.deliveredAt)}` : ""}.
+      </p>
+    );
+  }
+  if (delivery.status === "pending_delivery") {
+    return <p className="mt-1 text-xs text-info">Itens a caminho do Foundry: chegam quando o mestre estiver no mundo.</p>;
+  }
+  return <p className="mt-1 text-xs text-danger">A entrega no Foundry falhou: {delivery.error ?? "tente de novo."}</p>;
+}
+
 function ChooseDialog({
   campaignId,
   activity,
@@ -291,22 +321,30 @@ function ChooseDialog({
   onChosen: (declaration: SedeDeclaration) => Promise<void>;
 }>) {
   const [note, setNote] = useState("");
+  const [items, setItems] = useState<ShopSelection>(new Map());
   const declare = useMutation({
     mutationFn: () =>
       apiFetch<SedeDeclaration>(`/api/campaigns/${campaignId}/sede/declarations`, {
         method: "POST",
-        body: JSON.stringify({ activityId: activity!.id, note: note.trim() || null }),
+        body: JSON.stringify({
+          activityId: activity!.id,
+          note: note.trim() || null,
+          items: [...items].map(([catalogItemId, quantity]) => ({ catalogItemId, quantity })),
+        }),
       }),
     onSuccess: async (declaration) => {
       setNote("");
+      setItems(new Map());
       await onChosen(declaration);
     },
   });
   const question = activity?.inputMode === "question";
+  const shop = activity?.inputMode === "shop";
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (question && !note.trim()) return;
+    if (shop && items.size === 0) return;
     declare.mutate();
   }
 
@@ -334,7 +372,10 @@ function ChooseDialog({
               O portal rola {activity.roll} quando você confirmar, e o Guardião usa o resultado para resolver.
             </p>
           ) : null}
-          {activity.inputMode !== "none" ? (
+          {shop ? (
+            <ShopPicker campaignId={campaignId} activityId={activity.id} selection={items} onChange={setItems} />
+          ) : null}
+          {activity.inputMode === "note" || activity.inputMode === "question" ? (
             <Field
               label={question ? "Pergunta para investigar" : "Pedido"}
               optional={!question}
@@ -362,7 +403,11 @@ function ChooseDialog({
             <Button variant="ghost" disabled={declare.isPending} onClick={onClose}>
               Voltar
             </Button>
-            <Button type="submit" variant="primary" disabled={declare.isPending || (question && !note.trim())}>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={declare.isPending || (question && !note.trim()) || (shop && items.size === 0)}
+            >
               {declare.isPending ? "Registrando…" : "Escolher esta atividade"}
             </Button>
           </div>
