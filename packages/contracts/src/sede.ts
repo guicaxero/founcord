@@ -20,16 +20,30 @@ export const SedeLevelSchema = z.number().int().min(1).max(SEDE_MAX_LEVEL);
  * - `none`: nada;
  * - `note`: observação opcional (ex.: o que gostaria de comer);
  * - `question`: pergunta obrigatória (ex.: Pesquisa com a Escriba);
+ * - `intent`: descrição obrigatória do que o Corvo pretende fazer (ex.:
+ *   Atividade Criativa);
  * - `shop`: itens Comuns do catálogo do Lojista até um limite de valor, que o
  *   módulo coloca no personagem depois da resolução.
  */
-export const SedeActivityInputModeSchema = z.enum(["none", "note", "question", "shop"]);
+export const SedeActivityInputModeSchema = z.enum(["none", "note", "question", "intent", "shop"]);
 
 /** Rolagem feita pelo portal no momento da escolha, como `2d20`. */
 export const SedeRollFormulaSchema = z
   .string()
   .trim()
   .regex(/^[1-9]\d?d(4|6|8|10|12|20|100)$/u, { message: "Use o formato NdM, como 2d20." });
+
+/** Rótulo do texto que o jogador escreveu, conforme o modo da atividade. */
+export function sedeNoteLabel(mode: SedeActivityInputMode): string {
+  if (mode === "question") return "Pergunta";
+  if (mode === "intent") return "Intenção";
+  return "Pedido";
+}
+
+/** Modos em que o jogador precisa escrever algo para escolher a atividade. */
+export function sedeNoteRequired(mode: SedeActivityInputMode): boolean {
+  return mode === "question" || mode === "intent";
+}
 
 const text = (min: number, max: number) => z.string().trim().min(min).max(max);
 
@@ -101,7 +115,14 @@ export const SedeDeclarationSchema = z
     playerName: z.string(),
     actorName: z.string(),
     activity: z
-      .object({ id: EntityIdSchema, npc: z.string(), name: z.string(), effect: z.string() })
+      .object({
+        id: EntityIdSchema,
+        npc: z.string(),
+        name: z.string(),
+        effect: z.string(),
+        /** Modo atual da atividade, que define o rótulo do texto do jogador. */
+        inputMode: SedeActivityInputModeSchema,
+      })
       .strict(),
     note: z.string().nullable(),
     roll: SedeRollSchema.nullable(),

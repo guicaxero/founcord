@@ -79,4 +79,16 @@ export const BASE_SEDE_ACTIVITIES: readonly SedeActivityInput[] = [
     active: true,
     sort: 60,
   },
+  {
+    npc: "Sede da Ordem",
+    name: "Atividade Criativa",
+    description: "O Corvo descreve algo que pretende fazer na Sede, fora das outras atividades.",
+    effect: "O Guardião decide o resultado conforme o que o Corvo descrever.",
+    minLevel: 1,
+    inputMode: "intent",
+    roll: null,
+    shopLimit: null,
+    active: true,
+    sort: 70,
+  },
 ];

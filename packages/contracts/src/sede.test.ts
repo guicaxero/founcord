@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { FoundryCommandInputSchema } from "./foundry";
-import { SedeActivityInputSchema, SedeRollFormulaSchema, moduleSupportsItemGrant, rollSede } from "./sede";
+import {
+  SedeActivityInputSchema,
+  SedeRollFormulaSchema,
+  moduleSupportsItemGrant,
+  rollSede,
+  sedeNoteLabel,
+  sedeNoteRequired,
+} from "./sede";
 
 describe("Vida na Sede", () => {
   it("rola NdM com a fonte de aleatoriedade dada", () => {
@@ -26,6 +33,18 @@ describe("Vida na Sede", () => {
     });
     expect(activity).toMatchObject({ inputMode: "none", roll: null, active: true, sort: 0 });
     expect(SedeActivityInputSchema.safeParse({ ...activity, minLevel: 5 }).success).toBe(false);
+  });
+
+  it("nomeia e exige o texto do jogador conforme o modo", () => {
+    expect([sedeNoteLabel("note"), sedeNoteLabel("question"), sedeNoteLabel("intent")]).toEqual([
+      "Pedido",
+      "Pergunta",
+      "Intenção",
+    ]);
+    expect(["none", "note", "question", "intent", "shop"].filter((mode) => sedeNoteRequired(mode as never))).toEqual([
+      "question",
+      "intent",
+    ]);
   });
 });
 

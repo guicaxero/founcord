@@ -86,6 +86,13 @@ Ordem.
 | Caçador | Treino de Caça | — | — |
 | Lojista | Preparar Suprimentos | itens Comuns até 1 ss | — |
 | Escriba | Pesquisa | pergunta obrigatória | — |
+| Sede da Ordem | Atividade Criativa | descrição obrigatória do que pretende fazer | — |
+
+O texto do jogador aparece com o rótulo do modo: "Pedido" (opcional),
+"Pergunta" (Escriba) ou "Intenção" (Atividade Criativa), no painel do
+Guardião e no Registro do Corvo. Uma campanha que já importou a lista recebe
+a Atividade Criativa ao clicar em "Importar atividades" de novo; as que já
+existem não são duplicadas.
 
 O Guardião importa essa lista no painel e pode editar o texto, desativar
 atividades e criar as dos níveis seguintes (nível mínimo, o que o jogador

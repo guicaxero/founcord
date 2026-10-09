@@ -11,6 +11,7 @@ import {
   moduleSupportsItemGrant,
   parseDemonLordPrice,
   rollSede,
+  sedeNoteLabel,
   stockEntryFromCatalog,
   type SedeGrantDeliveryCallback,
   type SedeShopItem,
@@ -63,6 +64,7 @@ type DeclarationRow = Readonly<{
   activity_npc: string;
   activity_name: string;
   activity_effect: string;
+  activity_input_mode: SedeActivity["inputMode"] | null;
   note: string | null;
   roll_json: string | null;
   items_json: string | null;
@@ -84,12 +86,13 @@ const ACTIVITY_COLUMNS = `id, campaign_id, npc, name, description, effect, min_l
   shop_limit, active, sort, version, created_at, updated_at`;
 
 const DECLARATION_SELECT = `SELECT d.id, d.campaign_id, u.display_name AS player_name, d.actor_name,
-    d.activity_id, d.activity_npc, d.activity_name, d.activity_effect, d.note, d.roll_json, d.items_json,
+    d.activity_id, d.activity_npc, d.activity_name, d.activity_effect, a.input_mode AS activity_input_mode, d.note, d.roll_json, d.items_json,
     d.delivery_status, d.delivery_error, d.delivered_at, d.world_id, d.foundry_actor_id, d.status,
     d.result, r.display_name AS resolved_by_name, d.resolved_at, d.period_started_at, l.registro_thread_id, d.created_at
   FROM sede_declarations d
   INNER JOIN iam_users u ON u.id = d.user_id
   LEFT JOIN iam_users r ON r.id = d.resolved_by_user_id
+  LEFT JOIN sede_activities a ON a.id = d.activity_id
   LEFT JOIN campaign_character_links l ON l.campaign_id = d.campaign_id AND l.user_id = d.user_id`;
 
 function mapActivity(row: ActivityRow): SedeActivity {
@@ -130,7 +133,13 @@ function mapDeclaration(row: DeclarationRow): SedeDeclaration {
     campaignId: row.campaign_id,
     playerName: row.player_name,
     actorName: row.actor_name,
-    activity: { id: row.activity_id, npc: row.activity_npc, name: row.activity_name, effect: row.activity_effect },
+    activity: {
+      id: row.activity_id,
+      npc: row.activity_npc,
+      name: row.activity_name,
+      effect: row.activity_effect,
+      inputMode: row.activity_input_mode ?? "note",
+    },
     note: row.note,
     roll: row.roll_json ? SedeRollSchema.parse(JSON.parse(row.roll_json)) : null,
     items,
@@ -378,6 +387,9 @@ export async function declareSedeActivity(
   if (activity.inputMode === "question" && !note) {
     throw new HttpError(422, "sede_question_required", "Escreva a pergunta que o Corvo quer investigar.");
   }
+  if (activity.inputMode === "intent" && !note) {
+    throw new HttpError(422, "sede_intent_required", "Descreva o que o Corvo pretende fazer.");
+  }
   const items = activity.inputMode === "shop" ? await pickShopItems(campaignId, activity, input.items) : [];
   const roll = activity.roll ? rollSede(activity.roll, cryptoRandom) : null;
 
@@ -457,7 +469,7 @@ export function registroContent(event: "declared" | "resolved" | "cancelled", de
   return [
     `🪶 **Vida na Sede** · ${declaration.actorName} escolheu **${activity}**`,
     `> ${declaration.activity.effect}`,
-    declaration.note ? `**Pedido:** ${declaration.note}` : null,
+    declaration.note ? `**${sedeNoteLabel(declaration.activity.inputMode)}:** ${declaration.note}` : null,
     declaration.roll
       ? `**Rolagem ${declaration.roll.formula}:** ${declaration.roll.dice.join(" + ")} = **${declaration.roll.total}**`
       : null,

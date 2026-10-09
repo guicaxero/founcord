@@ -1,7 +1,13 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { SedeDeclaration, SedeStateResponse } from "@ordem/contracts";
+import {
+  sedeNoteLabel,
+  sedeNoteRequired,
+  type SedeActivityInputMode,
+  type SedeDeclaration,
+  type SedeStateResponse,
+} from "@ordem/contracts";
 import { useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -17,6 +23,16 @@ import { queryKeys } from "@/lib/query-keys";
 import { ShopPicker, type ShopSelection } from "./shop-picker";
 
 type AvailableActivity = SedeStateResponse["activities"][number];
+
+/** Texto que o jogador escreve ao escolher a atividade, por modo; ausente quando não há. */
+const NOTE_FIELDS: Readonly<Partial<Record<SedeActivityInputMode, { label: string; hint: string }>>> = {
+  note: { label: "Pedido", hint: "Algo que o Corvo gostaria, se houver." },
+  question: { label: "Pergunta para investigar", hint: "O que o Corvo quer descobrir? Seja específico." },
+  intent: {
+    label: "O que o Corvo pretende fazer",
+    hint: "Descreva a atividade com detalhes: o que ele faz, com quem e com que objetivo.",
+  },
+};
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
@@ -250,7 +266,7 @@ export function DeclarationCard({
       ) : null}
       {declaration.note ? (
         <p className="text-sm text-fg-muted whitespace-pre-line">
-          <strong className="text-fg">Pedido:</strong> {declaration.note}
+          <strong className="text-fg">{sedeNoteLabel(declaration.activity.inputMode)}:</strong> {declaration.note}
         </p>
       ) : null}
       {declaration.items.length > 0 ? (
@@ -338,12 +354,13 @@ function ChooseDialog({
       await onChosen(declaration);
     },
   });
-  const question = activity?.inputMode === "question";
+  const noteField = activity ? NOTE_FIELDS[activity.inputMode] : undefined;
+  const noteRequired = activity ? sedeNoteRequired(activity.inputMode) : false;
   const shop = activity?.inputMode === "shop";
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (question && !note.trim()) return;
+    if (noteRequired && !note.trim()) return;
     if (shop && items.size === 0) return;
     declare.mutate();
   }
@@ -375,19 +392,15 @@ function ChooseDialog({
           {shop ? (
             <ShopPicker campaignId={campaignId} activityId={activity.id} selection={items} onChange={setItems} />
           ) : null}
-          {activity.inputMode === "note" || activity.inputMode === "question" ? (
-            <Field
-              label={question ? "Pergunta para investigar" : "Pedido"}
-              optional={!question}
-              hint={question ? "O que o Corvo quer descobrir? Seja específico." : "Algo que o Corvo gostaria, se houver."}
-            >
+          {noteField ? (
+            <Field label={noteField.label} optional={!noteRequired} hint={noteField.hint}>
               {({ id, describedBy }) => (
                 <Textarea
                   id={id}
                   aria-describedby={describedBy}
                   rows={4}
                   maxLength={1_000}
-                  required={question}
+                  required={noteRequired}
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
                 />
@@ -406,7 +419,7 @@ function ChooseDialog({
             <Button
               type="submit"
               variant="primary"
-              disabled={declare.isPending || (question && !note.trim()) || (shop && items.size === 0)}
+              disabled={declare.isPending || (noteRequired && !note.trim()) || (shop && items.size === 0)}
             >
               {declare.isPending ? "Registrando…" : "Escolher esta atividade"}
             </Button>

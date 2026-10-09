@@ -739,7 +739,7 @@ export const sedeActivities = sqliteTable(
     description: text("description").notNull(),
     effect: text("effect").notNull(),
     minLevel: integer("min_level").notNull().default(1),
-    inputMode: text("input_mode", { enum: ["none", "note", "question", "shop"] }).notNull().default("none"),
+    inputMode: text("input_mode", { enum: ["none", "note", "question", "intent", "shop"] }).notNull().default("none"),
     roll: text("roll"),
     // Limite de valor da atividade do Lojista, como preço do Foundry ("1 ss").
     shopLimit: text("shop_limit"),

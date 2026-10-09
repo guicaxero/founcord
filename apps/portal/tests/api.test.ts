@@ -1264,8 +1264,8 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.equal((await api(mf, `${base}/manage`, { token: identities.playerOne.token })).status, 403);
       assert.equal((await post(`${base}/activities/import-base`, identities.playerOne.token)).status, 403);
       const imported = await post(`${base}/activities/import-base`, identities.gm.token);
-      assert.deepEqual(imported.data, { created: 6, skipped: 0 });
-      assert.deepEqual((await post(`${base}/activities/import-base`, identities.gm.token)).data, { created: 0, skipped: 6 });
+      assert.deepEqual(imported.data, { created: 7, skipped: 0 });
+      assert.deepEqual((await post(`${base}/activities/import-base`, identities.gm.token)).data, { created: 0, skipped: 7 });
 
       // Sem personagem vinculado, o jogador vê a Sede mas não escolhe.
       const unlinked = await api(mf, base, { token: identities.playerOne.token });
@@ -1273,6 +1273,8 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.equal(unlinked.data.actorName, null);
       const escriba = unlinked.data.activities.find((activity: Json) => activity.npc === "Escriba");
       const zelador = unlinked.data.activities.find((activity: Json) => activity.npc === "Zelador");
+      const criativa = unlinked.data.activities.find((activity: Json) => activity.name === "Atividade Criativa");
+      assert.equal(criativa.inputMode, "intent");
       assert.equal((await post(`${base}/declarations`, identities.playerOne.token, { activityId: escriba.id, note: "Quem é o Rei?" })).status, 409);
 
       const link = await api(mf, `/api/campaigns/${defaultCampaignId}/members/${identities.playerOne.id}/character-link`, {
@@ -1295,10 +1297,13 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
 
       const state = await api(mf, base, { token: identities.playerOne.token });
       assert.deepEqual([state.data.level, state.data.actorName, state.data.period.remaining], [1, "Aster", 1]);
-      assert.equal(state.data.activities.length, 6);
+      assert.equal(state.data.activities.length, 7);
 
       const noQuestion = await post(`${base}/declarations`, identities.playerOne.token, { activityId: escriba.id, note: null });
       assert.equal(noQuestion.status, 422);
+      const noIntent = await post(`${base}/declarations`, identities.playerOne.token, { activityId: criativa.id, note: "  " });
+      assert.equal(noIntent.status, 422);
+      assert.equal(noIntent.data.error.code, "sede_intent_required");
       const research = await post(`${base}/declarations`, identities.playerOne.token, {
         activityId: escriba.id,
         note: "Quem fundou a Ordem?",
@@ -1309,6 +1314,7 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
         "Quem fundou a Ordem?",
         "declared",
       ]);
+      assert.equal(research.data.activity.inputMode, "question");
       const overLimit = await post(`${base}/declarations`, identities.playerOne.token, { activityId: zelador.id, note: null });
       assert.equal(overLimit.status, 409);
       assert.equal(overLimit.data.error.code, "sede_allowance_used");

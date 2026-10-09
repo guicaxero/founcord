@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   SEDE_MAX_LEVEL,
+  sedeNoteLabel,
   type SedeActivity,
   type SedeActivityInputMode,
   type SedeDeclaration,
@@ -29,6 +30,7 @@ const inputModeLabels: Readonly<Record<SedeActivityInputMode, string>> = {
   none: "Nada",
   note: "Pedido opcional",
   question: "Pergunta obrigatória",
+  intent: "Descrição obrigatória",
   shop: "Itens do Lojista",
 };
 
@@ -370,7 +372,7 @@ function ResolveDialog({
             </div>
             {declaration.note ? (
               <div>
-                <dt className="font-semibold text-fg">Pedido do jogador</dt>
+                <dt className="font-semibold text-fg">{sedeNoteLabel(declaration.activity.inputMode)} do jogador</dt>
                 <dd className="text-fg-muted whitespace-pre-line">{declaration.note}</dd>
               </div>
             ) : null}
