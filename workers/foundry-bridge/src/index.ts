@@ -26,6 +26,7 @@ import {
   FoundryPairingPreviewSchema,
   FoundryUserCodeSchema,
   FoundryWorldStatusSchema,
+  parsePatchOutcomes,
 } from "@ordem/contracts";
 import {
   assertStaticBearer,
@@ -41,6 +42,7 @@ import {
   reportCreatureDelivery,
   reportMerchantPurchaseDelivery,
   reportMerchantStockDelivery,
+  reportMerchantStockPatchDelivery,
   syncCharactersWithPortal,
 } from "./portal-client";
 import {
@@ -399,6 +401,20 @@ foundryApp.post(
           drawId: completion.command.payload.drawId,
           commandId,
           outcome: input.outcome,
+          error: input.outcome === "failed" ? input.error : null,
+          deliveredAt: new Date().toISOString(),
+        },
+        requestCorrelationId(context.req.raw),
+      );
+    }
+    if (completion.command.type === "merchant.stock.patch") {
+      await reportMerchantStockPatchDelivery(
+        context.env,
+        {
+          patchId: completion.command.payload.patchId,
+          commandId,
+          outcome: input.outcome,
+          outcomes: input.outcome === "succeeded" ? parsePatchOutcomes(input.result.statuses) : [],
           error: input.outcome === "failed" ? input.error : null,
           deliveredAt: new Date().toISOString(),
         },

@@ -570,6 +570,37 @@ export const merchantStockDraws = sqliteTable(
 );
 
 /**
+ * Edições do estoque real do Lojista, item a item (`merchant.stock.patch`).
+ * Guardam as mudanças enviadas e o resultado de cada uma no Foundry.
+ */
+export const merchantStockPatches = sqliteTable(
+  "merchant_stock_patches",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    worldId: text("world_id").notNull(),
+    operationsJson: text("operations_json").notNull(),
+    outcomesJson: text("outcomes_json"),
+    status: text("status", { enum: ["pending_delivery", "applied", "partial", "failed"] })
+      .notNull()
+      .default("pending_delivery"),
+    commandId: text("command_id"),
+    error: text("error"),
+    appliedAt: text("applied_at"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("uq_merchant_stock_patch_command").on(table.commandId),
+    index("idx_merchant_stock_patch_campaign").on(table.campaignId, table.createdAt),
+  ],
+);
+
+/**
  * Bestiário e grimório importados pelo mestre a partir do compêndio. É conteúdo
  * dos livros: só entra por importação e só aparece na área de gestão.
  */

@@ -1103,6 +1103,76 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
           ["draw", "applied"],
         ],
       );
+
+      // Estoque atual: só as mudanças vão ao Foundry, e o resultado volta por item.
+      const patchesPath = `/api/campaigns/${defaultCampaignId}/merchant/stock/patches`;
+      const worldId = "22222222-2222-4222-8222-222222222222";
+      const patchBody = { worldId, operations: [{ op: "set", itemId: "espada", from: 1, quantity: 3 }] };
+      assert.equal(
+        (await api(mf, patchesPath, { token: identities.playerOne.token, method: "POST", body: patchBody })).status,
+        403,
+      );
+      const twice = await api(mf, patchesPath, {
+        token: identities.gm.token,
+        method: "POST",
+        body: { worldId, operations: [...patchBody.operations, { op: "remove", itemId: "espada" }] },
+      });
+      assert.equal(twice.status, 422);
+      const noWorld = await api(mf, `/api/campaigns/${defaultCampaignId}/merchant/stock/current`, { token: identities.gm.token });
+      assert.equal(noWorld.status, 422);
+
+      const patchId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+      await db
+        .prepare(
+          `INSERT INTO merchant_stock_patches (id, campaign_id, created_by_user_id, world_id, operations_json)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          patchId,
+          defaultCampaignId,
+          identities.gm.id,
+          worldId,
+          JSON.stringify([
+            { operation: { op: "set", itemId: "espada", from: 1, quantity: 3 }, name: "Espada" },
+            { operation: { op: "remove", itemId: "funda" }, name: "Funda" },
+          ]),
+        )
+        .run();
+      const patchPath = `${patchesPath}/${patchId}`;
+      assert.equal((await api(mf, patchPath, { token: identities.playerOne.token })).status, 403);
+      const pendingPatch = await api(mf, patchPath, { token: identities.gm.token });
+      assert.equal(pendingPatch.status, 200, JSON.stringify(pendingPatch.data));
+      assert.deepEqual(
+        [pendingPatch.data.status, pendingPatch.data.operations.map((entry: Json) => entry.outcome)],
+        ["pending_delivery", [null, null]],
+      );
+
+      const patchCallbackPath = "/api/internal/integration/foundry/merchant-stock/patch-delivery";
+      const patchCallback = {
+        patchId,
+        commandId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        outcome: "succeeded",
+        outcomes: ["applied", "conflict"],
+        error: null,
+        deliveredAt: "2026-10-09T12:00:00.000Z",
+      };
+      assert.equal((await api(mf, patchCallbackPath, { method: "POST", body: patchCallback })).status, 401);
+      const partial = await api(mf, patchCallbackPath, {
+        method: "POST",
+        body: patchCallback,
+        headers: { authorization: "Bearer test-integration-token-with-at-least-32-bytes" },
+      });
+      assert.equal(partial.status, 200, JSON.stringify(partial.data));
+      assert.deepEqual(
+        [partial.data.status, partial.data.operations.map((entry: Json) => [entry.name, entry.outcome])],
+        [
+          "partial",
+          [
+            ["Espada", "applied"],
+            ["Funda", "conflict"],
+          ],
+        ],
+      );
     });
 
     test("importa o compêndio e mantém a biblioteca de criaturas com RBAC", async () => {

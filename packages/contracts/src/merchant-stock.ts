@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { EntityIdSchema, IsoDateTimeSchema } from "./common";
-import { MerchantItemAvailabilitySchema } from "./merchant";
+import { MerchantItemAvailabilitySchema, MerchantItemProjectionSchema } from "./merchant";
 
 /**
  * Catálogo do Lojista e sorteio de estoque.
@@ -168,6 +168,8 @@ export const MerchantStockTargetSchema = z
     moduleVersion: z.string().max(40),
     merchantName: z.string().trim().min(1).max(160).nullable(),
     blockedReason: z.enum(["module_outdated", "merchant_missing", "revoked"]).nullable(),
+    /** O módulo edita o estoque item a item (`merchant.stock.patch`). */
+    supportsPatch: z.boolean(),
   })
   .strict();
 
@@ -193,6 +195,121 @@ export function moduleSupportsStockReplace(version: string): boolean {
   return major > 0 || minor >= 8;
 }
 
+const foundryItemId = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9._-]+$/);
+const patchQuantity = z.number().int().min(0).max(1_000);
+
+/**
+ * Uma mudança no estoque do Lojista, como o módulo recebe:
+ * - `set`: nova quantidade, aplicada só se o item ainda tiver a quantidade
+ *   `from` que o portal leu (uma compra no meio do caminho não é apagada);
+ * - `remove`: tira o item do ator;
+ * - `add`: cria o item do catálogo, ou soma ao que o portal já criou.
+ */
+export const MerchantStockPatchOperationSchema = z.discriminatedUnion("op", [
+  z.object({ op: z.literal("set"), itemId: foundryItemId, from: patchQuantity.nullable(), quantity: patchQuantity }).strict(),
+  z.object({ op: z.literal("remove"), itemId: foundryItemId }).strict(),
+  z.object({ op: z.literal("add"), entry: MerchantStockEntrySchema }).strict(),
+]);
+
+/** O que o mestre envia do portal; itens novos vêm do catálogo da campanha. */
+export const MerchantStockPatchInputSchema = z
+  .object({
+    worldId: EntityIdSchema,
+    operations: z
+      .array(
+        z.discriminatedUnion("op", [
+          z
+            .object({ op: z.literal("set"), itemId: foundryItemId, from: patchQuantity.nullable(), quantity: patchQuantity })
+            .strict(),
+          z.object({ op: z.literal("remove"), itemId: foundryItemId }).strict(),
+          z
+            .object({ op: z.literal("add"), catalogItemId: EntityIdSchema, quantity: z.number().int().min(1).max(100) })
+            .strict(),
+        ]),
+      )
+      .min(1)
+      .max(100)
+      .refine(
+        (operations) => {
+          const keys = operations.map((operation) => (operation.op === "add" ? `add:${operation.catalogItemId}` : operation.itemId));
+          return new Set(keys).size === keys.length;
+        },
+        { message: "Cada item só pode ter uma mudança por envio." },
+      ),
+  })
+  .strict();
+
+export const MerchantStockPatchOutcomeSchema = z.enum(["applied", "conflict", "missing"]);
+export const MerchantStockPatchStatusSchema = z.enum(["pending_delivery", "applied", "partial", "failed"]);
+
+/** Edição enviada, com o resultado de cada mudança quando o módulo responde. */
+export const MerchantStockPatchSchema = z
+  .object({
+    id: EntityIdSchema,
+    campaignId: EntityIdSchema,
+    worldId: EntityIdSchema,
+    operations: z.array(
+      z
+        .object({
+          operation: MerchantStockPatchOperationSchema,
+          /** Nome do item, para mostrar o resultado. */
+          name: z.string().max(160),
+          outcome: MerchantStockPatchOutcomeSchema.nullable(),
+        })
+        .strict(),
+    ),
+    status: MerchantStockPatchStatusSchema,
+    error: z.string().max(1_000).nullable(),
+    createdByName: z.string().trim().min(1).max(100),
+    createdAt: IsoDateTimeSchema,
+    appliedAt: IsoDateTimeSchema.nullable(),
+  })
+  .strict();
+
+/** Estoque real do Lojista, como o módulo sincronizou por último. */
+export const MerchantStockCurrentResponseSchema = z
+  .object({
+    worldId: EntityIdSchema,
+    merchantName: z.string().nullable(),
+    syncedAt: IsoDateTimeSchema.nullable(),
+    online: z.boolean(),
+    items: z.array(MerchantItemProjectionSchema).max(500),
+  })
+  .strict();
+
+export const MerchantStockPatchDeliveryCallbackSchema = z
+  .object({
+    patchId: EntityIdSchema,
+    commandId: EntityIdSchema,
+    outcome: z.enum(["succeeded", "failed"]),
+    /** Um resultado por mudança, na ordem enviada; vazio quando a edição já tinha sido aplicada. */
+    outcomes: z.array(MerchantStockPatchOutcomeSchema).max(100),
+    error: z.string().trim().min(1).max(1_000).nullable(),
+    deliveredAt: IsoDateTimeSchema,
+  })
+  .strict();
+
+/** Versão mínima do módulo que entende `merchant.stock.patch`. */
+export const MERCHANT_STOCK_PATCH_MIN_MODULE_VERSION = "0.13.0";
+
+export function moduleSupportsStockPatch(version: string): boolean {
+  const [major = 0, minor = 0] = version.split(".").map((part) => Number.parseInt(part, 10) || 0);
+  return major > 0 || minor >= 13;
+}
+
+/** Lê os resultados que o módulo devolve como texto separado por vírgula. */
+export function parsePatchOutcomes(value: unknown): z.infer<typeof MerchantStockPatchOutcomeSchema>[] {
+  if (typeof value !== "string" || !value) return [];
+  return value
+    .split(",")
+    .slice(0, 100)
+    .map((outcome) => MerchantStockPatchOutcomeSchema.catch("missing").parse(outcome));
+}
+
 export type MerchantStockCriteria = z.infer<typeof MerchantStockCriteriaSchema>;
 export type MerchantCatalogKind = z.infer<typeof MerchantCatalogKindSchema>;
 export type MerchantCatalogItemInput = z.input<typeof MerchantCatalogItemInputSchema>;
@@ -210,6 +327,13 @@ export type MerchantStockApplyInput = z.infer<typeof MerchantStockApplyInputSche
 export type MerchantStockTarget = z.infer<typeof MerchantStockTargetSchema>;
 export type MerchantStockTargetListResponse = z.infer<typeof MerchantStockTargetListResponseSchema>;
 export type MerchantStockDeliveryCallback = z.infer<typeof MerchantStockDeliveryCallbackSchema>;
+export type MerchantStockPatchOperation = z.infer<typeof MerchantStockPatchOperationSchema>;
+export type MerchantStockPatchInput = z.infer<typeof MerchantStockPatchInputSchema>;
+export type MerchantStockPatchOutcome = z.infer<typeof MerchantStockPatchOutcomeSchema>;
+export type MerchantStockPatchStatus = z.infer<typeof MerchantStockPatchStatusSchema>;
+export type MerchantStockPatch = z.infer<typeof MerchantStockPatchSchema>;
+export type MerchantStockCurrentResponse = z.infer<typeof MerchantStockCurrentResponseSchema>;
+export type MerchantStockPatchDeliveryCallback = z.infer<typeof MerchantStockPatchDeliveryCallbackSchema>;
 
 /** Gerador de números em [0, 1); injetável para testes determinísticos. */
 export type RandomSource = () => number;

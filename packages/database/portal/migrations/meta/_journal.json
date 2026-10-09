@@ -176,6 +176,13 @@
       "when": 1791066274719,
       "tag": "0025_sede_lojista",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1791555861943,
+      "tag": "0026_merchant_stock_patches",
+      "breakpoints": true
     }
   ]
 }

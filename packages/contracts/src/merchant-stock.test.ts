@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { FoundryCommandInputSchema } from "./foundry";
+import { MerchantItemProjectionSchema } from "./merchant";
 import {
   MerchantCatalogItemSchema,
+  MerchantStockPatchInputSchema,
   MerchantStockSelectionInputSchema,
   drawMerchantStock,
+  moduleSupportsStockPatch,
+  parsePatchOutcomes,
   selectMerchantStock,
+  stockEntryFromCatalog,
   moduleSupportsStockReplace,
   type MerchantCatalogItem,
   type MerchantStockCriteria,
@@ -179,5 +184,67 @@ describe("selectMerchantStock", () => {
     expect(parse([{ catalogItemId: id, quantity: 1 }, { catalogItemId: id, quantity: 1 }])).toBe(false);
     expect(parse([{ catalogItemId: id, quantity: 101 }])).toBe(false);
     expect(parse([])).toBe(false);
+  });
+});
+
+describe("edição do estoque atual", () => {
+  const worldId = "22222222-2222-4222-8222-222222222222";
+
+  it("aceita mudanças de quantidade, remoções e itens novos do catálogo", () => {
+    const parsed = MerchantStockPatchInputSchema.parse({
+      worldId,
+      operations: [
+        { op: "set", itemId: "espada.01", from: null, quantity: 0 },
+        { op: "remove", itemId: "funda" },
+        { op: "add", catalogItemId: item().id, quantity: 2 },
+      ],
+    });
+    expect(parsed.operations).toHaveLength(3);
+  });
+
+  it("recusa duas mudanças no mesmo item, ids fora do formato e listas vazias", () => {
+    const set = { op: "set", itemId: "espada", from: 1, quantity: 2 };
+    expect(MerchantStockPatchInputSchema.safeParse({ worldId, operations: [set, { op: "remove", itemId: "espada" }] }).success).toBe(false);
+    expect(MerchantStockPatchInputSchema.safeParse({ worldId, operations: [{ ...set, itemId: "../x" }] }).success).toBe(false);
+    expect(MerchantStockPatchInputSchema.safeParse({ worldId, operations: [{ ...set, quantity: 1_001 }] }).success).toBe(false);
+    expect(MerchantStockPatchInputSchema.safeParse({ worldId, operations: [] }).success).toBe(false);
+  });
+
+  it("monta o comando com o item do catálogo completo", () => {
+    const command = {
+      type: "merchant.stock.patch",
+      payload: {
+        patchId: "33333333-3333-4333-8333-333333333333",
+        campaignId,
+        operations: [
+          { op: "set", itemId: "espada", from: 1, quantity: 2 },
+          { op: "add", entry: stockEntryFromCatalog(item({ name: "Corda" }), 3) },
+        ],
+        requestedAt: "2026-10-09T00:00:00.000Z",
+      },
+    };
+    expect(FoundryCommandInputSchema.parse(command).type).toBe("merchant.stock.patch");
+  });
+
+  it("lê os resultados do módulo e a versão mínima", () => {
+    expect(parsePatchOutcomes("applied,conflict,missing,x")).toEqual(["applied", "conflict", "missing", "missing"]);
+    expect(parsePatchOutcomes(undefined)).toEqual([]);
+    expect(moduleSupportsStockPatch("0.12.0")).toBe(false);
+    expect(moduleSupportsStockPatch("0.13.0")).toBe(true);
+    expect(moduleSupportsStockPatch("1.0.0")).toBe(true);
+  });
+
+  it("aceita o catálogo de módulos antigos, sem origem", () => {
+    const projection = MerchantItemProjectionSchema.parse({
+      itemId: "a",
+      name: "Corda",
+      description: null,
+      category: null,
+      imageUrl: null,
+      price: null,
+      quantity: 1,
+      sourceUpdatedAt: "2026-10-09T00:00:00.000Z",
+    });
+    expect([projection.origin, projection.catalogItemId]).toEqual([null, null]);
   });
 });

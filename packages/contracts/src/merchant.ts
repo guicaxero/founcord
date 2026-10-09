@@ -87,6 +87,10 @@ export const MerchantItemProjectionSchema = z
     properties: z.string().trim().min(1).max(500).nullable().default(null),
     weapon: MerchantWeaponDetailsSchema.nullable().default(null),
     armor: MerchantArmorDetailsSchema.nullable().default(null),
+    // A partir do módulo 0.13.0: se o item foi criado pelo portal (e ainda é
+    // trocado no sorteio) ou colocado à mão, e o item do catálogo de origem.
+    origin: z.enum(["portal", "manual"]).nullable().default(null),
+    catalogItemId: z.string().trim().min(1).max(64).nullable().default(null),
     sourceUpdatedAt: IsoDateTimeSchema,
   })
   .strict();

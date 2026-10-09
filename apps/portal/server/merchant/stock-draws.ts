@@ -5,6 +5,7 @@ import {
   MerchantStockEntrySchema,
   drawMerchantStock,
   selectMerchantStock,
+  moduleSupportsStockPatch,
   moduleSupportsStockReplace,
   type MerchantStockCriteria,
   type MerchantStockDeliveryCallback,
@@ -227,7 +228,7 @@ export async function listStockTargets(
   return Promise.all(
     worlds.map(async (world): Promise<MerchantStockTarget> => {
       if (world.status === "revoked") {
-        return { ...targetBase(world), merchantName: null, blockedReason: "revoked" };
+        return { ...targetBase(world), merchantName: null, blockedReason: "revoked", supportsPatch: false };
       }
       const context = await getMerchantPurchaseContext(campaignId, world.worldId, correlationId).catch(() => null);
       const merchantName = context?.catalog?.merchantName ?? null;
@@ -239,6 +240,7 @@ export async function listStockTargets(
           : merchantName
             ? null
             : "merchant_missing",
+        supportsPatch: moduleSupportsStockPatch(world.moduleVersion),
       };
     }),
   );
