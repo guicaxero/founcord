@@ -197,6 +197,13 @@
       "when": 1791567774793,
       "tag": "0028_posts_discord_thread",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1791568412904,
+      "tag": "0029_mission_cover",
+      "breakpoints": true
     }
   ]
 }

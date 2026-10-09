@@ -19,8 +19,13 @@ import { prepareAudit } from "@/server/shared/audit";
 import { getD1 } from "@/server/shared/db";
 import { HttpError } from "@/server/shared/http";
 
-/** Leitura no Worker do Discord, que tem o token do bot. */
-async function discordWorker<T>(path: string, schema: z.ZodType<T>, correlationId: string): Promise<T> {
+/** Chamada ao Worker do Discord, que tem o token do bot. */
+export async function discordWorker<T>(
+  path: string,
+  schema: z.ZodType<T>,
+  correlationId: string,
+  body?: unknown,
+): Promise<T> {
   const { env } = getCloudflareContext();
   const token = process.env.INTEGRATION_SERVICE_TOKEN ?? env.INTEGRATION_SERVICE_TOKEN;
   const baseUrl =
@@ -33,7 +38,13 @@ async function discordWorker<T>(path: string, schema: z.ZodType<T>, correlationI
   let response: Response;
   try {
     response = await fetch(new URL(path, baseUrl), {
-      headers: { authorization: `Bearer ${token}`, "x-correlation-id": correlationId },
+      method: body === undefined ? "GET" : "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "x-correlation-id": correlationId,
+        ...(body === undefined ? {} : { "content-type": "application/json" }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch {
     throw new HttpError(503, "discord_integration_unavailable", "Não foi possível consultar o Discord agora. Tente novamente.");

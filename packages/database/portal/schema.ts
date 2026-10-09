@@ -148,6 +148,10 @@ export const missions = sqliteTable(
     partySize: integer("party_size").notNull().default(5),
     publishedAt: text("published_at"),
     version: integer("version").notNull().default(1),
+    /** Capa (`media_assets.id`), duração estimada e tópico no fórum de missões do Discord. */
+    coverMediaId: text("cover_media_id"),
+    estimatedDuration: text("estimated_duration"),
+    discordThreadId: text("discord_thread_id"),
     ...timestamps,
   },
   (table) => [

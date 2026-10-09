@@ -10,6 +10,7 @@ import type {
   UpdateMissionInput,
 } from "@ordem/contracts";
 import { useRef, useState, type FormEvent } from "react";
+import { ImagePicker } from "@/components/media/image-picker";
 import { riskLabels } from "@/components/missions/mission-presentation";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -26,6 +27,7 @@ import { hasCapability } from "@/lib/capabilities";
 import { formatDateTime, normalizeSearch } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 import { PanelLoading, PermissionNote, SearchField } from "./kit";
+import { MissionDiscordDialog } from "./mission-discord-dialog";
 import { editorialOrder, editorialTone, timestamp } from "./status";
 
 const statusLabels: Readonly<Record<MissionStatus, string>> = {
@@ -55,6 +57,7 @@ export function MissionsPanel({
   const triggerRef = useRef<HTMLElement | null>(null);
   const [editor, setEditor] = useState<{ mission: MissionSummary | null } | null>(null);
   const [archiving, setArchiving] = useState<MissionSummary | null>(null);
+  const [discord, setDiscord] = useState<MissionSummary | null>(null);
   const [filter, setFilter] = useState<Filter>("active");
   const [search, setSearch] = useState("");
   const missions = useQuery({
@@ -253,6 +256,11 @@ export function MissionsPanel({
                       Publicar
                     </Button>
                   ) : null}
+                  {mission.status === "published" && canPublish ? (
+                    <Button size="sm" variant="ghost" onClick={(event) => { remember(event); setDiscord(mission); }}>
+                      {mission.discordThreadId ? "Ver no Discord" : "Publicar no Discord"}
+                    </Button>
+                  ) : null}
                   {mission.status !== "archived" && editable(mission) ? (
                     <Button size="sm" variant="ghost" className="text-danger" onClick={(event) => { remember(event); archive.reset(); setArchiving(mission); }}>
                       Arquivar
@@ -287,6 +295,17 @@ export function MissionsPanel({
         ) : null}
       </Dialog>
 
+      <MissionDiscordDialog
+        campaignId={campaignId}
+        mission={discord}
+        returnFocusRef={triggerRef}
+        onClose={() => setDiscord(null)}
+        onPublished={async (updated) => {
+          setDiscord(updated);
+          toast({ title: "Missão publicada no Discord", tone: "success" });
+          await invalidateMissions(queryClient, campaignId);
+        }}
+      />
       <ConfirmDialog
         open={Boolean(archiving)}
         title="Arquivar missão?"
@@ -320,10 +339,14 @@ function MissionForm({
   onCancel: () => void;
   onSubmit: (value: CreateMissionInput | (UpdateMissionInput & { id: string })) => void;
 }>) {
+  const [cover, setCover] = useState<string[]>(mission?.coverMediaId ? [mission.coverMediaId] : []);
+  const [uploading, setUploading] = useState(false);
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const scheduled = String(data.get("scheduledFor") ?? "");
+    const duration = String(data.get("estimatedDuration") ?? "").trim();
     const fields = {
       title: String(data.get("title")),
       summary: String(data.get("summary")),
@@ -331,6 +354,8 @@ function MissionForm({
       risk: String(data.get("risk")) as CreateMissionInput["risk"],
       scheduledFor: scheduled ? new Date(scheduled).toISOString() : null,
       partySize: Number(data.get("partySize")),
+      coverMediaId: cover[0] ?? null,
+      estimatedDuration: duration || null,
     };
     onSubmit(mission ? { ...fields, id: mission.id, version: mission.version } : { ...fields, campaignId });
   }
@@ -360,17 +385,38 @@ function MissionForm({
         <Field label="Vagas">
           {({ id }) => <Input id={id} name="partySize" type="number" min={1} max={12} defaultValue={mission?.partySize ?? 5} required />}
         </Field>
+        <Field label="Duração estimada" optional hint="Como no chamado do Discord, por exemplo: 1-3 sessões.">
+          {({ id, describedBy }) => (
+            <Input
+              id={id}
+              name="estimatedDuration"
+              maxLength={60}
+              defaultValue={mission?.estimatedDuration ?? ""}
+              aria-describedby={describedBy}
+            />
+          )}
+        </Field>
         <Field label="Descrição" className="full" hint="Até 1.200 caracteres. Aparece no quadro e na página do chamado.">
           {({ id, describedBy }) => (
             <Textarea id={id} name="summary" rows={7} maxLength={1_200} defaultValue={mission?.summary} required aria-describedby={describedBy} />
           )}
         </Field>
+        <div className="full">
+          <ImagePicker
+            campaignId={campaignId}
+            label="Capa"
+            hint="Aparece no quadro de missões, na página do chamado e no post do Discord."
+            value={cover}
+            onChange={setCover}
+            onBusyChange={setUploading}
+          />
+        </div>
       </FormGrid>
       {error ? <Notice tone="danger" role="alert">{error}</Notice> : null}
       <div className="flex flex-col-reverse gap-3 border-t border-line-soft pt-4 sm:flex-row sm:justify-end">
         <Button disabled={busy} onClick={onCancel}>Cancelar</Button>
-        <Button type="submit" variant="primary" disabled={busy}>
-          {busy ? "Salvando…" : mission ? "Salvar alterações" : "Criar rascunho"}
+        <Button type="submit" variant="primary" disabled={busy || uploading}>
+          {busy ? "Salvando…" : uploading ? "Aguarde o envio…" : mission ? "Salvar alterações" : "Criar rascunho"}
         </Button>
       </div>
     </form>
