@@ -32,6 +32,9 @@ operacional.
 - D1: `ordem-da-ultima-luz`, binding `DB`, id
   `88493218-9d07-4649-98d4-2df515c724e4`.
 - Assets: `.open-next/assets`, binding `ASSETS`.
+- Imagens: bucket R2 `ordem-portal-media`, binding `MEDIA`. Guarda capas e
+  galerias de crônicas e missões, inclusive as copiadas do Discord; o portal
+  serve cada imagem em `/media/<id>` com cache longo.
 - Cache incremental R2: desativado no Marco 1.5.
 - Segredos: cadastrados pelo Wrangler; nunca versionados.
 
@@ -50,6 +53,10 @@ operacional.
 3. Registrar o `database_id` retornado em `wrangler.jsonc`.
 4. Gerar os tipos com `bun run --cwd apps/portal cf-typegen`.
 5. Aplicar as migrations com `bun run db:migrate:portal:remote`.
+6. Criar o bucket de imagens com
+   `bunx wrangler r2 bucket create ordem-portal-media` (uma vez; sem ele, o
+   envio de imagens responde "O armazenamento de imagens ainda não está
+   configurado").
 
 As migrations criam a campanha padrão e o conteúdo oficial. O primeiro usuário
 que concluir o OAuth na nova base recebe `owner` global; usuários seguintes

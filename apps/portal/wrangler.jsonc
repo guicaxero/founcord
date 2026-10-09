@@ -16,6 +16,12 @@
       "migrations_dir": "../../packages/database/portal/migrations"
     }
   ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "ordem-portal-media"
+    }
+  ],
   "vars": {
     "DISCORD_CLIENT_ID": "1540460545558323250",
     "DISCORD_REDIRECT_URI": "https://ordem-da-ultima-luz.ordem-da-ultima-luz.workers.dev/api/auth/discord/callback",

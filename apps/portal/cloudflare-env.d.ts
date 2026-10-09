@@ -1,5 +1,7 @@
 interface CloudflareEnv {
   DB: D1Database;
+  /** Bucket R2 das imagens enviadas ao portal (capas e galerias). */
+  MEDIA?: R2Bucket;
   DISCORD_CLIENT_ID?: string;
   DISCORD_CLIENT_SECRET?: string;
   DISCORD_REDIRECT_URI?: string;
