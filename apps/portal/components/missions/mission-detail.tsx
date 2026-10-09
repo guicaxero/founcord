@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CurrentUserResponse, MissionSummary } from "@ordem/contracts";
+import { mediaUrl, type CurrentUserResponse, type MissionSummary } from "@ordem/contracts";
 import { motion } from "motion/react";
 import { usePathname } from "next/navigation";
 import { Button, ButtonAnchor, ButtonLink } from "@/components/ui/button";
@@ -118,8 +118,17 @@ export function MissionDetail({ missionId }: Readonly<{ missionId: string }>) {
         </div>
       </div>
 
+      {data.coverMediaId ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={mediaUrl(data.coverMediaId)}
+          alt={`Capa de ${data.title}`}
+          className="aspect-[21/9] w-full rounded-lg border border-line-soft bg-surface-2 object-cover"
+        />
+      ) : null}
+
       <Card padding="lg">
-        <dl className="grid gap-6 sm:grid-cols-3">
+        <dl className={`grid gap-6 ${data.estimatedDuration ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"}`}>
           <div>
             <dt className="text-xs font-semibold text-fg-subtle uppercase">Partida</dt>
             <dd className="mt-1 font-display text-xl">
@@ -140,6 +149,12 @@ export function MissionDetail({ missionId }: Readonly<{ missionId: string }>) {
               ) : null}
             </dd>
           </div>
+          {data.estimatedDuration ? (
+            <div>
+              <dt className="text-xs font-semibold text-fg-subtle uppercase">Duração estimada</dt>
+              <dd className="mt-1 font-display text-xl">{data.estimatedDuration}</dd>
+            </div>
+          ) : null}
           <div>
             <dt className="text-xs font-semibold text-fg-subtle uppercase">Anunciado por</dt>
             <dd className="mt-1 font-display text-xl">{data.authorName}</dd>

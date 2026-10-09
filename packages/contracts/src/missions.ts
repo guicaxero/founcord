@@ -40,6 +40,10 @@ export const MissionSummarySchema = z
     signupCount: z.number().int().nonnegative(),
     waitlistCount: z.number().int().nonnegative(),
     currentUserSignup: MissionSignupStatusSchema.nullable(),
+    /** Capa da missão (`/media/<id>`), duração estimada e tópico no Discord. */
+    coverMediaId: z.string().uuid().nullable().default(null),
+    estimatedDuration: z.string().max(60).nullable().default(null),
+    discordThreadId: z.string().nullable().default(null),
     version: z.number().int().positive(),
   })
   .strict();
@@ -60,6 +64,8 @@ export const CreateMissionSchema = z
     risk: MissionRiskSchema.default("unknown"),
     scheduledFor: z.string().datetime({ offset: true }).nullable().default(null),
     partySize: z.number().int().min(1).max(12).default(5),
+    coverMediaId: z.string().uuid().nullable().default(null),
+    estimatedDuration: z.string().trim().max(60).nullable().default(null),
   })
   .strict();
 
@@ -71,6 +77,8 @@ export const UpdateMissionSchema = z
     risk: MissionRiskSchema.optional(),
     scheduledFor: z.string().datetime({ offset: true }).nullable().optional(),
     partySize: z.number().int().min(1).max(12).optional(),
+    coverMediaId: z.string().uuid().nullable().optional(),
+    estimatedDuration: z.string().trim().max(60).nullable().optional(),
     status: MissionStatusSchema.optional(),
     version: z.number().int().positive(),
   })

@@ -148,6 +148,19 @@ Para isso, uma vez:
 
 Só a mensagem inicial é importada; as respostas ficam no Discord.
 
+## Publicar missões no fórum
+
+Em Missões, uma missão publicada no portal ganha "Publicar no Discord". O
+painel lista os fóruns (registros-das-missões vem escolhido) e as tags do fórum
+(`GET /internal/discord/forums/:id`), e o portal envia o texto, as tags e a
+capa para `POST /internal/discord/missions/publish`. A capa vai como anexo,
+para aparecer como imagem do tópico na galeria do fórum. Cada missão é
+publicada uma vez só; o tópico fica ligado à missão.
+
+No fórum registros-das-missões, o bot precisa de **Ver canal**, **Criar
+postagens**, **Enviar mensagens em tópicos** e **Anexar arquivos**; para
+publicar com nome e avatar narrativos, também **Gerenciar webhooks**.
+
 ## Validação ponta a ponta
 
 1. Confirmar `GET /health` no Integration Worker.

@@ -610,3 +610,81 @@ export async function getThreadStarter(
       })),
   };
 }
+
+export type MissionThreadInput = Readonly<{
+  title: string;
+  content: string;
+  tagIds: readonly string[];
+  identity: Readonly<{ name: string | null; avatarUrl: string | null }>;
+  image: Readonly<{ data: Uint8Array<ArrayBuffer>; filename: string; contentType: string }> | null;
+}>;
+
+/** Corpo multipart do Discord: `payload_json` e a capa como `files[0]`. */
+function multipartBody(payload: Record<string, unknown>, image: MissionThreadInput["image"]): FormData {
+  const form = new FormData();
+  form.set("payload_json", JSON.stringify(payload));
+  if (image) {
+    form.set("files[0]", new Blob([image.data], { type: image.contentType }), image.filename);
+  }
+  return form;
+}
+
+/**
+ * Cria o tópico da missão no fórum. A capa vai como anexo, para o Discord
+ * usá-la como imagem do tópico na galeria. Com nome ou avatar narrativo, usa o
+ * webhook gerenciado; sem ele, o bot.
+ */
+export async function createMissionThread(
+  env: IntegrationEnv,
+  forumChannelId: string,
+  input: MissionThreadInput,
+): Promise<DiscordThread> {
+  const attachments = input.image ? [{ id: 0, filename: input.image.filename }] : [];
+  if (input.identity.name || input.identity.avatarUrl) {
+    try {
+      const webhook = await getOrCreateManagedWebhook(env, forumChannelId);
+      const response = await fetch(`${apiBase(env)}/webhooks/${webhook.id}/${webhook.token}?wait=true`, {
+        method: "POST",
+        body: multipartBody(
+          {
+            thread_name: truncate(input.title, 100),
+            ...(input.tagIds.length > 0 ? { applied_tags: input.tagIds } : {}),
+            ...(input.identity.name ? { username: input.identity.name } : {}),
+            ...(input.identity.avatarUrl ? { avatar_url: input.identity.avatarUrl } : {}),
+            content: input.content,
+            attachments,
+            allowed_mentions: { parse: [] },
+          },
+          input.image,
+        ),
+      });
+      const body: unknown = await response.json().catch(() => null);
+      if (!response.ok) throw discordApiError("webhook mission publication", response.status, body);
+      const record = (body ?? {}) as Record<string, unknown>;
+      if (typeof record.id !== "string" || typeof record.channel_id !== "string") {
+        throw new Error("Discord returned an invalid webhook message.");
+      }
+      return { id: record.channel_id, messageId: record.id };
+    } catch (error) {
+      if (!(error instanceof WebhookUnavailableError)) throw error;
+      console.warn(JSON.stringify({ level: "warn", code: "discord_webhook_fallback", forumChannelId, reason: error.message }));
+    }
+  }
+  const response = await fetch(`${apiBase(env)}/channels/${forumChannelId}/threads`, {
+    method: "POST",
+    headers: { authorization: `Bot ${env.DISCORD_BOT_TOKEN}` },
+    body: multipartBody(
+      {
+        name: truncate(input.title, 100),
+        ...(input.tagIds.length > 0 ? { applied_tags: input.tagIds } : {}),
+        message: { content: input.content, attachments, allowed_mentions: { parse: [] } },
+      },
+      input.image,
+    ),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) throw discordApiError("mission publication", response.status, body);
+  const record = (body ?? {}) as { id?: unknown; message?: { id?: unknown } };
+  if (typeof record.id !== "string") throw new Error("Discord returned an invalid thread.");
+  return { id: record.id, messageId: typeof record.message?.id === "string" ? record.message.id : null };
+}

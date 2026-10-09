@@ -4,7 +4,10 @@ import {
   DiscordInteractionSchema,
   DiscordPostPublicationSchema,
   DiscordRegistroMessageSchema,
+  DiscordForumDetailSchema,
   DiscordForumListResponseSchema,
+  MissionDiscordPublishRequestSchema,
+  MissionDiscordPublishResultSchema,
   DiscordForumThreadListResponseSchema,
   DiscordStarterMessageSchema,
   discordContentToText,
@@ -21,6 +24,7 @@ import {
   type MerchantItemProjection,
 } from "@ordem/contracts";
 import {
+  createMissionThread,
   getThreadStarter,
   listAllForumThreads,
   listForumThreads,
@@ -139,6 +143,52 @@ integrationApp.get("/internal/discord/forums", async (context) => {
   } catch (error) {
     logDiscordReadFailure("discord_forums_failed", error);
     return context.json({ error: "discord_unavailable" }, 502);
+  }
+});
+
+/** Fórum com as tags, para a publicação de missões. */
+integrationApp.get("/internal/discord/forums/:channelId", async (context) => {
+  if (!(await verifyInternalRequest(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN))) {
+    return context.json({ error: "unauthorized" }, 401);
+  }
+  const channelId = context.req.param("channelId");
+  if (!SNOWFLAKE.test(channelId)) return context.json({ error: "invalid_channel" }, 422);
+  try {
+    const forum = await getForumChannel(context.env, channelId);
+    return context.json(DiscordForumDetailSchema.parse({ id: forum.id, guildId: forum.guildId, tags: forum.tags }));
+  } catch (error) {
+    logDiscordReadFailure("discord_forum_failed", error);
+    return context.json({ error: "discord_unavailable" }, 502);
+  }
+});
+
+/** Cria o tópico da missão, com a capa anexada e as tags escolhidas. */
+integrationApp.post("/internal/discord/missions/publish", async (context) => {
+  if (!(await verifyInternalRequest(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN))) {
+    return context.json({ error: "unauthorized" }, 401);
+  }
+  const parsed = MissionDiscordPublishRequestSchema.safeParse(await context.req.json().catch(() => null));
+  if (!parsed.success) return context.json({ error: "invalid_request" }, 422);
+  const input = parsed.data;
+  try {
+    const thread = await createMissionThread(context.env, input.forumChannelId, {
+      title: input.title,
+      content: input.content,
+      tagIds: input.tagIds,
+      identity: { name: input.personaName, avatarUrl: input.personaAvatarUrl },
+      image: input.image
+        ? {
+            data: Uint8Array.from(atob(input.image.base64), (character) => character.charCodeAt(0)),
+            filename: input.image.filename,
+            contentType: input.image.contentType,
+          }
+        : null,
+    });
+    console.log(JSON.stringify({ level: "info", code: "discord_mission_published", missionId: input.missionId, threadId: thread.id }));
+    return context.json(MissionDiscordPublishResultSchema.parse({ threadId: thread.id, guildId: context.env.DISCORD_GUILD_ID }));
+  } catch (error) {
+    logDiscordReadFailure("discord_mission_publish_failed", error);
+    return context.json({ error: "discord_unavailable", message: error instanceof Error ? error.message.slice(0, 300) : null }, 502);
   }
 });
 
