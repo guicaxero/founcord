@@ -61,3 +61,25 @@ sintético.
   (produção); localmente, o aviso de conexão é o comportamento esperado.
 - A rolagem é mostrada como números; a tabela do 2d20 do Zelador continua com
   o Guardião.
+
+## Atividade Criativa (modo "Descrição obrigatória")
+
+- **Especificação:** o jogador abre a atividade "Sede da Ordem — Atividade
+  Criativa", escreve o que o Corvo pretende fazer (obrigatório, até 1000
+  caracteres) e o Guardião resolve com texto livre. O texto aparece com o
+  rótulo do modo ("Pedido", "Pergunta" ou "Intenção") para o jogador, para o
+  Guardião e no Registro do Corvo.
+- **Critérios:** confirmar fica desabilitado sem texto; o servidor recusa texto
+  vazio (`sede_intent_required`); campanhas que já importaram a lista recebem a
+  nova atividade ao importar de novo, sem duplicar as outras.
+
+| Verificação | Resultado |
+| --- | --- |
+| Importar de novo | "1 criada, 6 já existiam"; a aba "Atividades (7)" mostra o modo "Descrição obrigatória". |
+| Diálogo do jogador | Rótulo "O que o Corvo pretende fazer", dica própria, foco no campo ao abrir, "Escolher esta atividade" desabilitado até haver texto. |
+| Teclado | Escrever, Tab até o botão e Enter registra a atividade; "Neste período" mostra "Intenção: …" como "Aguardando o Guardião". |
+| Escriba | Declarações antigas da Pesquisa passaram a mostrar "Pergunta:" em vez de "Pedido:". |
+| Guardião | O cartão em "Para resolver" mostra "Intenção: …"; o diálogo de resolução mostra "Intenção do jogador". |
+| 375 px | Sem rolagem horizontal (largura do documento = 375 px); o texto da intenção quebra dentro do cartão. |
+
+Sem achados críticos, altos ou médios.
