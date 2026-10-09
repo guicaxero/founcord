@@ -18,3 +18,4 @@ export * from "./merchant";
 export * from "./merchant-stock";
 export * from "./posts";
 export * from "./discord";
+export * from "./media";

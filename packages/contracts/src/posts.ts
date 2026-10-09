@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { EntityIdSchema, IsoDateTimeSchema } from "./common";
+import { GalleryMediaIdsSchema } from "./media";
 
 export const postStatuses = [
   "draft",
@@ -30,6 +31,9 @@ export const PostSchema = z
     source: PostSourceSchema,
     reviewedBy: EntityIdSchema.nullable(),
     publishedAt: IsoDateTimeSchema.nullable(),
+    /** Capa da crônica e imagens extras, em ordem (`/media/<id>`). */
+    coverMediaId: EntityIdSchema.nullable().default(null),
+    galleryMediaIds: GalleryMediaIdsSchema.default([]),
     version: z.number().int().positive(),
     createdAt: IsoDateTimeSchema,
     updatedAt: IsoDateTimeSchema,
@@ -42,6 +46,8 @@ export const CreatePostSchema = z
     title: z.string().trim().min(3).max(140),
     body: z.string().trim().min(1).max(20_000),
     source: PostSourceSchema.default("manual"),
+    coverMediaId: EntityIdSchema.nullable().default(null),
+    galleryMediaIds: GalleryMediaIdsSchema.default([]),
   })
   .strict();
 
@@ -49,6 +55,8 @@ export const UpdatePostSchema = z
   .object({
     title: z.string().trim().min(3).max(140).optional(),
     body: z.string().trim().min(1).max(20_000).optional(),
+    coverMediaId: EntityIdSchema.nullable().optional(),
+    galleryMediaIds: GalleryMediaIdsSchema.optional(),
     status: PostStatusSchema.optional(),
     version: z.number().int().positive(),
   })

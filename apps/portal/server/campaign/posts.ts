@@ -13,6 +13,7 @@ import {
 import type { AuthenticatedSession } from "@/server/identity/session";
 import { HttpError } from "@/server/shared/http";
 import { toIsoDateTime } from "@/server/shared/time";
+import { assertCampaignMedia } from "@/server/media/media";
 import { requireCampaignVisible } from "./campaigns";
 
 type PostRow = Readonly<{
@@ -26,6 +27,8 @@ type PostRow = Readonly<{
   source: "manual" | "discord" | "foundry" | "automation";
   reviewed_by: string | null;
   published_at: string | null;
+  cover_media_id: string | null;
+  gallery_json: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -87,14 +90,18 @@ export async function createPost(
     kind: "campaign",
     campaignId: input.campaignId,
   });
+  await assertCampaignMedia(input.campaignId, [
+    ...(input.coverMediaId ? [input.coverMediaId] : []),
+    ...input.galleryMediaIds,
+  ]);
   const db = getD1();
   const id = crypto.randomUUID();
   await db.batch([
     db
       .prepare(
         `INSERT INTO posts (
-          id, campaign_id, author_user_id, title, body, source, status
-        ) VALUES (?, ?, ?, ?, ?, ?, 'draft')`,
+          id, campaign_id, author_user_id, title, body, source, status, cover_media_id, gallery_json
+        ) VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?)`,
       )
       .bind(
         id,
@@ -103,6 +110,8 @@ export async function createPost(
         input.title,
         input.body,
         input.source,
+        input.coverMediaId,
+        JSON.stringify(input.galleryMediaIds),
       ),
     prepareAuditAfterChange(db, {
       actorUserId: session.user.id,
@@ -130,7 +139,8 @@ export async function updatePost(
   correlationId: string,
 ): Promise<Post> {
   const existing = await getPostRow(postId);
-  const changesContent = input.title !== undefined || input.body !== undefined;
+  const changesImages = input.coverMediaId !== undefined || input.galleryMediaIds !== undefined;
+  const changesContent = input.title !== undefined || input.body !== undefined || changesImages;
   if (input.status === existing.status && !changesContent) {
     if (input.status === "approved" || input.status === "rejected") {
       requirePermission(session.principal, "post:review", {
@@ -158,6 +168,12 @@ export async function updatePost(
       input.status,
     );
   }
+  if (changesImages) {
+    await assertCampaignMedia(existing.campaign_id, [
+      ...(input.coverMediaId ? [input.coverMediaId] : []),
+      ...(input.galleryMediaIds ?? []),
+    ]);
+  }
   const db = getD1();
   const reviewer =
     input.status === "approved" || input.status === "rejected"
@@ -170,6 +186,8 @@ export async function updatePost(
         `UPDATE posts SET
           title = COALESCE(?, title),
           body = COALESCE(?, body),
+          cover_media_id = CASE WHEN ? = 1 THEN ? ELSE cover_media_id END,
+          gallery_json = COALESCE(?, gallery_json),
           status = COALESCE(?, status),
           reviewed_by = COALESCE(?, reviewed_by),
           published_at = COALESCE(?, published_at),
@@ -180,6 +198,9 @@ export async function updatePost(
       .bind(
         input.title ?? null,
         input.body ?? null,
+        input.coverMediaId === undefined ? 0 : 1,
+        input.coverMediaId ?? null,
+        input.galleryMediaIds ? JSON.stringify(input.galleryMediaIds) : null,
         input.status ?? null,
         reviewer,
         publishedAt,
@@ -430,8 +451,19 @@ function mapPost(row: PostRow): Post {
     source: row.source,
     reviewedBy: row.reviewed_by,
     publishedAt: toIsoDateTime(row.published_at),
+    coverMediaId: row.cover_media_id,
+    galleryMediaIds: parseGallery(row.gallery_json),
     version: row.version,
     createdAt: toIsoDateTime(row.created_at)!,
     updatedAt: toIsoDateTime(row.updated_at)!,
   };
+}
+
+function parseGallery(value: string | null): string[] {
+  try {
+    const parsed: unknown = JSON.parse(value ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
 }

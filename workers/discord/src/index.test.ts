@@ -977,6 +977,8 @@ function postFixture(status: Post["status"]): Post {
     source: "discord",
     reviewedBy: status === "published" ? "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" : null,
     publishedAt: status === "published" ? "2026-08-21T20:00:00.000Z" : null,
+    coverMediaId: null,
+    galleryMediaIds: [],
     version: 2,
     createdAt: "2026-08-21T19:00:00.000Z",
     updatedAt: "2026-08-21T20:00:00.000Z",

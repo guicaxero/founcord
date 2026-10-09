@@ -33,6 +33,8 @@ export const POST = withApiHandler(async ({ request, correlationId }) => {
       title: input.title,
       body,
       source: "discord",
+      coverMediaId: null,
+      galleryMediaIds: [],
     },
     correlationId,
   );

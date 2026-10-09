@@ -4,7 +4,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, test } from "vitest";
-import { convertV4MiniflareOptions, Miniflare } from "miniflare";
+import { convertV4MiniflareOptions, FormData as MiniflareFormData, Miniflare } from "miniflare";
 
 // Respostas JSON dinâmicas: as asserções validam a forma em tempo de execução.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -49,6 +49,7 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       compatibilityDate: "2026-08-21",
       compatibilityFlags: ["nodejs_compat", "global_fetch_strictly_public"],
       d1Databases: ["DB"],
+      r2Buckets: ["MEDIA"],
       bindings: {
         DISCORD_CLIENT_ID: "test-client-id",
         DISCORD_CLIENT_SECRET: "test-client-secret",
@@ -976,6 +977,64 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.equal(privatePostForMember.status, 200);
     });
 
+    test("guarda imagens no R2 e liga capa e galeria à crônica", async () => {
+      const upload = (token: string, bytes: Uint8Array, name = "capa.png") => {
+        const form = new MiniflareFormData();
+        form.set("file", new Blob([bytes.slice().buffer as ArrayBuffer]), name);
+        return mf.dispatchFetch(`${origin}/api/campaigns/${defaultCampaignId}/media`, {
+          method: "POST",
+          headers: { cookie: `ordem_session=${token}`, "sec-fetch-site": "same-origin" },
+          body: form,
+        });
+      };
+      // PNG mínimo: só a assinatura importa para a verificação de tipo.
+      const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d, 1, 2, 3, 4]);
+
+      assert.equal((await upload(identities.playerOne.token, png)).status, 403);
+      const fake = await upload(identities.gm.token, new TextEncoder().encode("<svg onload=alert(1)>"), "x.png");
+      assert.equal(fake.status, 415);
+      const stored = await upload(identities.gm.token, png);
+      assert.equal(stored.status, 201, await stored.clone().text());
+      const asset = (await stored.json()) as Json;
+      assert.deepEqual([asset.contentType, asset.bytes, asset.url], ["image/png", png.length, `/media/${asset.id}`]);
+
+      const served = await mf.dispatchFetch(`${origin}${asset.url}`);
+      assert.equal(served.status, 200);
+      assert.equal(served.headers.get("content-type"), "image/png");
+      assert.equal(served.headers.get("x-content-type-options"), "nosniff");
+      assert.deepEqual(new Uint8Array(await served.arrayBuffer()), png);
+      assert.equal((await mf.dispatchFetch(`${origin}/media/00000000-0000-4000-8000-000000000000`)).status, 404);
+
+      const second = (await (await upload(identities.gm.token, png, "galeria.png")).json()) as Json;
+      const created = await api(mf, `/api/campaigns/${defaultCampaignId}/posts`, {
+        token: identities.gm.token,
+        method: "POST",
+        body: {
+          campaignId: defaultCampaignId,
+          title: "Crônica com capa",
+          body: "> Escrito por **Corvo**\n\nTexto.",
+          coverMediaId: asset.id,
+          galleryMediaIds: [second.id],
+        },
+      });
+      assert.equal(created.status, 201, JSON.stringify(created.data));
+      assert.deepEqual([created.data.coverMediaId, created.data.galleryMediaIds], [asset.id, [second.id]]);
+
+      const unknown = await api(mf, `/api/posts/${created.data.id}`, {
+        token: identities.gm.token,
+        method: "PATCH",
+        body: { version: created.data.version, coverMediaId: "00000000-0000-4000-8000-000000000000" },
+      });
+      assert.equal(unknown.status, 422);
+      const cleared = await api(mf, `/api/posts/${created.data.id}`, {
+        token: identities.gm.token,
+        method: "PATCH",
+        body: { version: created.data.version, coverMediaId: null, galleryMediaIds: [] },
+      });
+      assert.equal(cleared.status, 200, JSON.stringify(cleared.data));
+      assert.deepEqual([cleared.data.coverMediaId, cleared.data.galleryMediaIds, cleared.data.title], [null, [], "Crônica com capa"]);
+    });
+
     test("mantém o catálogo do Lojista e sorteia o estoque com RBAC", async () => {
       const catalogPath = `/api/campaigns/${defaultCampaignId}/merchant/catalog`;
       const sameOrigin = { "sec-fetch-site": "same-origin" };
@@ -1528,6 +1587,7 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
         "merchant.stock.drawn",
         "merchant.stock.applied",
         "merchant.stock.selected",
+        "media.uploaded",
         "character.notes.requested",
         "character.notes.conflict",
         "character.notes.applied",
