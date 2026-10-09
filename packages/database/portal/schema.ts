@@ -279,8 +279,9 @@ export const posts = sqliteTable(
 );
 
 /**
- * Imagens enviadas ao portal (capas e galerias), guardadas no bucket R2
- * `MEDIA` com a chave `r2_key`. O arquivo é público para quem tiver o link.
+ * Imagens enviadas ao portal (capas e galerias), guardadas no Workers KV
+ * `MEDIA` com a chave `r2_key` (nome mantido da primeira versão, que usava
+ * R2). O arquivo é público para quem tiver o link.
  */
 export const mediaAssets = sqliteTable(
   "media_assets",

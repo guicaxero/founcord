@@ -7,6 +7,32 @@ import { Notice } from "@/components/ui/notice";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 
+/** Maior lado da imagem enviada; fotos maiores são reduzidas no navegador. */
+const MAX_SIDE = 1600;
+
+/**
+ * Reduz a imagem para no máximo 1600 px e converte em WebP antes do envio,
+ * para caber folgado no armazenamento. GIF segue como está (pode ser
+ * animado), e a original vale quando a conversão não diminui o arquivo.
+ */
+async function shrinkImage(file: File): Promise<File> {
+  if (file.type === "image/gif" || typeof createImageBitmap !== "function") return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", 0.82));
+    if (!blob || blob.type !== "image/webp" || blob.size >= file.size) return file;
+    return new File([blob], `${file.name.replace(/\.[^.]+$/u, "") || "imagem"}.webp`, { type: "image/webp" });
+  } catch {
+    return file;
+  }
+}
+
 /**
  * Escolhe e envia imagens ao portal. Com `max` 1, é a capa; com mais, uma
  * galeria em ordem de envio. O valor são os ids das imagens já enviadas.
@@ -39,15 +65,16 @@ export function ImagePicker({
   async function upload(files: readonly File[]) {
     setError(null);
     const chosen = single ? files.slice(0, 1) : files.slice(0, room);
-    const tooBig = chosen.find((file) => file.size > MEDIA_MAX_BYTES);
-    if (tooBig) {
-      setError(`"${tooBig.name}" passa de 8 MB. Reduza o tamanho e envie de novo.`);
-      return;
-    }
     onBusyChange?.(true);
     const uploaded: string[] = [];
     try {
-      for (const [index, file] of chosen.entries()) {
+      for (const [index, original] of chosen.entries()) {
+        setProgress(chosen.length > 1 ? `Preparando ${index + 1} de ${chosen.length}…` : "Preparando…");
+        const file = await shrinkImage(original);
+        if (file.size > MEDIA_MAX_BYTES) {
+          setError(`"${original.name}" passa de 8 MB mesmo reduzida. Escolha outra imagem.`);
+          continue;
+        }
         setProgress(chosen.length > 1 ? `Enviando ${index + 1} de ${chosen.length}…` : "Enviando…");
         const form = new FormData();
         form.set("file", file);
@@ -125,7 +152,10 @@ export function ImagePicker({
           {single ? (value.length > 0 ? "Trocar a capa" : "Escolher a capa") : "Adicionar imagens"}
         </Button>
         <span className="text-xs text-fg-subtle" aria-live="polite">
-          {progress ?? (single ? "WebP, PNG, JPEG ou GIF, até 8 MB." : `${value.length} de ${max} · WebP, PNG, JPEG ou GIF, até 8 MB cada.`)}
+          {progress ??
+            (single
+              ? "WebP, PNG, JPEG ou GIF. Fotos grandes são reduzidas para 1600 px."
+              : `${value.length} de ${max} · WebP, PNG, JPEG ou GIF. Fotos grandes são reduzidas para 1600 px.`)}
         </span>
       </div>
       {error ? (

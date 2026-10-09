@@ -33,7 +33,8 @@ const EXTENSIONS: Readonly<Record<MediaContentType, string>> = {
 /** Quem escreve crônicas ou monta missões pode enviar imagens. */
 const UPLOAD_PERMISSIONS = ["post:create", "mission:create", "mission:edit"] as const;
 
-export function getMediaBucket(): R2Bucket {
+/** Espaço Workers KV das imagens; cada imagem é um valor, com o tipo nos metadados. */
+export function getMediaStore(): KVNamespace {
   const { env } = getCloudflareContext();
   if (!env.MEDIA) {
     throw new HttpError(503, "media_not_configured", "O armazenamento de imagens ainda não está configurado.");
@@ -53,7 +54,7 @@ function mapMedia(row: MediaRow): MediaAsset {
 }
 
 /**
- * Grava a imagem no R2 e registra no banco. Confere o tipo pelos primeiros
+ * Grava a imagem no KV e registra no banco. Confere o tipo pelos primeiros
  * bytes e o tamanho; usado pelo envio no painel e pela importação do Discord.
  */
 export async function storeMedia(
@@ -72,7 +73,7 @@ export async function storeMedia(
   }
   const id = crypto.randomUUID();
   const key = `campaigns/${campaignId}/${id}.${EXTENSIONS[contentType]}`;
-  await getMediaBucket().put(key, data, { httpMetadata: { contentType, cacheControl: "public, max-age=31536000, immutable" } });
+  await getMediaStore().put(key, data, { metadata: { contentType } });
   await getD1()
     .prepare(
       `INSERT INTO media_assets (id, campaign_id, created_by_user_id, r2_key, content_type, bytes, origin)
@@ -142,7 +143,23 @@ export async function readMedia(mediaId: string): Promise<Readonly<{ body: Reada
     .bind(mediaId)
     .first<Pick<MediaRow, "r2_key" | "content_type">>();
   if (!row) return null;
-  const object = await getMediaBucket().get(row.r2_key);
-  if (!object) return null;
-  return { body: object.body, contentType: row.content_type, etag: object.httpEtag };
+  const body = await getMediaStore().get(row.r2_key, { type: "stream", cacheTtl: 86_400 });
+  if (!body) return null;
+  // O conteúdo de um id nunca muda: o próprio id serve de ETag.
+  return { body, contentType: row.content_type, etag: `"${mediaId}"` };
+}
+
+/** Bytes de uma imagem da campanha, para anexar em publicações (ex.: capa no Discord). */
+export async function readMediaBytes(
+  campaignId: string,
+  mediaId: string,
+): Promise<Readonly<{ data: ArrayBuffer; contentType: MediaContentType; extension: string }> | null> {
+  const row = await getD1()
+    .prepare("SELECT r2_key, content_type FROM media_assets WHERE id = ? AND campaign_id = ?")
+    .bind(mediaId, campaignId)
+    .first<Pick<MediaRow, "r2_key" | "content_type">>();
+  if (!row) return null;
+  const data = await getMediaStore().get(row.r2_key, { type: "arrayBuffer" });
+  if (!data) return null;
+  return { data, contentType: row.content_type, extension: EXTENSIONS[row.content_type] };
 }

@@ -44,3 +44,15 @@ Portal local com D1 migrado e R2 local do Wrangler.
   (ids aleatórios, sem listagem). Excluir uma crônica não apaga as imagens do
   bucket.
 - A ordem da galeria é a de envio; para mudar, remova e envie de novo.
+
+## Troca do R2 pelo Workers KV
+
+O R2 exige ativação e cartão na conta Cloudflare; as imagens passaram para o
+Workers KV (`MEDIA`), sem mudança na interface além da dica do seletor.
+
+| Verificação | Resultado |
+| --- | --- |
+| Redução no envio | PNG de 4000×3000 (381 KB) virou WebP de 1600×1200 (119 KB), gravado no KV e servido em `/media/<id>`. |
+| Dica do seletor | "WebP, PNG, JPEG ou GIF. Fotos grandes são reduzidas para 1600 px." |
+| GIF | Enviado como está, para não perder a animação. |
+
