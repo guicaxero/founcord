@@ -14,6 +14,7 @@ import {
 import type { AuthenticatedSession } from "@/server/identity/session";
 import { HttpError } from "@/server/shared/http";
 import { toIsoDateTime } from "@/server/shared/time";
+import { assertCampaignMedia } from "@/server/media/media";
 import { requireCampaignVisible } from "./campaigns";
 
 type MissionRow = Readonly<{
@@ -31,6 +32,9 @@ type MissionRow = Readonly<{
   signup_count: number;
   waitlist_count: number;
   current_user_signup: "confirmed" | "waitlisted" | "withdrawn" | null;
+  cover_media_id: string | null;
+  estimated_duration: string | null;
+  discord_thread_id: string | null;
   version: number;
 }>;
 
@@ -74,7 +78,7 @@ export async function listMissions(
       `SELECT
         m.id, m.campaign_id, m.author_user_id, u.display_name AS author_name,
         m.title, m.summary, m.region, m.status, m.risk, m.scheduled_for,
-        m.party_size, m.version,
+        m.party_size, m.version, m.cover_media_id, m.estimated_duration, m.discord_thread_id,
         COALESCE(SUM(CASE WHEN ms.status = 'confirmed' THEN 1 ELSE 0 END), 0) AS signup_count,
         COALESCE(SUM(CASE WHEN ms.status = 'waitlisted' THEN 1 ELSE 0 END), 0) AS waitlist_count,
         mine.status AS current_user_signup
@@ -113,7 +117,7 @@ export async function getMission(
       `SELECT
         m.id, m.campaign_id, m.author_user_id, u.display_name AS author_name,
         m.title, m.summary, m.region, m.status, m.risk, m.scheduled_for,
-        m.party_size, m.version,
+        m.party_size, m.version, m.cover_media_id, m.estimated_duration, m.discord_thread_id,
         COALESCE(SUM(CASE WHEN ms.status = 'confirmed' THEN 1 ELSE 0 END), 0) AS signup_count,
         COALESCE(SUM(CASE WHEN ms.status = 'waitlisted' THEN 1 ELSE 0 END), 0) AS waitlist_count,
         mine.status AS current_user_signup
@@ -147,6 +151,7 @@ export async function createMission(
     campaignId: input.campaignId,
   });
   await requireActiveMembership(input.campaignId, session.user.id);
+  await assertCampaignMedia(input.campaignId, input.coverMediaId ? [input.coverMediaId] : []);
   const db = getD1();
   const id = crypto.randomUUID();
   await db.batch([
@@ -154,8 +159,8 @@ export async function createMission(
       .prepare(
         `INSERT INTO missions (
           id, campaign_id, author_user_id, title, summary, region, risk,
-          scheduled_for, party_size, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')`,
+          scheduled_for, party_size, status, cover_media_id, estimated_duration
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`,
       )
       .bind(
         id,
@@ -167,6 +172,8 @@ export async function createMission(
         input.risk,
         input.scheduledFor,
         input.partySize,
+        input.coverMediaId,
+        input.estimatedDuration || null,
       ),
     prepareAuditAfterChange(db, {
       actorUserId: session.user.id,
@@ -201,6 +208,8 @@ export async function updateMission(
     input.risk,
     input.scheduledFor,
     input.partySize,
+    input.coverMediaId,
+    input.estimatedDuration,
   ].some((value) => value !== undefined);
   const isReviewOnly = input.status === "approved" || input.status === "rejected";
   const isPublishOnly = input.status === "published";
@@ -226,6 +235,7 @@ export async function updateMission(
   if (input.status && input.status !== existing.status) {
     assertStatusTransition(session, existing.campaign_id, existing.status, input.status);
   }
+  if (input.coverMediaId) await assertCampaignMedia(existing.campaign_id, [input.coverMediaId]);
   const db = getD1();
   const publishedAt = input.status === "published" ? new Date().toISOString() : null;
   const batch = await db.batch([
@@ -238,6 +248,8 @@ export async function updateMission(
           risk = COALESCE(?, risk),
           scheduled_for = CASE WHEN ? = 1 THEN ? ELSE scheduled_for END,
           party_size = COALESCE(?, party_size),
+          cover_media_id = CASE WHEN ? = 1 THEN ? ELSE cover_media_id END,
+          estimated_duration = CASE WHEN ? = 1 THEN ? ELSE estimated_duration END,
           status = COALESCE(?, status),
           published_at = COALESCE(?, published_at),
           version = version + 1,
@@ -252,6 +264,10 @@ export async function updateMission(
         input.scheduledFor !== undefined ? 1 : 0,
         input.scheduledFor ?? null,
         input.partySize ?? null,
+        input.coverMediaId !== undefined ? 1 : 0,
+        input.coverMediaId ?? null,
+        input.estimatedDuration !== undefined ? 1 : 0,
+        input.estimatedDuration || null,
         input.status ?? null,
         publishedAt,
         missionId,
@@ -576,6 +592,9 @@ function mapMission(row: MissionRow): MissionSummary {
     signupCount: Number(row.signup_count),
     waitlistCount: Number(row.waitlist_count),
     currentUserSignup: row.current_user_signup,
+    coverMediaId: row.cover_media_id,
+    estimatedDuration: row.estimated_duration,
+    discordThreadId: row.discord_thread_id,
     version: row.version,
   };
 }

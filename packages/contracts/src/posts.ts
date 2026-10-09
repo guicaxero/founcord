@@ -34,6 +34,8 @@ export const PostSchema = z
     /** Capa da crônica e imagens extras, em ordem (`/media/<id>`). */
     coverMediaId: EntityIdSchema.nullable().default(null),
     galleryMediaIds: GalleryMediaIdsSchema.default([]),
+    /** Tópico do Discord de onde a crônica foi importada; o portal não a republica lá. */
+    discordThreadId: z.string().nullable().default(null),
     version: z.number().int().positive(),
     createdAt: IsoDateTimeSchema,
     updatedAt: IsoDateTimeSchema,

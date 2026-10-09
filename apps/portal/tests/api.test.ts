@@ -1033,6 +1033,50 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       });
       assert.equal(cleared.status, 200, JSON.stringify(cleared.data));
       assert.deepEqual([cleared.data.coverMediaId, cleared.data.galleryMediaIds, cleared.data.title], [null, [], "Crônica com capa"]);
+
+      // Missão com capa e duração; o Discord só recebe missões publicadas e de quem publica.
+      const mission = await api(mf, `/api/campaigns/${defaultCampaignId}/missions`, {
+        token: identities.gm.token,
+        method: "POST",
+        body: {
+          campaignId: defaultCampaignId,
+          title: "Ecos na Floresta",
+          summary: "Investigar o desaparecimento de caçadores.",
+          region: "Floresta",
+          coverMediaId: asset.id,
+          estimatedDuration: "1-3 sessões",
+        },
+      });
+      assert.equal(mission.status, 201, JSON.stringify(mission.data));
+      assert.deepEqual(
+        [mission.data.coverMediaId, mission.data.estimatedDuration, mission.data.discordThreadId],
+        [asset.id, "1-3 sessões", null],
+      );
+      const missionDiscord = `/api/campaigns/${defaultCampaignId}/missions/${mission.data.id}/discord`;
+      const discordBody = { forumChannelId: "1536153443985531222", tagIds: [], content: "🎯 Ecos" };
+      assert.equal(
+        (await api(mf, missionDiscord, { token: identities.playerOne.token, method: "POST", body: discordBody })).status,
+        403,
+      );
+      const draftToDiscord = await api(mf, missionDiscord, { token: identities.owner.token, method: "POST", body: discordBody });
+      assert.equal(draftToDiscord.status, 409);
+      assert.equal(draftToDiscord.data.error.code, "mission_not_published");
+
+      // Importar do Discord exige quem escreve crônicas; a leitura em si passa pelo Worker do Discord.
+      const importBase = `/api/campaigns/${defaultCampaignId}/discord-import`;
+      assert.equal((await api(mf, `${importBase}/forums`, { token: identities.playerOne.token })).status, 403);
+      const playerImport = await api(mf, importBase, {
+        token: identities.playerOne.token,
+        method: "POST",
+        body: { forumChannelId: "1536153443985531111", threadIds: ["1290000000000000000"] },
+      });
+      assert.equal(playerImport.status, 403);
+      const invalidImport = await api(mf, importBase, {
+        token: identities.gm.token,
+        method: "POST",
+        body: { forumChannelId: "1536153443985531111", threadIds: [] },
+      });
+      assert.equal(invalidImport.status, 422);
     });
 
     test("mantém o catálogo do Lojista e sorteia o estoque com RBAC", async () => {

@@ -4,7 +4,15 @@ import {
   DiscordInteractionSchema,
   DiscordPostPublicationSchema,
   DiscordRegistroMessageSchema,
+  DiscordForumDetailSchema,
+  DiscordForumListResponseSchema,
+  MissionDiscordPublishRequestSchema,
+  MissionDiscordPublishResultSchema,
+  DiscordForumThreadListResponseSchema,
+  DiscordStarterMessageSchema,
+  discordContentToText,
   formatParsedPrice,
+  snowflakeDate,
   isBareAmount,
   MERCHANT_AVAILABILITY_LABELS,
   MERCHANT_CONSUMABLE_LABELS,
@@ -16,7 +24,11 @@ import {
   type MerchantItemProjection,
 } from "@ordem/contracts";
 import {
+  createMissionThread,
+  getThreadStarter,
+  listAllForumThreads,
   listForumThreads,
+  listGuildForums,
   sendThreadMessage,
   createForumThread,
   editOriginalInteraction,
@@ -109,6 +121,127 @@ integrationApp.get("/internal/discord/registro/threads", async (context) => {
         message: error instanceof Error ? error.message : "Unknown error",
       }),
     );
+    return context.json({ error: "discord_unavailable" }, 502);
+  }
+});
+
+const SNOWFLAKE = /^\d{5,25}$/u;
+
+function logDiscordReadFailure(code: string, error: unknown): void {
+  console.error(
+    JSON.stringify({ level: "error", code, message: error instanceof Error ? error.message : "Unknown error" }),
+  );
+}
+
+/** Fóruns do servidor, para escolher de onde importar crônicas. */
+integrationApp.get("/internal/discord/forums", async (context) => {
+  if (!(await verifyInternalRequest(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN))) {
+    return context.json({ error: "unauthorized" }, 401);
+  }
+  try {
+    return context.json(DiscordForumListResponseSchema.parse({ data: await listGuildForums(context.env) }));
+  } catch (error) {
+    logDiscordReadFailure("discord_forums_failed", error);
+    return context.json({ error: "discord_unavailable" }, 502);
+  }
+});
+
+/** Fórum com as tags, para a publicação de missões. */
+integrationApp.get("/internal/discord/forums/:channelId", async (context) => {
+  if (!(await verifyInternalRequest(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN))) {
+    return context.json({ error: "unauthorized" }, 401);
+  }
+  const channelId = context.req.param("channelId");
+  if (!SNOWFLAKE.test(channelId)) return context.json({ error: "invalid_channel" }, 422);
+  try {
+    const forum = await getForumChannel(context.env, channelId);
+    return context.json(DiscordForumDetailSchema.parse({ id: forum.id, guildId: forum.guildId, tags: forum.tags }));
+  } catch (error) {
+    logDiscordReadFailure("discord_forum_failed", error);
+    return context.json({ error: "discord_unavailable" }, 502);
+  }
+});
+
+/** Cria o tópico da missão, com a capa anexada e as tags escolhidas. */
+integrationApp.post("/internal/discord/missions/publish", async (context) => {
+  if (!(await verifyInternalRequest(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN))) {
+    return context.json({ error: "unauthorized" }, 401);
+  }
+  const parsed = MissionDiscordPublishRequestSchema.safeParse(await context.req.json().catch(() => null));
+  if (!parsed.success) return context.json({ error: "invalid_request" }, 422);
+  const input = parsed.data;
+  try {
+    const thread = await createMissionThread(context.env, input.forumChannelId, {
+      title: input.title,
+      content: input.content,
+      tagIds: input.tagIds,
+      identity: { name: input.personaName, avatarUrl: input.personaAvatarUrl },
+      image: input.image
+        ? {
+            data: Uint8Array.from(atob(input.image.base64), (character) => character.charCodeAt(0)),
+            filename: input.image.filename,
+            contentType: input.image.contentType,
+          }
+        : null,
+    });
+    console.log(JSON.stringify({ level: "info", code: "discord_mission_published", missionId: input.missionId, threadId: thread.id }));
+    return context.json(MissionDiscordPublishResultSchema.parse({ threadId: thread.id, guildId: context.env.DISCORD_GUILD_ID }));
+  } catch (error) {
+    logDiscordReadFailure("discord_mission_publish_failed", error);
+    return context.json({ error: "discord_unavailable", message: error instanceof Error ? error.message.slice(0, 300) : null }, 502);
+  }
+});
+
+/** Tópicos de um fórum, com a data de criação. */
+integrationApp.get("/internal/discord/forums/:channelId/threads", async (context) => {
+  if (!(await verifyInternalRequest(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN))) {
+    return context.json({ error: "unauthorized" }, 401);
+  }
+  const channelId = context.req.param("channelId");
+  if (!SNOWFLAKE.test(channelId)) return context.json({ error: "invalid_channel" }, 422);
+  try {
+    const threads = await listAllForumThreads(context.env, channelId);
+    return context.json(
+      DiscordForumThreadListResponseSchema.parse({
+        data: threads.map((thread) => ({
+          threadId: thread.id,
+          name: thread.name,
+          createdAt: snowflakeDate(thread.id),
+          archived: thread.archived,
+        })),
+      }),
+    );
+  } catch (error) {
+    logDiscordReadFailure("discord_forum_threads_failed", error);
+    return context.json({ error: "discord_unavailable" }, 502);
+  }
+});
+
+/**
+ * Mensagem inicial de um tópico, com menções e emojis em texto. Sem o
+ * Message Content Intent, o Discord devolve o texto vazio: o portal avisa.
+ */
+integrationApp.get("/internal/discord/threads/:threadId/starter", async (context) => {
+  if (!(await verifyInternalRequest(context.req.raw, context.env.INTEGRATION_SERVICE_TOKEN))) {
+    return context.json({ error: "unauthorized" }, 401);
+  }
+  const threadId = context.req.param("threadId");
+  if (!SNOWFLAKE.test(threadId)) return context.json({ error: "invalid_thread" }, 422);
+  try {
+    const starter = await getThreadStarter(context.env, threadId);
+    return context.json(
+      DiscordStarterMessageSchema.parse({
+        threadId,
+        forumChannelId: starter.forumChannelId,
+        title: starter.title,
+        authorName: starter.authorName,
+        content: discordContentToText(starter.content, starter.mentions).slice(0, 10_000),
+        createdAt: starter.createdAt ? new Date(starter.createdAt).toISOString() : snowflakeDate(threadId),
+        attachments: starter.attachments,
+      }),
+    );
+  } catch (error) {
+    logDiscordReadFailure("discord_thread_starter_failed", error);
     return context.json({ error: "discord_unavailable" }, 502);
   }
 });

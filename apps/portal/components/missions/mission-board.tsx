@@ -1,10 +1,11 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type {
-  CurrentUserResponse,
-  MissionListResponse,
-  MissionSummary,
+import {
+  mediaUrl,
+  type CurrentUserResponse,
+  type MissionListResponse,
+  type MissionSummary,
 } from "@ordem/contracts";
 import { motion } from "motion/react";
 import Link from "next/link";
@@ -248,6 +249,16 @@ function MissionCard({
 
   return (
     <Card className="grid gap-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-start" interactive>
+      {mission.coverMediaId ? (
+        // Capa enviada ao portal: next/image não se aplica ao bucket próprio.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={mediaUrl(mission.coverMediaId)}
+          alt=""
+          loading="lazy"
+          className="-mx-6 -mt-6 aspect-[21/9] w-[calc(100%+3rem)] max-w-none rounded-t-lg object-cover md:col-span-2"
+        />
+      ) : null}
       <div className="min-w-0 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={availability === "recrutando" ? "success" : "warning"}>
@@ -288,6 +299,12 @@ function MissionCard({
               ) : null}
             </dd>
           </div>
+          {mission.estimatedDuration ? (
+            <div>
+              <dt className="text-xs font-semibold text-fg-subtle uppercase">Duração</dt>
+              <dd className="font-semibold">{mission.estimatedDuration}</dd>
+            </div>
+          ) : null}
           <div>
             <dt className="text-xs font-semibold text-fg-subtle uppercase">Anunciado por</dt>
             <dd className="font-semibold">{mission.authorName}</dd>

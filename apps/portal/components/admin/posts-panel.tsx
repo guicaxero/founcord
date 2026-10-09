@@ -12,6 +12,7 @@ import {
 } from "@ordem/contracts";
 import { useRef, useState, type FormEvent } from "react";
 import { ImagePicker } from "@/components/media/image-picker";
+import { DiscordImportDialog } from "./discord-import-dialog";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable, RowActions } from "@/components/ui/data-table";
@@ -70,6 +71,7 @@ export function PostsPanel({
   const [editor, setEditor] = useState<{ post: Post | null } | null>(null);
   const [archiving, setArchiving] = useState<Post | null>(null);
   const [deleting, setDeleting] = useState<Post | null>(null);
+  const [importing, setImporting] = useState(false);
   const [filter, setFilter] = useState<Filter>("active");
   const [search, setSearch] = useState("");
   const posts = useQuery({
@@ -161,9 +163,12 @@ export function PostsPanel({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <SearchField label="Buscar crônica" value={search} onChange={setSearch} placeholder="Título ou autoria" className="max-w-md" />
         {canCreate ? (
-          <Button variant="accent" onClick={(event) => { remember(event); save.reset(); setEditor({ post: null }); }}>
-            Nova crônica
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button onClick={(event) => { remember(event); setImporting(true); }}>Importar do Discord</Button>
+            <Button variant="accent" onClick={(event) => { remember(event); save.reset(); setEditor({ post: null }); }}>
+              Nova crônica
+            </Button>
+          </div>
         ) : null}
       </div>
       <FilterChips
@@ -304,6 +309,14 @@ export function PostsPanel({
         ) : null}
       </Dialog>
 
+      <DiscordImportDialog
+        campaignId={campaignId}
+        open={importing}
+        canPublish={canPublish}
+        returnFocusRef={triggerRef}
+        onClose={() => setImporting(false)}
+        onImported={() => invalidatePosts(queryClient, campaignId)}
+      />
       <ConfirmDialog
         open={Boolean(archiving)}
         title="Arquivar crônica?"

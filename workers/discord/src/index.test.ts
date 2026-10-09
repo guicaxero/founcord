@@ -621,6 +621,124 @@ describe("Discord integration Worker", () => {
     });
   });
 
+  it("lê fóruns, tópicos e a mensagem inicial para a importação de crônicas", async () => {
+    const forumId = "1536153443985531111";
+    const threadId = "1290000000000000000";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url.endsWith(`/guilds/${guildId}/channels`)) {
+          return Response.json([
+            { id: "1000000000000000001", name: "taverna", type: 0, position: 1 },
+            { id: forumId, name: "códice-dos-corvos", type: 15, position: 2 },
+          ]);
+        }
+        if (url.includes("/threads/active")) {
+          return Response.json({ threads: [{ id: threadId, name: "Ecos", parent_id: forumId, thread_metadata: { archived: false } }] });
+        }
+        if (url.includes("/threads/archived/public")) return Response.json({ threads: [], has_more: false });
+        if (url.endsWith(`/channels/${threadId}`)) return Response.json({ id: threadId, name: "Ecos na Floresta", parent_id: forumId });
+        if (url.endsWith(`/channels/${threadId}/messages/${threadId}`)) {
+          return Response.json({
+            id: threadId,
+            content: "Com <@123456789012345678> e <:corvo:998877665544332211> na <#1000000000000000001>.",
+            timestamp: "2026-10-05T21:04:00.000000+00:00",
+            author: { username: "guardiao", global_name: "Guardião da Chama" },
+            mentions: [{ id: "123456789012345678", username: "argent", global_name: "Argent" }],
+            attachments: [{ url: "https://cdn.discordapp.com/a/capa.png", filename: "capa.png", content_type: "image/png", size: 1234 }],
+          });
+        }
+        return Response.json({ message: "unexpected" }, { status: 404 });
+      }),
+    );
+    const call = (path: string, authorized = true) =>
+      integrationApp.fetch(
+        new Request(`https://integration.example${path}`, {
+          headers: authorized ? { authorization: `Bearer ${env.INTEGRATION_SERVICE_TOKEN}` } : {},
+        }),
+        env,
+        executionContext(),
+      );
+
+    expect((await call("/internal/discord/forums", false)).status).toBe(401);
+    expect(await (await call("/internal/discord/forums")).json()).toEqual({ data: [{ id: forumId, name: "códice-dos-corvos" }] });
+    const threads = (await (await call(`/internal/discord/forums/${forumId}/threads`)).json()) as { data: { threadId: string }[] };
+    expect(threads.data.map((thread) => thread.threadId)).toEqual([threadId]);
+    expect((await call("/internal/discord/forums/abc/threads")).status).toBe(422);
+    const starter = (await (await call(`/internal/discord/threads/${threadId}/starter`)).json()) as Record<string, unknown>;
+    expect(starter).toMatchObject({
+      threadId,
+      forumChannelId: forumId,
+      title: "Ecos na Floresta",
+      authorName: "Guardião da Chama",
+      content: "Com @Argent e :corvo: na #canal.",
+      createdAt: "2026-10-05T21:04:00.000Z",
+    });
+  });
+
+  it("publica a missão no fórum com a capa anexada e as tags", async () => {
+    const forumId = "1536153443985531222";
+    const requests: { url: string; init: RequestInit | undefined }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input);
+        requests.push({ url, init });
+        if (url.endsWith(`/channels/${forumId}`)) {
+          return Response.json({
+            id: forumId,
+            type: 15,
+            guild_id: guildId,
+            available_tags: [{ id: "1600000000000000001", name: "Iniciante" }],
+          });
+        }
+        if (url.endsWith(`/channels/${forumId}/threads`)) {
+          return Response.json({ id: "1700000000000000001", message: { id: "1700000000000000001" } });
+        }
+        return Response.json({ message: "unexpected" }, { status: 404 });
+      }),
+    );
+    const authorized = { authorization: `Bearer ${env.INTEGRATION_SERVICE_TOKEN}` };
+    const detail = await integrationApp.fetch(
+      new Request(`https://integration.example/internal/discord/forums/${forumId}`, { headers: authorized }),
+      env,
+      executionContext(),
+    );
+    expect(await detail.json()).toEqual({ id: forumId, guildId, tags: [{ id: "1600000000000000001", name: "Iniciante" }] });
+
+    const png = btoa(String.fromCharCode(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a));
+    const response = await integrationApp.fetch(
+      new Request("https://integration.example/internal/discord/missions/publish", {
+        method: "POST",
+        headers: { ...authorized, "content-type": "application/json" },
+        body: JSON.stringify({
+          missionId: "11111111-1111-4111-8111-111111111111",
+          forumChannelId: forumId,
+          title: "Ecos na Floresta",
+          content: "🎯 Ecos na Floresta",
+          tagIds: ["1600000000000000001"],
+          personaName: null,
+          personaAvatarUrl: null,
+          image: { base64: png, filename: "capa.png", contentType: "image/png" },
+        }),
+      }),
+      env,
+      executionContext(),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ threadId: "1700000000000000001", guildId });
+    const publication = requests.find((request) => request.url.endsWith(`/channels/${forumId}/threads`));
+    const form = publication?.init?.body as FormData;
+    expect(JSON.parse(String(form.get("payload_json")))).toMatchObject({
+      name: "Ecos na Floresta",
+      applied_tags: ["1600000000000000001"],
+      message: { content: "🎯 Ecos na Floresta", attachments: [{ id: 0, filename: "capa.png" }] },
+    });
+    const file = form.get("files[0]") as File;
+    expect([file.name, file.type, file.size]).toEqual(["capa.png", "image/png", 8]);
+  });
+
   it("mantém compatibilidade com identificadores dos modais anteriores", () => {
     expect(postTargetFromModal(`post:create:v2:${forumChannelId}:${forumTagId}`)).toEqual({
       forumChannelId,
@@ -979,6 +1097,7 @@ function postFixture(status: Post["status"]): Post {
     publishedAt: status === "published" ? "2026-08-21T20:00:00.000Z" : null,
     coverMediaId: null,
     galleryMediaIds: [],
+    discordThreadId: null,
     version: 2,
     createdAt: "2026-08-21T19:00:00.000Z",
     updatedAt: "2026-08-21T20:00:00.000Z",
