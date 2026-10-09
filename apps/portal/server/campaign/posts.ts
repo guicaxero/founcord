@@ -29,6 +29,7 @@ type PostRow = Readonly<{
   published_at: string | null;
   cover_media_id: string | null;
   gallery_json: string | null;
+  discord_thread_id: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -453,6 +454,7 @@ function mapPost(row: PostRow): Post {
     publishedAt: toIsoDateTime(row.published_at),
     coverMediaId: row.cover_media_id,
     galleryMediaIds: parseGallery(row.gallery_json),
+    discordThreadId: row.discord_thread_id,
     version: row.version,
     createdAt: toIsoDateTime(row.created_at)!,
     updatedAt: toIsoDateTime(row.updated_at)!,

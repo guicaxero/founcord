@@ -47,7 +47,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       input,
       correlationId,
     );
-    if (post.status === "published" && post.source === "discord") {
+    // Crônicas importadas do Discord já têm o tópico lá: não são republicadas.
+    if (post.status === "published" && post.source === "discord" && !post.discordThreadId) {
       enqueueDiscordPublication(post, correlationId);
     }
     return jsonResponse(post, {}, correlationId);
