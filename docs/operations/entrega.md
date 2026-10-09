@@ -142,6 +142,9 @@ mudança de escala.
 | R2 storage | 10 GB-mês | 7 GB-mês | revisar retenção e tamanhos de mídia |
 | R2 Class A | 1.000.000 operações/mês | 700.000 | revisar uploads e listagens |
 | R2 Class B | 10.000.000 operações/mês | 7.000.000 | revisar leituras e cache |
+| KV storage (imagens) | 1 GB | 700 MB | revisar imagens sem uso e o tamanho máximo |
+| KV writes | 1.000/dia | 700 | importar do Discord em lotes menores |
+| KV reads | 100.000/dia | 70.000 | conferir o cache de `/media/<id>` |
 
 O GitHub Free inclui 2.000 minutos mensais para Actions em repositórios privados.
 O CI usa Ubuntu, não publica artefatos e cancela execuções antigas da mesma PR.
@@ -155,6 +158,7 @@ Fontes conferidas em 28 de agosto de 2026:
 - [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/)
 - [Queues pricing](https://developers.cloudflare.com/queues/platform/pricing/)
 - [R2 pricing](https://developers.cloudflare.com/r2/pricing/)
+- [KV pricing](https://developers.cloudflare.com/kv/platform/pricing/)
 - [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
 - [GitHub deployment environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)
 

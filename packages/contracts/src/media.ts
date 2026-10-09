@@ -3,7 +3,8 @@ import { EntityIdSchema, IsoDateTimeSchema } from "./common";
 
 /**
  * Imagens enviadas ao portal (capas de crônicas e missões, galerias). O
- * arquivo fica no bucket R2 do portal e é servido em `/media/<id>`.
+ * arquivo fica no Workers KV do portal e é servido em `/media/<id>`. O
+ * navegador reduz a imagem antes do envio (até 1600 px, em WebP).
  */
 export const MEDIA_MAX_BYTES = 8 * 1024 * 1024;
 export const MEDIA_CONTENT_TYPES = ["image/webp", "image/png", "image/jpeg", "image/gif"] as const;

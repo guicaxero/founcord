@@ -49,7 +49,7 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       compatibilityDate: "2026-08-21",
       compatibilityFlags: ["nodejs_compat", "global_fetch_strictly_public"],
       d1Databases: ["DB"],
-      r2Buckets: ["MEDIA"],
+      kvNamespaces: ["MEDIA"],
       bindings: {
         DISCORD_CLIENT_ID: "test-client-id",
         DISCORD_CLIENT_SECRET: "test-client-secret",
@@ -977,7 +977,7 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.equal(privatePostForMember.status, 200);
     });
 
-    test("guarda imagens no R2 e liga capa e galeria à crônica", async () => {
+    test("guarda imagens no KV e liga capa e galeria à crônica", async () => {
       const upload = (token: string, bytes: Uint8Array, name = "capa.png") => {
         const form = new MiniflareFormData();
         form.set("file", new Blob([bytes.slice().buffer as ArrayBuffer]), name);

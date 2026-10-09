@@ -8,7 +8,7 @@ import {
   type MissionSummary,
 } from "@ordem/contracts";
 import type { AuthenticatedSession } from "@/server/identity/session";
-import { getMediaBucket } from "@/server/media/media";
+import { readMediaBytes } from "@/server/media/media";
 import { prepareAudit } from "@/server/shared/audit";
 import { getD1 } from "@/server/shared/db";
 import { HttpError } from "@/server/shared/http";
@@ -65,20 +65,14 @@ export async function getMissionDiscordView(
 /** Lê a capa do armazenamento para anexar ao tópico. */
 async function coverAttachment(campaignId: string, mediaId: string | null) {
   if (!mediaId) return null;
-  const row = await getD1()
-    .prepare("SELECT r2_key, content_type FROM media_assets WHERE id = ? AND campaign_id = ?")
-    .bind(mediaId, campaignId)
-    .first<{ r2_key: string; content_type: "image/webp" | "image/png" | "image/jpeg" | "image/gif" }>();
-  if (!row) return null;
-  const object = await getMediaBucket().get(row.r2_key);
-  if (!object) return null;
-  const bytes = new Uint8Array(await object.arrayBuffer());
+  const media = await readMediaBytes(campaignId, mediaId);
+  if (!media) return null;
+  const bytes = new Uint8Array(media.data);
   let binary = "";
   for (let index = 0; index < bytes.length; index += 0x8000) {
     binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
   }
-  const extension = row.r2_key.split(".").pop() ?? "png";
-  return { base64: btoa(binary), filename: `capa.${extension}`, contentType: row.content_type };
+  return { base64: btoa(binary), filename: `capa.${media.extension}`, contentType: media.contentType };
 }
 
 /**

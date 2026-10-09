@@ -16,10 +16,10 @@
       "migrations_dir": "../../packages/database/portal/migrations"
     }
   ],
-  "r2_buckets": [
+  "kv_namespaces": [
     {
       "binding": "MEDIA",
-      "bucket_name": "ordem-portal-media"
+      "id": "06101e70d20443b7b73048c8cfde53f2"
     }
   ],
   "vars": {
