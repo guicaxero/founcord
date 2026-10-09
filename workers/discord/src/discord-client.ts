@@ -491,3 +491,122 @@ export async function listForumThreads(
       archived: thread.thread_metadata?.archived === true,
     }));
 }
+
+type RawChannel = Readonly<{ id?: unknown; name?: unknown; type?: unknown; parent_id?: unknown; position?: unknown }>;
+type RawThread = ThreadShape & Readonly<{ thread_metadata?: { archived?: unknown; archive_timestamp?: unknown } }>;
+type RawMessage = Readonly<{
+  id?: unknown;
+  content?: unknown;
+  timestamp?: unknown;
+  author?: Readonly<{ username?: unknown; global_name?: unknown }>;
+  mentions?: readonly Readonly<{ id?: unknown; username?: unknown; global_name?: unknown }>[];
+  attachments?: readonly Readonly<{ url?: unknown; filename?: unknown; content_type?: unknown; size?: unknown }>[];
+}>;
+
+const FORUM_TYPES = new Set([15, 16]);
+const MAX_ARCHIVED_PAGES = 5;
+
+/** Fóruns (e canais de mídia) do servidor, na ordem do Discord. */
+export async function listGuildForums(
+  env: IntegrationEnv,
+): Promise<readonly Readonly<{ id: string; name: string }>[]> {
+  const response = await fetch(`${apiBase(env)}/guilds/${env.DISCORD_GUILD_ID}/channels`, {
+    headers: { authorization: `Bot ${env.DISCORD_BOT_TOKEN}` },
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) throw discordApiError("guild channels", response.status, body);
+  return (Array.isArray(body) ? (body as RawChannel[]) : [])
+    .filter((channel) => typeof channel.id === "string" && FORUM_TYPES.has(Number(channel.type)))
+    .sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0))
+    .map((channel) => ({ id: channel.id as string, name: String(channel.name ?? "").slice(0, 100) }));
+}
+
+/**
+ * Todos os tópicos de um fórum: os ativos e os arquivados públicos, em até
+ * cinco páginas de 100 (os mais recentes primeiro).
+ */
+export async function listAllForumThreads(
+  env: IntegrationEnv,
+  forumChannelId: string,
+): Promise<readonly Readonly<{ id: string; name: string; archived: boolean }>[]> {
+  const headers = { authorization: `Bot ${env.DISCORD_BOT_TOKEN}` };
+  const found = new Map<string, Readonly<{ id: string; name: string; archived: boolean }>>();
+  const add = (threads: readonly RawThread[]) => {
+    for (const thread of threads) {
+      if (thread.parent_id !== forumChannelId || typeof thread.id !== "string" || found.has(thread.id)) continue;
+      found.set(thread.id, {
+        id: thread.id,
+        name: String(thread.name ?? "").slice(0, 200),
+        archived: thread.thread_metadata?.archived === true,
+      });
+    }
+  };
+  const active = await fetch(`${apiBase(env)}/guilds/${env.DISCORD_GUILD_ID}/threads/active`, { headers });
+  const activeBody: unknown = await active.json().catch(() => null);
+  if (!active.ok) throw discordApiError("active threads", active.status, activeBody);
+  add(((activeBody as { threads?: RawThread[] } | null)?.threads ?? []));
+
+  let before: string | null = null;
+  for (let page = 0; page < MAX_ARCHIVED_PAGES; page += 1) {
+    const query: string = before ? `&before=${encodeURIComponent(before)}` : "";
+    const archived: Response = await fetch(
+      `${apiBase(env)}/channels/${forumChannelId}/threads/archived/public?limit=100${query}`,
+      { headers },
+    );
+    const body: unknown = await archived.json().catch(() => null);
+    if (!archived.ok) throw discordApiError("archived threads", archived.status, body);
+    const threads = (body as { threads?: RawThread[] } | null)?.threads ?? [];
+    add(threads);
+    const last = threads.at(-1)?.thread_metadata?.archive_timestamp;
+    if (!(body as { has_more?: unknown } | null)?.has_more || typeof last !== "string") break;
+    before = last;
+  }
+  return [...found.values()];
+}
+
+/** Mensagem inicial de um tópico de fórum (o id da mensagem é o do tópico). */
+export async function getThreadStarter(
+  env: IntegrationEnv,
+  threadId: string,
+): Promise<
+  Readonly<{
+    forumChannelId: string;
+    title: string;
+    authorName: string;
+    content: string;
+    createdAt: string | null;
+    mentions: readonly Readonly<{ id: string; name: string }>[];
+    attachments: readonly Readonly<{ url: string; filename: string; contentType: string | null; size: number }>[];
+  }>
+> {
+  const headers = { authorization: `Bot ${env.DISCORD_BOT_TOKEN}` };
+  const [channelResponse, messageResponse] = await Promise.all([
+    fetch(`${apiBase(env)}/channels/${threadId}`, { headers }),
+    fetch(`${apiBase(env)}/channels/${threadId}/messages/${threadId}`, { headers }),
+  ]);
+  const channel = (await channelResponse.json().catch(() => null)) as RawChannel | null;
+  if (!channelResponse.ok) throw discordApiError("thread lookup", channelResponse.status, channel);
+  const message = (await messageResponse.json().catch(() => null)) as RawMessage | null;
+  if (!messageResponse.ok) throw discordApiError("starter message", messageResponse.status, message);
+  const displayName = (user: { username?: unknown; global_name?: unknown } | undefined) =>
+    String(user?.global_name ?? user?.username ?? "").slice(0, 100);
+  return {
+    forumChannelId: String(channel?.parent_id ?? ""),
+    title: String(channel?.name ?? "").slice(0, 200),
+    authorName: displayName(message?.author),
+    content: typeof message?.content === "string" ? message.content : "",
+    createdAt: typeof message?.timestamp === "string" ? message.timestamp : null,
+    mentions: (message?.mentions ?? [])
+      .filter((mention) => typeof mention.id === "string")
+      .map((mention) => ({ id: mention.id as string, name: displayName(mention) })),
+    attachments: (message?.attachments ?? [])
+      .filter((attachment) => typeof attachment.url === "string")
+      .slice(0, 10)
+      .map((attachment) => ({
+        url: attachment.url as string,
+        filename: String(attachment.filename ?? "imagem").slice(0, 260),
+        contentType: typeof attachment.content_type === "string" ? attachment.content_type.slice(0, 100) : null,
+        size: Number(attachment.size ?? 0) || 0,
+      })),
+  };
+}

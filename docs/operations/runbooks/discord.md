@@ -129,6 +129,25 @@ O bot precisa, nesse fórum, de **Ver canal**, **Ler histórico de mensagens** e
 Personagens. O portal consulta a lista de tópicos em
 `GET /internal/discord/registro/threads`, com o token entre serviços.
 
+## Importar crônicas dos fóruns
+
+Em Crônicas, "Importar do Discord" lista os fóruns do servidor
+(`GET /internal/discord/forums`), os tópicos de um fórum
+(`GET /internal/discord/forums/:id/threads`, ativos e até 500 arquivados) e lê a
+mensagem inicial de cada tópico (`GET /internal/discord/threads/:id/starter`).
+O portal copia as imagens dos anexos para o bucket de imagens e cria a crônica
+com origem Discord; ela não é republicada no Discord ao ser publicada.
+
+Para isso, uma vez:
+
+1. No Discord Developer Portal, em **Bot**, ligar **Message Content Intent**
+   (bots em menos de 100 servidores não precisam de verificação). Sem ele, o
+   Discord devolve as mensagens vazias e o portal avisa no resultado.
+2. Dar ao bot **Ver canal** e **Ler histórico de mensagens** nos fóruns
+   códice-dos-corvos, registros-dos-corvos e registros-das-missões.
+
+Só a mensagem inicial é importada; as respostas ficam no Discord.
+
 ## Validação ponta a ponta
 
 1. Confirmar `GET /health` no Integration Worker.
@@ -152,7 +171,8 @@ em [Marco 2.5 — Isolamento de persistência](./MARCO_2_5_STORAGE.md).
 ## Limites desta entrega
 
 - Não usa Discord Gateway nem processo residente.
-- Não publica conteúdo sem revisão humana.
+- Não publica conteúdo sem revisão humana, exceto na importação de crônicas
+  quando quem tem `post:publish` escolhe "Já publicadas".
 - Não sincroniza personagens do Foundry; isso pertence ao Marco 3.
 - Não executa resumos ou IA; isso pertence ao Marco 4.
 - URLs de avatar são referências HTTPS; o sistema não hospeda nem transforma a

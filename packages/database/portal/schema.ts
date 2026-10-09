@@ -259,6 +259,8 @@ export const posts = sqliteTable(
     /** Capa (`media_assets.id`) e imagens extras, em ordem, como JSON. */
     coverMediaId: text("cover_media_id"),
     galleryJson: text("gallery_json").notNull().default("[]"),
+    /** Tópico do Discord de onde a crônica foi importada. */
+    discordThreadId: text("discord_thread_id"),
     version: integer("version").notNull().default(1),
     ...timestamps,
   },
@@ -268,6 +270,7 @@ export const posts = sqliteTable(
       table.status,
       table.publishedAt,
     ),
+    uniqueIndex("uq_posts_campaign_discord_thread").on(table.campaignId, table.discordThreadId),
   ],
 );
 

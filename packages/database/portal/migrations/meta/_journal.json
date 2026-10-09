@@ -190,6 +190,13 @@
       "when": 1791566952442,
       "tag": "0027_media_assets",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1791567774793,
+      "tag": "0028_posts_discord_thread",
+      "breakpoints": true
     }
   ]
 }

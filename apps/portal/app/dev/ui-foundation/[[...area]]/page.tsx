@@ -60,6 +60,7 @@ const previewPosts: PostListResponse = {
     publishedAt: "2026-08-01T00:00:00.000Z",
     coverMediaId: null,
     galleryMediaIds: [],
+    discordThreadId: null,
     version: 1,
     createdAt: "2026-08-01T00:00:00.000Z",
     updatedAt: "2026-08-01T00:00:00.000Z",

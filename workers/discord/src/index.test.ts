@@ -621,6 +621,62 @@ describe("Discord integration Worker", () => {
     });
   });
 
+  it("lê fóruns, tópicos e a mensagem inicial para a importação de crônicas", async () => {
+    const forumId = "1536153443985531111";
+    const threadId = "1290000000000000000";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url.endsWith(`/guilds/${guildId}/channels`)) {
+          return Response.json([
+            { id: "1000000000000000001", name: "taverna", type: 0, position: 1 },
+            { id: forumId, name: "códice-dos-corvos", type: 15, position: 2 },
+          ]);
+        }
+        if (url.includes("/threads/active")) {
+          return Response.json({ threads: [{ id: threadId, name: "Ecos", parent_id: forumId, thread_metadata: { archived: false } }] });
+        }
+        if (url.includes("/threads/archived/public")) return Response.json({ threads: [], has_more: false });
+        if (url.endsWith(`/channels/${threadId}`)) return Response.json({ id: threadId, name: "Ecos na Floresta", parent_id: forumId });
+        if (url.endsWith(`/channels/${threadId}/messages/${threadId}`)) {
+          return Response.json({
+            id: threadId,
+            content: "Com <@123456789012345678> e <:corvo:998877665544332211> na <#1000000000000000001>.",
+            timestamp: "2026-10-05T21:04:00.000000+00:00",
+            author: { username: "guardiao", global_name: "Guardião da Chama" },
+            mentions: [{ id: "123456789012345678", username: "argent", global_name: "Argent" }],
+            attachments: [{ url: "https://cdn.discordapp.com/a/capa.png", filename: "capa.png", content_type: "image/png", size: 1234 }],
+          });
+        }
+        return Response.json({ message: "unexpected" }, { status: 404 });
+      }),
+    );
+    const call = (path: string, authorized = true) =>
+      integrationApp.fetch(
+        new Request(`https://integration.example${path}`, {
+          headers: authorized ? { authorization: `Bearer ${env.INTEGRATION_SERVICE_TOKEN}` } : {},
+        }),
+        env,
+        executionContext(),
+      );
+
+    expect((await call("/internal/discord/forums", false)).status).toBe(401);
+    expect(await (await call("/internal/discord/forums")).json()).toEqual({ data: [{ id: forumId, name: "códice-dos-corvos" }] });
+    const threads = (await (await call(`/internal/discord/forums/${forumId}/threads`)).json()) as { data: { threadId: string }[] };
+    expect(threads.data.map((thread) => thread.threadId)).toEqual([threadId]);
+    expect((await call("/internal/discord/forums/abc/threads")).status).toBe(422);
+    const starter = (await (await call(`/internal/discord/threads/${threadId}/starter`)).json()) as Record<string, unknown>;
+    expect(starter).toMatchObject({
+      threadId,
+      forumChannelId: forumId,
+      title: "Ecos na Floresta",
+      authorName: "Guardião da Chama",
+      content: "Com @Argent e :corvo: na #canal.",
+      createdAt: "2026-10-05T21:04:00.000Z",
+    });
+  });
+
   it("mantém compatibilidade com identificadores dos modais anteriores", () => {
     expect(postTargetFromModal(`post:create:v2:${forumChannelId}:${forumTagId}`)).toEqual({
       forumChannelId,
@@ -979,6 +1035,7 @@ function postFixture(status: Post["status"]): Post {
     publishedAt: status === "published" ? "2026-08-21T20:00:00.000Z" : null,
     coverMediaId: null,
     galleryMediaIds: [],
+    discordThreadId: null,
     version: 2,
     createdAt: "2026-08-21T19:00:00.000Z",
     updatedAt: "2026-08-21T20:00:00.000Z",
