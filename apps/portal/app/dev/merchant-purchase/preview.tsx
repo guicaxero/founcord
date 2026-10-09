@@ -89,6 +89,8 @@ const catalog: MerchantCatalogResponse = {
         properties: null,
         weapon: null,
         armor: null,
+        origin: "manual",
+        catalogItemId: null,
         sourceUpdatedAt: "2026-09-07T15:00:00.000Z",
       },
       {
@@ -104,6 +106,8 @@ const catalog: MerchantCatalogResponse = {
         properties: null,
         weapon: null,
         armor: null,
+        origin: "manual",
+        catalogItemId: null,
         sourceUpdatedAt: "2026-09-07T15:00:00.000Z",
       },
       {
@@ -119,6 +123,8 @@ const catalog: MerchantCatalogResponse = {
         properties: null,
         weapon: null,
         armor: null,
+        origin: "manual",
+        catalogItemId: null,
         sourceUpdatedAt: "2026-09-07T15:00:00.000Z",
       },
       {
@@ -134,6 +140,8 @@ const catalog: MerchantCatalogResponse = {
         properties: null,
         weapon: null,
         armor: null,
+        origin: "manual",
+        catalogItemId: null,
         sourceUpdatedAt: "2026-09-07T15:00:00.000Z",
       },
       {
@@ -149,6 +157,8 @@ const catalog: MerchantCatalogResponse = {
         properties: "Precisa, Arremesso (alcance curto)",
         weapon: { damage: "1d6", hands: "one", requirement: { attribute: "agility", minimum: 11 } },
         armor: null,
+        origin: "manual",
+        catalogItemId: null,
         sourceUpdatedAt: "2026-09-07T15:00:00.000Z",
       },
       {
@@ -164,6 +174,8 @@ const catalog: MerchantCatalogResponse = {
         properties: null,
         weapon: null,
         armor: { defense: "15", agility: null, fixed: null, shield: false, requirement: { attribute: "strength", minimum: 12 } },
+        origin: "manual",
+        catalogItemId: null,
         sourceUpdatedAt: "2026-09-07T15:00:00.000Z",
       },
       {
@@ -179,6 +191,8 @@ const catalog: MerchantCatalogResponse = {
         properties: null,
         weapon: null,
         armor: null,
+        origin: "manual",
+        catalogItemId: null,
         sourceUpdatedAt: "2026-09-07T15:00:00.000Z",
       },
     ],

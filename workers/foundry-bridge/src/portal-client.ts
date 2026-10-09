@@ -5,9 +5,11 @@ import {
   FoundryCharacterSyncResponseSchema,
   MerchantPurchaseDeliveryCallbackSchema,
   MerchantStockDeliveryCallbackSchema,
+  MerchantStockPatchDeliveryCallbackSchema,
   type FoundryCharacterSyncCallback,
   type MerchantPurchaseDeliveryCallback,
   type MerchantStockDeliveryCallback,
+  type MerchantStockPatchDeliveryCallback,
   type CharacterNotesDeliveryCallback,
   type SedeGrantDeliveryCallback,
   type CreatureDeliveryCallback,
@@ -78,6 +80,29 @@ export async function reportMerchantStockDelivery(
   );
   if (!response.ok) {
     throw new Error(`Portal merchant stock callback failed with ${response.status}.`);
+  }
+}
+
+/** Resultado de uma edição do estoque do Lojista, item a item. */
+export async function reportMerchantStockPatchDelivery(
+  env: FoundryEnv,
+  input: MerchantStockPatchDeliveryCallback,
+  correlationId: string,
+): Promise<void> {
+  const body = MerchantStockPatchDeliveryCallbackSchema.parse(input);
+  const response = await env.PORTAL.fetch(
+    new Request("https://portal.internal/api/internal/integration/foundry/merchant-stock/patch-delivery", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${env.INTEGRATION_SERVICE_TOKEN}`,
+        "content-type": "application/json",
+        "x-correlation-id": correlationId,
+      },
+      body: JSON.stringify(body),
+    }),
+  );
+  if (!response.ok) {
+    throw new Error(`Portal merchant stock patch callback failed with ${response.status}.`);
   }
 }
 

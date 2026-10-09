@@ -1,15 +1,17 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type {
-  CreatePostInput,
-  CurrentUserResponse,
-  Post,
-  PostListResponse,
-  PostStatus,
-  UpdatePostInput,
+import {
+  MAX_GALLERY_IMAGES,
+  type CreatePostInput,
+  type CurrentUserResponse,
+  type Post,
+  type PostListResponse,
+  type PostStatus,
+  type UpdatePostInput,
 } from "@ordem/contracts";
 import { useRef, useState, type FormEvent } from "react";
+import { ImagePicker } from "@/components/media/image-picker";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable, RowActions } from "@/components/ui/data-table";
@@ -352,10 +354,19 @@ function PostForm({
   onCancel: () => void;
   onSubmit: (value: CreatePostInput | (UpdatePostInput & { id: string })) => void;
 }>) {
+  const [cover, setCover] = useState<string[]>(post?.coverMediaId ? [post.coverMediaId] : []);
+  const [gallery, setGallery] = useState<string[]>([...(post?.galleryMediaIds ?? [])]);
+  const [uploading, setUploading] = useState(false);
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    const fields = { title: String(data.get("title")), body: String(data.get("body")) };
+    const fields = {
+      title: String(data.get("title")),
+      body: String(data.get("body")),
+      coverMediaId: cover[0] ?? null,
+      galleryMediaIds: gallery,
+    };
     onSubmit(post ? { ...fields, id: post.id, version: post.version } : { ...fields, campaignId, source: "manual" });
   }
 
@@ -370,12 +381,33 @@ function PostForm({
             <Textarea id={id} name="body" required rows={14} maxLength={20_000} defaultValue={post?.body} aria-describedby={describedBy} />
           )}
         </Field>
+        <div className="full">
+          <ImagePicker
+            campaignId={campaignId}
+            label="Capa"
+            hint="Aparece no arquivo de crônicas e no topo do texto."
+            value={cover}
+            onChange={setCover}
+            onBusyChange={setUploading}
+          />
+        </div>
+        <div className="full">
+          <ImagePicker
+            campaignId={campaignId}
+            label="Imagens"
+            hint={`Até ${MAX_GALLERY_IMAGES}, mostradas depois do texto, na ordem em que foram enviadas.`}
+            value={gallery}
+            onChange={setGallery}
+            max={MAX_GALLERY_IMAGES}
+            onBusyChange={setUploading}
+          />
+        </div>
       </FormGrid>
       {error ? <Notice tone="danger" role="alert">{error}</Notice> : null}
       <div className="flex flex-col-reverse gap-3 border-t border-line-soft pt-4 sm:flex-row sm:justify-end">
         <Button disabled={busy} onClick={onCancel}>Cancelar</Button>
-        <Button type="submit" variant="primary" disabled={busy}>
-          {busy ? "Salvando…" : post ? "Salvar texto" : "Criar rascunho"}
+        <Button type="submit" variant="primary" disabled={busy || uploading}>
+          {busy ? "Salvando…" : uploading ? "Aguarde o envio…" : post ? "Salvar" : "Criar rascunho"}
         </Button>
       </div>
     </form>

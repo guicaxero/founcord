@@ -20,13 +20,15 @@ import { queryKeys } from "@/lib/query-keys";
 import { PanelLoading } from "../kit";
 import { timestamp } from "../status";
 import { CatalogTab } from "./catalog-tab";
+import { CurrentStockTab } from "./current-stock-tab";
 import { drawStatusContent, drawSummary } from "./presentation";
 import { SelectionTab, type SelectedEntry } from "./selection-tab";
 import { DrawEntriesTable, StockDrawTab } from "./stock-draw-tab";
 
 /**
- * Estoque do Lojista: sorteio, seleção manual, catálogo e histórico. O estoque
- * só vira realidade quando o módulo cria os itens no ator do Foundry.
+ * Estoque do Lojista: estoque atual (edição item a item), sorteio, estoque
+ * novo montado à mão, catálogo e histórico. O estoque só vira realidade quando
+ * o módulo cria os itens no ator do Foundry.
  */
 export function MerchantStockPanel({ campaignId }: Readonly<{ campaignId: string }>) {
   return (
@@ -83,6 +85,11 @@ function MerchantStockTabs({ campaignId }: Readonly<{ campaignId: string }>) {
       label="Seções do estoque do Lojista"
       tabs={[
         {
+          value: "atual",
+          label: "Estoque atual",
+          content: <CurrentStockTab campaignId={campaignId} catalog={catalog.data.data} onOpenCatalog={openCatalog} />,
+        },
+        {
           value: "sorteio",
           label: "Sorteio",
           content: (
@@ -96,7 +103,7 @@ function MerchantStockTabs({ campaignId }: Readonly<{ campaignId: string }>) {
         },
         {
           value: "selecao",
-          label: selection.length > 0 ? `Seleção (${selection.length})` : "Seleção",
+          label: selection.length > 0 ? `Trocar o estoque (${selection.length})` : "Trocar o estoque",
           content: (
             <SelectionTab
               campaignId={campaignId}

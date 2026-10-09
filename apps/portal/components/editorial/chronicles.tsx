@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { Post, PostListResponse } from "@ordem/contracts";
+import { mediaUrl, type Post, type PostListResponse } from "@ordem/contracts";
 import { motion } from "motion/react";
 import { ButtonLink } from "@/components/ui/button";
 import { FeedbackState } from "@/components/ui/feedback-state";
@@ -10,7 +10,7 @@ import { PageHeader, Skeleton } from "@/components/ui/surface";
 import { ApiClientError, apiFetch, errorMessage } from "@/lib/api-client";
 import { formatDate } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
-import { ArticleBody, EditorialList, type EditorialEntry } from "./editorial-list";
+import { ArticleBody, ArticleGallery, EditorialList, type EditorialEntry } from "./editorial-list";
 
 function toEntry(post: Post): EditorialEntry {
   return {
@@ -20,6 +20,7 @@ function toEntry(post: Post): EditorialEntry {
     authorName: post.authorName,
     publishedAt: post.publishedAt,
     tags: post.source === "manual" ? [] : [sourceLabel(post.source)],
+    coverUrl: post.coverMediaId ? mediaUrl(post.coverMediaId) : null,
   };
 }
 
@@ -101,7 +102,16 @@ export function ChronicleDetail({
           description={`Por ${post.data.authorName} · ${formatDate(post.data.publishedAt, "Sem data")}`}
         />
       </div>
+      {post.data.coverMediaId ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={mediaUrl(post.data.coverMediaId)}
+          alt={`Capa de ${post.data.title}`}
+          className="aspect-[16/9] w-full max-w-4xl rounded-lg border border-line-soft bg-surface-2 object-cover"
+        />
+      ) : null}
       <ArticleBody body={post.data.body} />
+      <ArticleGallery urls={post.data.galleryMediaIds.map(mediaUrl)} title={post.data.title} />
     </motion.article>
   );
 }

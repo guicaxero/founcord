@@ -256,6 +256,9 @@ export const posts = sqliteTable(
       onDelete: "set null",
     }),
     publishedAt: text("published_at"),
+    /** Capa (`media_assets.id`) e imagens extras, em ordem, como JSON. */
+    coverMediaId: text("cover_media_id"),
+    galleryJson: text("gallery_json").notNull().default("[]"),
     version: integer("version").notNull().default(1),
     ...timestamps,
   },
@@ -265,6 +268,31 @@ export const posts = sqliteTable(
       table.status,
       table.publishedAt,
     ),
+  ],
+);
+
+/**
+ * Imagens enviadas ao portal (capas e galerias), guardadas no bucket R2
+ * `MEDIA` com a chave `r2_key`. O arquivo é público para quem tiver o link.
+ */
+export const mediaAssets = sqliteTable(
+  "media_assets",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    r2Key: text("r2_key").notNull(),
+    contentType: text("content_type").notNull(),
+    bytes: integer("bytes").notNull(),
+    /** De onde veio: envio no painel ou cópia de um anexo do Discord. */
+    origin: text("origin", { enum: ["upload", "discord"] }).notNull().default("upload"),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("uq_media_assets_r2_key").on(table.r2Key),
+    index("idx_media_assets_campaign").on(table.campaignId, table.createdAt),
   ],
 );
 
@@ -566,6 +594,37 @@ export const merchantStockDraws = sqliteTable(
   (table) => [
     uniqueIndex("uq_merchant_stock_command").on(table.commandId),
     index("idx_merchant_stock_campaign").on(table.campaignId, table.createdAt),
+  ],
+);
+
+/**
+ * Edições do estoque real do Lojista, item a item (`merchant.stock.patch`).
+ * Guardam as mudanças enviadas e o resultado de cada uma no Foundry.
+ */
+export const merchantStockPatches = sqliteTable(
+  "merchant_stock_patches",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    worldId: text("world_id").notNull(),
+    operationsJson: text("operations_json").notNull(),
+    outcomesJson: text("outcomes_json"),
+    status: text("status", { enum: ["pending_delivery", "applied", "partial", "failed"] })
+      .notNull()
+      .default("pending_delivery"),
+    commandId: text("command_id"),
+    error: text("error"),
+    appliedAt: text("applied_at"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("uq_merchant_stock_patch_command").on(table.commandId),
+    index("idx_merchant_stock_patch_campaign").on(table.campaignId, table.createdAt),
   ],
 );
 

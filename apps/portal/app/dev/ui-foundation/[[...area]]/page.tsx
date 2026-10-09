@@ -58,6 +58,8 @@ const previewPosts: PostListResponse = {
     source: "manual",
     reviewedBy: previewUser.user!.id,
     publishedAt: "2026-08-01T00:00:00.000Z",
+    coverMediaId: null,
+    galleryMediaIds: [],
     version: 1,
     createdAt: "2026-08-01T00:00:00.000Z",
     updatedAt: "2026-08-01T00:00:00.000Z",

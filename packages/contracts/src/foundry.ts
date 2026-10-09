@@ -4,7 +4,7 @@ import { CharacterSheetSchema, MAX_CHARACTER_SHEET_CHARS } from "./character-she
 import { foundryImageSchema } from "./common";
 import { CreatureDraftSchema } from "./creatures";
 import { DemonLordCoinsSchema } from "./currency";
-import { MerchantStockEntrySchema } from "./merchant-stock";
+import { MerchantStockEntrySchema, MerchantStockPatchOperationSchema } from "./merchant-stock";
 
 const foundryIdentifier = z
   .string()
@@ -284,6 +284,7 @@ export const FoundryCommandTypeSchema = z.enum([
   "chat.message.create",
   "merchant.purchase.request",
   "merchant.stock.replace",
+  "merchant.stock.patch",
   "creature.upsert",
   "character.notes.update",
   "character.items.grant",
@@ -359,6 +360,24 @@ const MerchantStockReplaceCommandSchema = z
   .strict();
 
 /**
+ * Edita o estoque do Lojista item a item, sem trocar o resto. O módulo guarda
+ * o `patchId` aplicado por último, e reenviar não repete nada.
+ */
+const MerchantStockPatchCommandSchema = z
+  .object({
+    type: z.literal("merchant.stock.patch"),
+    payload: z
+      .object({
+        patchId: z.string().uuid(),
+        campaignId: z.string().uuid(),
+        operations: z.array(MerchantStockPatchOperationSchema).min(1).max(100),
+        requestedAt: isoDate,
+      })
+      .strict(),
+  })
+  .strict();
+
+/**
  * Cria ou atualiza o ator de uma criatura da biblioteca. O módulo encontra o
  * ator pela marca `creatureId` e troca os itens; sem ator, cria um novo.
  */
@@ -422,6 +441,7 @@ export const FoundryCommandInputSchema = z.discriminatedUnion("type", [
   ChatMessageCommandSchema,
   MerchantPurchaseRequestCommandSchema,
   MerchantStockReplaceCommandSchema,
+  MerchantStockPatchCommandSchema,
   CreatureUpsertCommandSchema,
   CharacterNotesUpdateCommandSchema,
   CharacterItemsGrantCommandSchema,
