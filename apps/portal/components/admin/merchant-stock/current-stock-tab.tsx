@@ -200,7 +200,7 @@ export function CurrentStockTab({
   const header = (
     <PanelHeader
       eyebrow="Estoque atual"
-      title={stock.data?.merchantName ? `O que ${stock.data.merchantName} tem agora` : "O que o Lojista tem agora"}
+      title="O que o Lojista tem agora"
       description="Mude quantidades, remova ou acrescente itens do catálogo. Só as mudanças vão ao Foundry; o resto do estoque fica como está, inclusive o que foi colocado à mão."
       actions={
         <Button size="sm" disabled={stock.isFetching || !stock.data} onClick={() => stock.refetch()}>
@@ -292,7 +292,7 @@ export function CurrentStockTab({
             title="No Lojista"
             description={
               stock.data?.syncedAt
-                ? `${items.length} ${items.length === 1 ? "item" : "itens"} · lido em ${formatDateTime(stock.data.syncedAt)}${stock.data.online ? "" : " · mundo offline"}.`
+                ? `${stock.data.merchantName ? `${stock.data.merchantName} · ` : ""}${items.length} ${items.length === 1 ? "item" : "itens"} · lido em ${formatDateTime(stock.data.syncedAt)}${stock.data.online ? "" : " · mundo offline"}.`
                 : stock.isPending
                   ? "Lendo o estoque…"
                   : "O módulo ainda não enviou o estoque deste Lojista."
