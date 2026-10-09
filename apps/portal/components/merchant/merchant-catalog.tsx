@@ -136,9 +136,14 @@ export function MerchantCatalog({
         ) : null}
 
         {!merchant.data && merchant.isPending ? (
-          <div className="grid gap-4" role="status" aria-label="Consultando o catálogo">
-            <Skeleton className="h-24" />
-            <Skeleton className="h-24" />
+          <div
+            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+            role="status"
+            aria-label="Consultando o catálogo"
+          >
+            <Skeleton className="h-48" />
+            <Skeleton className="h-48" />
+            <Skeleton className="h-48" />
           </div>
         ) : !merchant.data && merchant.isError ? (
           <FeedbackState
@@ -227,7 +232,7 @@ export function MerchantCatalog({
               </FeedbackState>
             ) : (
               <motion.ul
-                className="grid list-none gap-4 p-0"
+                className="grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3"
                 variants={staggerList}
                 initial="hidden"
                 animate="visible"
@@ -328,34 +333,36 @@ function MerchantItem({
 }>) {
   const available = item.price !== null && item.quantity !== null && item.quantity > 0;
 
+  // Cartão de grade: cabeçalho com nome e preço lado a lado, ficha no meio e a
+  // ação presa ao rodapé para alinhar os botões entre cartões da mesma linha.
   return (
-    <Card className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start" interactive>
-      <ItemImage item={item} />
-
-      <div className="min-w-0 space-y-3">
-        <div className="space-y-1.5">
+    <Card className="flex h-full flex-col gap-4" padding="sm" interactive>
+      <div className="flex items-start gap-3">
+        <ItemImage item={item} size="sm" />
+        <div className="min-w-0 flex-1 space-y-1.5">
           {item.category ? (
             <p className="text-xs font-bold tracking-wider text-accent uppercase">{item.category}</p>
           ) : null}
-          <h3 className="font-display text-xl leading-tight break-words">{item.name}</h3>
+          <h3 className="font-display text-lg leading-tight break-words">{item.name}</h3>
           <ItemBadges item={item} />
         </div>
-        <ItemStats item={item} />
-        <ItemDescription description={item.description} />
-        <p className="sr-only">Vendido por {merchantName}</p>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line-soft pt-4 sm:w-56 sm:flex-col sm:items-end sm:border-0 sm:pt-0">
-        <div className="sm:text-right">
+        <div className="max-w-[45%] shrink-0 text-right">
           <MerchantPrice price={item.price} />
           <Stock quantity={item.quantity} />
         </div>
+      </div>
+
+      <ItemStats item={item} />
+      <ItemDescription description={item.description} />
+      <p className="sr-only">Vendido por {merchantName}</p>
+
+      <div className="mt-auto flex justify-end border-t border-line-soft pt-3">
         {canRequest && available ? (
           <Button variant="accent" onClick={(event) => onRequest(event.currentTarget)}>
             Solicitar ao mestre
           </Button>
         ) : (
-          <span className="text-sm text-fg-subtle italic">
+          <span className="flex min-h-11 items-center text-sm text-fg-subtle italic">
             {available ? "Vínculo necessário" : "Indisponível para pedido"}
           </span>
         )}
