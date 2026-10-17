@@ -1089,6 +1089,7 @@ function postFixture(status: Post["status"]): Post {
     campaignId,
     authorUserId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     authorName: "Guardião",
+    byline: null,
     title: "Sinais no ermo",
     body: "A chama foi vista ao norte.",
     status,

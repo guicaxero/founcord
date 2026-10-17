@@ -26,7 +26,14 @@ export const users = sqliteTable(
   {
     id: text("id").primaryKey(),
     discordUserId: text("discord_user_id").notNull(),
+    /**
+     * Nome mostrado em todo o portal: o nome no portal, quando a pessoa
+     * escolheu um, ou o do Discord, recopiado a cada login.
+     */
     displayName: text("display_name").notNull(),
+    /** Último nome vindo do Discord e o nome escolhido no portal. */
+    discordName: text("discord_name"),
+    portalName: text("portal_name"),
     avatarUrl: text("avatar_url"),
     ...timestamps,
   },
@@ -280,6 +287,8 @@ export const posts = sqliteTable(
     galleryJson: text("gallery_json").notNull().default("[]"),
     /** Tópico do Discord de onde a crônica foi importada. */
     discordThreadId: text("discord_thread_id"),
+    /** Assinatura da crônica; nula usa o nome no portal de quem escreveu. */
+    byline: text("byline"),
     /** Posição entre as crônicas fixadas no topo do arquivo; nula segue pela data. */
     pinnedOrder: integer("pinned_order"),
     /** Tags (temporada, sequência, assunto), como JSON. */

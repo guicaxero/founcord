@@ -90,7 +90,7 @@ export const previewCharacterMembers: CampaignMemberListResponse = {
       user: {
         id: ownerId,
         discordUserId: "preview-owner",
-        displayName: "Guardião da Chama AP",
+        displayName: "Guardião da Chama",
         avatarUrl: null,
       },
       status: "active",
