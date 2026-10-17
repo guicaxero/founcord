@@ -97,17 +97,14 @@ export async function listDiscordForumThreads(
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
-function escapeMarkdown(value: string): string {
-  return value.replace(/([\\`*_{}[\]()<>#+\-.!|])/g, "\\$1");
+/** Corpo da crônica: o texto da mensagem inicial do tópico. */
+export function importedBody(starter: Pick<DiscordStarterMessage, "content">): string {
+  return (starter.content.trim() || "Crônica importada do Discord.").slice(0, 20_000);
 }
 
-/** Corpo da crônica: quem escreveu no Discord, como no `/post`, e o texto. */
-export function importedBody(starter: Pick<DiscordStarterMessage, "authorName" | "content">): string {
-  const author = starter.authorName.trim();
-  const body = [author ? `> Escrito por **${escapeMarkdown(author)}**` : null, starter.content.trim() || null]
-    .filter(Boolean)
-    .join("\n\n");
-  return (body || "Crônica importada do Discord.").slice(0, 20_000);
+/** Quem escreveu no Discord vira a assinatura, que o mestre pode trocar depois. */
+export function importedByline(starter: Pick<DiscordStarterMessage, "authorName">): string | null {
+  return starter.authorName.trim().slice(0, 80) || null;
 }
 
 export function importedTitle(title: string): string {
@@ -204,8 +201,8 @@ export async function importDiscordThreads(
           .prepare(
             `INSERT INTO posts (
               id, campaign_id, author_user_id, title, body, source, status, reviewed_by, published_at,
-              cover_media_id, gallery_json, discord_thread_id
-            ) VALUES (?, ?, ?, ?, ?, 'discord', ?, ?, ?, ?, ?, ?)`,
+              cover_media_id, gallery_json, discord_thread_id, byline
+            ) VALUES (?, ?, ?, ?, ?, 'discord', ?, ?, ?, ?, ?, ?, ?)`,
           )
           .bind(
             id,
@@ -219,6 +216,7 @@ export async function importDiscordThreads(
             cover,
             JSON.stringify(gallery),
             threadId,
+            importedByline(starter),
           ),
         prepareAudit(db, {
           actorUserId: session.user.id,

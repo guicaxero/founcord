@@ -34,6 +34,7 @@ type PostRow = Readonly<{
   discord_thread_id: string | null;
   pinned_order: number | null;
   tags_json: string | null;
+  byline: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -108,8 +109,8 @@ export async function createPost(
     db
       .prepare(
         `INSERT INTO posts (
-          id, campaign_id, author_user_id, title, body, source, status, cover_media_id, gallery_json, tags_json
-        ) VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)`,
+          id, campaign_id, author_user_id, title, body, source, status, cover_media_id, gallery_json, tags_json, byline
+        ) VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?)`,
       )
       .bind(
         id,
@@ -121,6 +122,7 @@ export async function createPost(
         input.coverMediaId,
         JSON.stringify(input.galleryMediaIds),
         JSON.stringify(input.tags),
+        input.byline,
       ),
     prepareAuditAfterChange(db, {
       actorUserId: session.user.id,
@@ -150,7 +152,11 @@ export async function updatePost(
   const existing = await getPostRow(postId);
   const changesImages = input.coverMediaId !== undefined || input.galleryMediaIds !== undefined;
   const changesContent =
-    input.title !== undefined || input.body !== undefined || input.tags !== undefined || changesImages;
+    input.title !== undefined ||
+    input.body !== undefined ||
+    input.tags !== undefined ||
+    input.byline !== undefined ||
+    changesImages;
   if (input.status === existing.status && !changesContent) {
     if (input.status === "approved" || input.status === "rejected") {
       requirePermission(session.principal, "post:review", {
@@ -199,6 +205,7 @@ export async function updatePost(
           cover_media_id = CASE WHEN ? = 1 THEN ? ELSE cover_media_id END,
           gallery_json = COALESCE(?, gallery_json),
           tags_json = COALESCE(?, tags_json),
+          byline = CASE WHEN ? = 1 THEN ? ELSE byline END,
           status = COALESCE(?, status),
           reviewed_by = COALESCE(?, reviewed_by),
           published_at = COALESCE(?, published_at),
@@ -213,6 +220,8 @@ export async function updatePost(
         input.coverMediaId ?? null,
         input.galleryMediaIds ? JSON.stringify(input.galleryMediaIds) : null,
         input.tags ? JSON.stringify(input.tags) : null,
+        input.byline !== undefined ? 1 : 0,
+        input.byline ?? null,
         input.status ?? null,
         reviewer,
         publishedAt,
@@ -373,8 +382,18 @@ export async function arrangePosts(
     db.prepare("UPDATE posts SET pinned_order = NULL WHERE campaign_id = ?").bind(campaignId),
     ...input.items.map((item) =>
       db
-        .prepare("UPDATE posts SET pinned_order = ?, tags_json = ? WHERE id = ?")
-        .bind(item.pinned ? (position += 1) : null, JSON.stringify(item.tags), item.postId),
+        .prepare(
+          `UPDATE posts SET pinned_order = ?, tags_json = ?,
+             byline = CASE WHEN ? = 1 THEN ? ELSE byline END
+           WHERE id = ?`,
+        )
+        .bind(
+          item.pinned ? (position += 1) : null,
+          JSON.stringify(item.tags),
+          item.byline !== undefined ? 1 : 0,
+          item.byline ?? null,
+          item.postId,
+        ),
     ),
     prepareAudit(db, {
       actorUserId: session.user.id,
@@ -506,7 +525,8 @@ function mapPost(row: PostRow): Post {
     id: row.id,
     campaignId: row.campaign_id,
     authorUserId: row.author_user_id,
-    authorName: row.author_name,
+    authorName: row.byline ?? row.author_name,
+    byline: row.byline,
     title: row.title,
     body: row.body,
     status: row.status,
