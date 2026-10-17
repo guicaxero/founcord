@@ -116,12 +116,14 @@ Conformidade com WCAG 2.2 AA.
 
 Superfícies separadas:
 
-- **Portal público:** início, missões, crônicas, diário, Lojista e o Código.
+- **Portal público:** início, missões (chamados e registro), crônicas,
+  Registro dos Corvos, diário, Lojista e o Código. O menu do topo aparece
+  inteiro a partir de 1280 px; abaixo disso, no menu compacto.
 - **Área do jogador (`/eu`):** personagem, inscrições e pedidos.
 - **Painel de gestão (`/dashboard/[area]`):** uma URL por área (sessões,
-  diário, automações, missões, publicações, Foundry, personagens, pedidos,
-  pessoas, histórico e configurações). Barra lateral em telas largas e seletor
-  compacto abaixo de 1024 px. As áreas e suas permissões vivem em
+  diário, automações, missões, publicações, Registro dos Corvos, Foundry,
+  personagens, pedidos, pessoas, histórico e configurações). Barra lateral
+  em telas largas e seletor compacto abaixo de 1024 px. As áreas e suas permissões vivem em
   `components/admin/areas.ts`, que também decide quando o menu mostra "Gestão".
 
 Cada tela pública tem uma única fonte de conteúdo, sem mistura:
@@ -130,6 +132,7 @@ Cada tela pública tem uma única fonte de conteúdo, sem mistura:
 | --- | --- | --- |
 | Crônicas | Registros da lore | `posts` |
 | Diário | Resumos das sessões jogadas; fechado aos jogadores até o mestre abri-lo nas Configurações | `session_summaries` |
+| Corvos | Catálogo público dos personagens | `ravens` + projeção do Foundry, `mission_participants` e Vida na Sede |
 | A Ordem | Funcionamento da mesa | conteúdo fixo |
 | Missões | Chamados abertos (`/missoes`) e registro das aventuras (`/missoes/registro`) | `missions` (sem e com situação no registro) |
 

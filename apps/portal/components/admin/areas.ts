@@ -14,6 +14,7 @@ export type AreaSlug =
   | "sede"
   | "missoes"
   | "cronicas"
+  | "corvos"
   | "foundry"
   | "personagens"
   | "pedidos"
@@ -96,6 +97,14 @@ export const areas: readonly AreaDefinition[] = [
     description: "Escreva e revise as crônicas da lore da campanha. Resumos de sessão ficam no Diário de Sessões.",
     group: "conteudo",
     permissions: ["post:create", "post:review", "post:publish", "post:delete"],
+  },
+  {
+    slug: "corvos",
+    label: "Registro dos Corvos",
+    eyebrow: "Catálogo da Ordem",
+    description: "Corrija o que o registro público mostra de cada Corvo e cadastre os que não têm personagem no Foundry.",
+    group: "conteudo",
+    permissions: ["character:link:manage"],
   },
   {
     slug: "foundry",

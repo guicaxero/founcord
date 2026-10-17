@@ -8,9 +8,10 @@ import type {
   MissionOutcome,
   MissionStatus,
   MissionSummary,
+  RavenListResponse,
   UpdateMissionInput,
 } from "@ordem/contracts";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { ImagePicker } from "@/components/media/image-picker";
 import {
   missionNumberLabel,
@@ -23,7 +24,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable, RowActions } from "@/components/ui/data-table";
 import { Dialog } from "@/components/ui/dialog";
 import { FeedbackState } from "@/components/ui/feedback-state";
-import { Field, FormGrid, Input, Select, Textarea } from "@/components/ui/field";
+import { Checkbox, Field, FormGrid, Input, Select, Textarea } from "@/components/ui/field";
 import { FilterChips } from "@/components/ui/filter-chips";
 import { Notice } from "@/components/ui/notice";
 import { Badge } from "@/components/ui/surface";
@@ -92,11 +93,18 @@ export function MissionsPanel({
     },
   });
   const record = useMutation({
-    mutationFn: ({ mission, ...body }: { mission: MissionSummary } & RecordFields) =>
-      apiFetch<MissionSummary>(`/api/missions/${mission.id}`, {
+    mutationFn: async ({ mission, ravenIds, ...body }: { mission: MissionSummary; ravenIds: string[] } & RecordFields) => {
+      const updated = await apiFetch<MissionSummary>(`/api/missions/${mission.id}`, {
         method: "PATCH",
         body: JSON.stringify({ ...body, version: mission.version }),
-      }),
+      });
+      const before = mission.participants.map((participant) => participant.id).sort().join();
+      if (before === [...ravenIds].sort().join()) return updated;
+      return apiFetch<MissionSummary>(`/api/missions/${mission.id}/participants`, {
+        method: "PUT",
+        body: JSON.stringify({ ravenIds }),
+      });
+    },
     onSuccess: async (mission) => {
       setRecording(null);
       toast({
@@ -105,7 +113,11 @@ export function MissionsPanel({
           ? `${mission.title}: ${outcomeLabels[mission.outcome].toLowerCase()}.`
           : `${mission.title} voltou a aceitar inscrições.`,
       });
-      await invalidateMissions(queryClient, campaignId);
+      await Promise.all([
+        invalidateMissions(queryClient, campaignId),
+        // Participantes mudam as contagens do Registro dos Corvos.
+        queryClient.invalidateQueries({ queryKey: ["campaigns", campaignId, "ravens"] }),
+      ]);
     },
   });
   const transition = useMutation({
@@ -370,6 +382,7 @@ export function MissionsPanel({
         {recording ? (
           <RecordForm
             key={recording.id}
+            campaignId={campaignId}
             mission={recording}
             busy={record.isPending}
             error={record.isError ? errorMessage(record.error) : null}
@@ -559,22 +572,25 @@ function MissionForm({
 
 /** Número, situação e relato de uma missão publicada. */
 function RecordForm({
+  campaignId,
   mission,
   busy,
   error,
   onCancel,
   onSubmit,
 }: Readonly<{
+  campaignId: string;
   mission: MissionSummary;
   busy: boolean;
   error: string | null;
   onCancel: () => void;
-  onSubmit: (value: RecordFields) => void;
+  onSubmit: (value: RecordFields & { ravenIds: string[] }) => void;
 }>) {
   const errorRef = useFocusOnError(error);
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    onSubmit(readRecordFields(new FormData(event.currentTarget)));
+    const data = new FormData(event.currentTarget);
+    onSubmit({ ...readRecordFields(data), ravenIds: data.getAll("participant").map(String) });
   }
 
   return (
@@ -583,6 +599,7 @@ function RecordForm({
         <OutcomeField defaultValue={mission.outcome ?? "in_progress"} allowOpenCall />
         <NumberField defaultValue={mission.number} />
         <ReportField defaultValue={mission.report} />
+        <ParticipantsField campaignId={campaignId} current={mission.participants} />
       </FormGrid>
       {error ? <Notice ref={errorRef} tone="danger" role="alert">{error}</Notice> : null}
       <div className="flex flex-col-reverse gap-3 border-t border-line-soft pt-4 sm:flex-row sm:justify-end">
@@ -592,6 +609,56 @@ function RecordForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+/** Corvos que participaram: os do registro público e os já marcados (mesmo ocultos). */
+function ParticipantsField({
+  campaignId,
+  current,
+}: Readonly<{ campaignId: string; current: MissionSummary["participants"] }>) {
+  const ravens = useQuery({
+    queryKey: queryKeys.ravens(campaignId),
+    queryFn: () => apiFetch<RavenListResponse>(`/api/campaigns/${campaignId}/ravens`),
+  });
+  const [search, setSearch] = useState("");
+  const chosen = new Set(current.map((participant) => participant.id));
+  const options = [
+    ...current.filter((participant) => !ravens.data?.data.some((raven) => raven.id === participant.id)),
+    ...(ravens.data?.data ?? []).map((raven) => ({ id: raven.id, name: raven.name })),
+  ];
+  const term = normalizeSearch(search);
+  const legendId = useId();
+
+  return (
+    <fieldset className="full space-y-3" aria-describedby={`${legendId}-hint`}>
+      <legend className="text-sm font-semibold text-fg">
+        Corvos que participaram <span className="text-xs font-normal text-fg-subtle">opcional</span>
+      </legend>
+      <p id={`${legendId}-hint`} className="text-xs text-fg-subtle">
+        Contam nas missões concluídas e fracassadas, nas sessões jogadas e na última missão de cada Corvo.
+      </p>
+      {ravens.isPending ? (
+        <p className="text-sm text-fg-muted" role="status">Carregando os Corvos…</p>
+      ) : ravens.isError ? (
+        <Notice tone="warning">Não foi possível carregar os Corvos: {errorMessage(ravens.error)}</Notice>
+      ) : options.length === 0 ? (
+        <p className="text-sm text-fg-muted">Nenhum Corvo no registro ainda. Vincule personagens ou cadastre Corvos no Registro dos Corvos.</p>
+      ) : (
+        <>
+          {options.length > 8 ? (
+            <SearchField label="Buscar Corvo" value={search} onChange={setSearch} placeholder="Nome do Corvo" />
+          ) : null}
+          <ul className="grid gap-1 sm:grid-cols-2">
+            {options.map((option) => (
+              <li key={option.id} hidden={Boolean(term) && !normalizeSearch(option.name).includes(term)}>
+                <Checkbox name="participant" value={option.id} defaultChecked={chosen.has(option.id)} label={option.name} />
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </fieldset>
   );
 }
 

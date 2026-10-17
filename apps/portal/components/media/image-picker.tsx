@@ -44,6 +44,7 @@ export function ImagePicker({
   value,
   onChange,
   max = 1,
+  singleName = "a capa",
   onBusyChange,
 }: Readonly<{
   campaignId: string;
@@ -52,6 +53,8 @@ export function ImagePicker({
   value: readonly string[];
   onChange: (ids: string[]) => void;
   max?: number | undefined;
+  /** Como a imagem única é chamada nas ações: "a capa", "o retrato". */
+  singleName?: string | undefined;
   onBusyChange?: ((busy: boolean) => void) | undefined;
 }>) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -114,7 +117,7 @@ export function ImagePicker({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={mediaUrl(id)}
-                alt={single ? "Capa escolhida" : `Imagem ${index + 1}`}
+                alt={single ? `${label} escolhida` : `Imagem ${index + 1}`}
                 className={cn(
                   "w-full rounded-md border border-line-soft bg-surface-2 object-cover",
                   single ? "aspect-[16/9]" : "aspect-square",
@@ -124,7 +127,7 @@ export function ImagePicker({
                 size="sm"
                 variant="ghost"
                 className="w-full"
-                aria-label={single ? "Remover a capa" : `Remover a imagem ${index + 1}`}
+                aria-label={single ? `Remover ${singleName}` : `Remover a imagem ${index + 1}`}
                 onClick={() => onChange(value.filter((other) => other !== id))}
               >
                 Remover
@@ -149,7 +152,7 @@ export function ImagePicker({
           disabled={Boolean(progress) || (!single && room <= 0)}
           onClick={() => inputRef.current?.click()}
         >
-          {single ? (value.length > 0 ? "Trocar a capa" : "Escolher a capa") : "Adicionar imagens"}
+          {single ? (value.length > 0 ? `Trocar ${singleName}` : `Escolher ${singleName}`) : "Adicionar imagens"}
         </Button>
         <span className="text-xs text-fg-subtle" aria-live="polite">
           {progress ??
