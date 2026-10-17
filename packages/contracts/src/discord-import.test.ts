@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { DiscordImportInputSchema, discordContentToText, snowflakeDate } from "./discord-import";
+import {
+  DiscordImportInputSchema,
+  discordContentToText,
+  missionRegionFrom,
+  parseMissionThreadTitle,
+  snowflakeDate,
+} from "./discord-import";
 
 describe("importação de crônicas do Discord", () => {
   it("troca menções, emojis e marcas de tempo por texto", () => {
@@ -22,5 +28,25 @@ describe("importação de crônicas do Discord", () => {
     expect(DiscordImportInputSchema.safeParse({ forumChannelId, threadIds: ["../x"] }).success).toBe(false);
     const many = Array.from({ length: 21 }, (_, index) => String(1_290_000_000_000_000_000n + BigInt(index)));
     expect(DiscordImportInputSchema.safeParse({ forumChannelId, threadIds: many }).success).toBe(false);
+  });
+});
+
+describe("registros de missão do Discord", () => {
+  it("separa número e nome do título do tópico", () => {
+    expect(parseMissionThreadTitle("Missão Nº 002 - Ecos na Floresta")).toEqual({ number: 2, title: "Ecos na Floresta" });
+    expect(parseMissionThreadTitle("Missão N° 001 — Problemas na Vila de Asilo")).toEqual({
+      number: 1,
+      title: "Problemas na Vila de Asilo",
+    });
+    expect(parseMissionThreadTitle("missao 12: A torre")).toEqual({ number: 12, title: "A torre" });
+    expect(parseMissionThreadTitle("A caravana de ossos")).toEqual({ number: null, title: "A caravana de ossos" });
+  });
+
+  it("lê a região da linha Local do chamado", () => {
+    expect(missionRegionFrom("**Grau:** @Iniciante\nLocal: Floresta próxima à Ordem\nRecompensa: 3 co")).toBe(
+      "Floresta próxima à Ordem",
+    );
+    expect(missionRegionFrom("**Local:** Vila de Asilo")).toBe("Vila de Asilo");
+    expect(missionRegionFrom("Sem local informado.")).toBeNull();
   });
 });
