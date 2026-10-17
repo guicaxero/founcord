@@ -129,9 +129,9 @@ Cada tela pública tem uma única fonte de conteúdo, sem mistura:
 | Tela | Conteúdo | Fonte |
 | --- | --- | --- |
 | Crônicas | Registros da lore | `posts` |
-| Diário | Resumos das sessões jogadas | `session_summaries` |
+| Diário | Resumos das sessões jogadas; fechado aos jogadores até o mestre abri-lo nas Configurações | `session_summaries` |
 | A Ordem | Funcionamento da mesa | conteúdo fixo |
-| Missões | Missões disponíveis aos jogadores | `missions` |
+| Missões | Chamados abertos (`/missoes`) e registro das aventuras (`/missoes/registro`) | `missions` (sem e com situação no registro) |
 
 As automações obedecem à mesma divisão (`AUTOMATION_DESTINATIONS` em
 `@ordem/contracts`): resumo de sessão só vai para o Diário e só nasce na área
