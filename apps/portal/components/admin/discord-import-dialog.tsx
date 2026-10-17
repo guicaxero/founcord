@@ -16,9 +16,18 @@ import { apiFetch, errorMessage } from "@/lib/api-client";
 import { formatDate, normalizeSearch } from "@/lib/format";
 import { SearchField } from "./kit";
 
-const MAX_PER_IMPORT = 20;
+export const MAX_PER_IMPORT = 20;
 /** Fóruns onde a Ordem guarda crônicas e registros; aparecem primeiro. */
 const PREFERRED_FORUMS = ["codice-dos-corvos", "registros-dos-corvos", "registros-das-missoes"];
+
+/** Ordena os fóruns pela preferência informada; os demais seguem na ordem do Discord. */
+export function sortForums<T extends { name: string }>(forums: readonly T[], preferred: readonly string[] = PREFERRED_FORUMS): T[] {
+  const rank = (name: string) => {
+    const index = preferred.findIndex((candidate) => forumKey(name).includes(candidate));
+    return index === -1 ? preferred.length : index;
+  };
+  return [...forums].sort((left, right) => rank(left.name) - rank(right.name));
+}
 
 function forumKey(name: string): string {
   return normalizeSearch(name).replace(/[^a-z0-9]+/gu, "-").replace(/^-|-$/gu, "");
@@ -54,13 +63,7 @@ export function DiscordImportDialog({
     enabled: open,
     staleTime: 5 * 60_000,
   });
-  const sortedForums = useMemo(() => {
-    const rank = (name: string) => {
-      const index = PREFERRED_FORUMS.findIndex((preferred) => forumKey(name).includes(preferred));
-      return index === -1 ? PREFERRED_FORUMS.length : index;
-    };
-    return [...(forums.data?.data ?? [])].sort((left, right) => rank(left.name) - rank(right.name));
-  }, [forums.data]);
+  const sortedForums = useMemo(() => sortForums(forums.data?.data ?? []), [forums.data]);
   const forum = sortedForums.find((candidate) => candidate.id === forumId) ?? sortedForums[0] ?? null;
 
   const threads = useQuery({

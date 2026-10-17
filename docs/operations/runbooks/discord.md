@@ -148,6 +148,17 @@ Para isso, uma vez:
 
 Só a mensagem inicial é importada; as respostas ficam no Discord.
 
+## Importar registros de missão
+
+Em Missões, "Importar do Discord" (exige `mission:publish`) usa as mesmas
+leituras, com registros-das-missões escolhido. Cada tópico marcado vira uma
+missão publicada direto no Registro de missões, com a situação escolhida no
+diálogo: o título dá o número e o nome ("Missão Nº 001 - …"), a linha
+"Local:" dá a região, a mensagem inicial é o chamado e a primeira imagem é a
+capa. Tópicos já ligados a uma missão (importados ou publicados pelo portal)
+aparecem como "Já no registro". Número repetido entra sem número, com aviso.
+Valem as mesmas permissões e o Message Content Intent da seção anterior.
+
 ## Publicar missões no fórum
 
 Em Missões, uma missão publicada no portal ganha "Publicar no Discord". O

@@ -35,6 +35,7 @@ import { formatDateTime, normalizeSearch } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 import { PanelLoading, PermissionNote, SearchField } from "./kit";
 import { MissionDiscordDialog } from "./mission-discord-dialog";
+import { MissionImportDialog } from "./mission-import-dialog";
 import { editorialOrder, editorialTone, timestamp } from "./status";
 
 const statusLabels: Readonly<Record<MissionStatus, string>> = {
@@ -64,6 +65,7 @@ export function MissionsPanel({
   const triggerRef = useRef<HTMLElement | null>(null);
   const [editor, setEditor] = useState<{ mission: MissionSummary | null; mode: FormMode } | null>(null);
   const [recording, setRecording] = useState<MissionSummary | null>(null);
+  const [importing, setImporting] = useState(false);
   const [archiving, setArchiving] = useState<MissionSummary | null>(null);
   const [discord, setDiscord] = useState<MissionSummary | null>(null);
   const [filter, setFilter] = useState<Filter>("active");
@@ -181,6 +183,16 @@ export function MissionsPanel({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <SearchField label="Buscar missão" value={search} onChange={setSearch} placeholder="Título ou região" className="max-w-md" />
         <div className="flex flex-wrap gap-2">
+          {canPublish ? (
+            <Button
+              onClick={(event) => {
+                remember(event);
+                setImporting(true);
+              }}
+            >
+              Importar do Discord
+            </Button>
+          ) : null}
           {canCreate && canPublish ? (
             <Button
               onClick={(event) => {
@@ -391,6 +403,14 @@ export function MissionsPanel({
           />
         ) : null}
       </Dialog>
+
+      <MissionImportDialog
+        campaignId={campaignId}
+        open={importing}
+        returnFocusRef={triggerRef}
+        onClose={() => setImporting(false)}
+        onImported={() => invalidateMissions(queryClient, campaignId)}
+      />
 
       <MissionDiscordDialog
         campaignId={campaignId}

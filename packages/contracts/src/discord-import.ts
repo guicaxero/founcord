@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { EntityIdSchema, IsoDateTimeSchema } from "./common";
+import { MissionOutcomeSchema } from "./missions";
 
 /**
  * Importação de crônicas que já estão nos fóruns do Discord. O Worker do
@@ -49,6 +50,8 @@ export const DiscordStarterMessageSchema = z
 export const DiscordImportThreadSchema = DiscordForumThreadSchema.extend({
   /** Crônica do portal que já veio deste tópico, se houver. */
   importedPostId: EntityIdSchema.nullable(),
+  /** Missão do portal ligada a este tópico (importada ou publicada pelo portal). */
+  importedMissionId: EntityIdSchema.nullable().default(null),
 }).strict();
 export const DiscordImportThreadListResponseSchema = z
   .object({ data: z.array(DiscordImportThreadSchema) })
@@ -75,6 +78,61 @@ export const DiscordImportResultSchema = z
     skipped: z.array(z.object({ threadId: snowflake, reason: z.string().max(300) }).strict()),
   })
   .strict();
+
+/**
+ * Importação de registros de missão: cada tópico vira uma missão publicada
+ * direto no registro, com a situação escolhida pelo mestre.
+ */
+export const MissionDiscordImportInputSchema = z
+  .object({
+    forumChannelId: snowflake,
+    items: z
+      .array(z.object({ threadId: snowflake, outcome: MissionOutcomeSchema }).strict())
+      .min(1)
+      .max(20)
+      .refine((items) => new Set(items.map((item) => item.threadId)).size === items.length, {
+        message: "Cada tópico só pode aparecer uma vez.",
+      }),
+  })
+  .strict();
+
+export const MissionDiscordImportResultSchema = z
+  .object({
+    imported: z.array(
+      z
+        .object({
+          threadId: snowflake,
+          missionId: EntityIdSchema,
+          title: z.string(),
+          number: z.number().int().nullable(),
+          images: z.number().int(),
+        })
+        .strict(),
+    ),
+    skipped: z.array(z.object({ threadId: snowflake, reason: z.string().max(300) }).strict()),
+    /** Avisos sobre missões que entraram, como número repetido. */
+    notes: z.array(z.object({ threadId: snowflake, note: z.string().max(300) }).strict()).default([]),
+  })
+  .strict();
+
+/**
+ * "Missão Nº 002 - Ecos na Floresta" → número 2 e nome "Ecos na Floresta".
+ * Títulos sem número ficam inteiros.
+ */
+export function parseMissionThreadTitle(title: string): { number: number | null; title: string } {
+  const match = /^\s*miss[aã]o\s*n?\s*[º°o.]*\s*(\d{1,4})\s*[-–—:|]*\s*(.*)$/iu.exec(title);
+  if (!match) return { number: null, title: title.trim() };
+  const number = Number(match[1]);
+  const rest = (match[2] ?? "").trim();
+  return { number: number >= 1 ? number : null, title: rest || title.trim() };
+}
+
+/** Região do chamado, pela linha "Local: …" do texto do Discord. */
+export function missionRegionFrom(content: string): string | null {
+  const match = /^\s*(?:\*\*)?local(?:\*\*)?\s*:\s*(?:\*\*)?\s*(.+)$/imu.exec(content);
+  const region = match?.[1]?.replace(/\*\*/gu, "").trim();
+  return region ? region.slice(0, 80) : null;
+}
 
 /** Data de criação embutida no id do Discord (snowflake). */
 export function snowflakeDate(id: string): string {
@@ -109,3 +167,5 @@ export type DiscordImportInput = z.infer<typeof DiscordImportInputSchema>;
 export type DiscordImportResult = z.infer<typeof DiscordImportResultSchema>;
 export type DiscordForumListResponse = z.infer<typeof DiscordForumListResponseSchema>;
 export type DiscordImportThreadListResponse = z.infer<typeof DiscordImportThreadListResponseSchema>;
+export type MissionDiscordImportInput = z.infer<typeof MissionDiscordImportInputSchema>;
+export type MissionDiscordImportResult = z.infer<typeof MissionDiscordImportResultSchema>;

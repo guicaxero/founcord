@@ -1402,6 +1402,25 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
         body: { forumChannelId: "1536153443985531111", threadIds: [] },
       });
       assert.equal(invalidImport.status, 422);
+
+      // Registros de missão vindos do Discord exigem quem publica missões.
+      const missionImport = `/api/campaigns/${defaultCampaignId}/missions/discord-import`;
+      const missionItems = { forumChannelId: "1536153443985531222", items: [{ threadId: "1290000000000000000", outcome: "completed" }] };
+      for (const token of [identities.playerOne.token, identities.gm.token]) {
+        assert.equal((await api(mf, missionImport, { token, method: "POST", body: missionItems })).status, 403);
+      }
+      const noItems = await api(mf, missionImport, {
+        token: identities.owner.token,
+        method: "POST",
+        body: { forumChannelId: "1536153443985531222", items: [] },
+      });
+      assert.equal(noItems.status, 422);
+      const badOutcome = await api(mf, missionImport, {
+        token: identities.owner.token,
+        method: "POST",
+        body: { forumChannelId: "1536153443985531222", items: [{ threadId: "1290000000000000000", outcome: "lost" }] },
+      });
+      assert.equal(badOutcome.status, 422);
     });
 
     test("mantém o catálogo do Lojista e sorteia o estoque com RBAC", async () => {
