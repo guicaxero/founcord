@@ -211,6 +211,13 @@
       "when": 1792254907345,
       "tag": "0030_diary_visibility",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1792255350615,
+      "tag": "0031_mission_records",
+      "breakpoints": true
     }
   ]
 }

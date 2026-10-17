@@ -18,6 +18,19 @@ export const MissionRiskSchema = z.enum([
   "deadly",
 ]);
 
+/**
+ * Situação da missão no registro histórico. `null` = ainda é um chamado
+ * aberto no quadro, aceitando inscrições.
+ */
+export const missionOutcomes = ["in_progress", "completed", "failed"] as const;
+export const MissionOutcomeSchema = z.enum(missionOutcomes);
+
+/** Número da missão no registro (Missão N° 001), único na campanha. */
+export const MissionNumberSchema = z.number().int().min(1).max(9_999);
+
+/** Relato da aventura no registro, no mesmo formato de texto das crônicas. */
+export const MissionReportSchema = z.string().trim().max(20_000);
+
 export const MissionSignupStatusSchema = z.enum([
   "confirmed",
   "waitlisted",
@@ -44,6 +57,11 @@ export const MissionSummarySchema = z
     coverMediaId: z.string().uuid().nullable().default(null),
     estimatedDuration: z.string().max(60).nullable().default(null),
     discordThreadId: z.string().nullable().default(null),
+    /** Registro histórico: número, situação, relato e quando foi registrado. */
+    number: MissionNumberSchema.nullable().default(null),
+    outcome: MissionOutcomeSchema.nullable().default(null),
+    report: z.string().max(20_000).default(""),
+    recordedAt: z.string().datetime({ offset: true }).nullable().default(null),
     version: z.number().int().positive(),
   })
   .strict();
@@ -66,6 +84,10 @@ export const CreateMissionSchema = z
     partySize: z.number().int().min(1).max(12).default(5),
     coverMediaId: z.string().uuid().nullable().default(null),
     estimatedDuration: z.string().trim().max(60).nullable().default(null),
+    /** Com situação, a missão nasce publicada direto no registro (missão antiga). */
+    number: MissionNumberSchema.nullable().default(null),
+    outcome: MissionOutcomeSchema.nullable().default(null),
+    report: MissionReportSchema.default(""),
   })
   .strict();
 
@@ -79,6 +101,9 @@ export const UpdateMissionSchema = z
     partySize: z.number().int().min(1).max(12).optional(),
     coverMediaId: z.string().uuid().nullable().optional(),
     estimatedDuration: z.string().trim().max(60).nullable().optional(),
+    number: MissionNumberSchema.nullable().optional(),
+    outcome: MissionOutcomeSchema.nullable().optional(),
+    report: MissionReportSchema.optional(),
     status: MissionStatusSchema.optional(),
     version: z.number().int().positive(),
   })
@@ -103,6 +128,7 @@ export const MissionSignupListResponseSchema = z
 
 export type MissionStatus = z.infer<typeof MissionStatusSchema>;
 export type MissionRisk = z.infer<typeof MissionRiskSchema>;
+export type MissionOutcome = z.infer<typeof MissionOutcomeSchema>;
 export type MissionSummary = z.infer<typeof MissionSummarySchema>;
 export type MissionListResponse = z.infer<typeof MissionListResponseSchema>;
 export type CreateMissionInput = z.infer<typeof CreateMissionSchema>;

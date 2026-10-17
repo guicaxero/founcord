@@ -5,13 +5,19 @@ import type {
   CreateMissionInput,
   CurrentUserResponse,
   MissionListResponse,
+  MissionOutcome,
   MissionStatus,
   MissionSummary,
   UpdateMissionInput,
 } from "@ordem/contracts";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ImagePicker } from "@/components/media/image-picker";
-import { riskLabels } from "@/components/missions/mission-presentation";
+import {
+  missionNumberLabel,
+  outcomeLabels,
+  outcomeTone,
+  riskLabels,
+} from "@/components/missions/mission-presentation";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable, RowActions } from "@/components/ui/data-table";
@@ -55,7 +61,8 @@ export function MissionsPanel({
   const queryClient = useQueryClient();
   const toast = useToast();
   const triggerRef = useRef<HTMLElement | null>(null);
-  const [editor, setEditor] = useState<{ mission: MissionSummary | null } | null>(null);
+  const [editor, setEditor] = useState<{ mission: MissionSummary | null; mode: FormMode } | null>(null);
+  const [recording, setRecording] = useState<MissionSummary | null>(null);
   const [archiving, setArchiving] = useState<MissionSummary | null>(null);
   const [discord, setDiscord] = useState<MissionSummary | null>(null);
   const [filter, setFilter] = useState<Filter>("active");
@@ -78,8 +85,25 @@ export function MissionsPanel({
     onSuccess: async (mission, payload) => {
       setEditor(null);
       toast({
-        title: "id" in payload ? "Missão atualizada" : "Rascunho criado",
-        description: mission.title,
+        title: "id" in payload ? "Missão atualizada" : mission.outcome ? "Missão registrada" : "Rascunho criado",
+        description: mission.outcome && !("id" in payload) ? `${mission.title} já está no registro público.` : mission.title,
+      });
+      await invalidateMissions(queryClient, campaignId);
+    },
+  });
+  const record = useMutation({
+    mutationFn: ({ mission, ...body }: { mission: MissionSummary } & RecordFields) =>
+      apiFetch<MissionSummary>(`/api/missions/${mission.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ ...body, version: mission.version }),
+      }),
+    onSuccess: async (mission) => {
+      setRecording(null);
+      toast({
+        title: mission.outcome ? "Registro atualizado" : "Missão de volta ao quadro",
+        description: mission.outcome
+          ? `${mission.title}: ${outcomeLabels[mission.outcome].toLowerCase()}.`
+          : `${mission.title} voltou a aceitar inscrições.`,
       });
       await invalidateMissions(queryClient, campaignId);
     },
@@ -144,25 +168,38 @@ export function MissionsPanel({
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <SearchField label="Buscar missão" value={search} onChange={setSearch} placeholder="Título ou região" className="max-w-md" />
-        {canCreate ? (
-          <Button
-            variant="accent"
-            onClick={(event) => {
-              remember(event);
-              save.reset();
-              setEditor({ mission: null });
-            }}
-          >
-            Nova missão
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {canCreate && canPublish ? (
+            <Button
+              onClick={(event) => {
+                remember(event);
+                save.reset();
+                setEditor({ mission: null, mode: "record" });
+              }}
+            >
+              Registrar missão antiga
+            </Button>
+          ) : null}
+          {canCreate ? (
+            <Button
+              variant="accent"
+              onClick={(event) => {
+                remember(event);
+                save.reset();
+                setEditor({ mission: null, mode: "call" });
+              }}
+            >
+              Nova missão
+            </Button>
+          ) : null}
+        </div>
       </div>
       <FilterChips
         label="Filtrar missões por situação"
         value={filter}
         onChange={setFilter}
         options={[
-          { value: "active", label: "Em andamento", count: data.filter((mission) => mission.status !== "archived").length },
+          { value: "active", label: "Ativas", count: data.filter((mission) => mission.status !== "archived").length },
           { value: "pending_review", label: "Em revisão", count: count("pending_review") },
           { value: "approved", label: "Aprovadas", count: count("approved") },
           { value: "published", label: "Publicadas", count: count("published") },
@@ -175,7 +212,7 @@ export function MissionsPanel({
       {data.length === 0 ? (
         <FeedbackState
           title="Nenhuma missão ainda"
-          action={canCreate ? <Button variant="accent" onClick={() => setEditor({ mission: null })}>Criar a primeira missão</Button> : null}
+          action={canCreate ? <Button variant="accent" onClick={() => setEditor({ mission: null, mode: "call" })}>Criar a primeira missão</Button> : null}
         >
           Missões criadas aqui passam por revisão antes de aparecer no quadro público.
         </FeedbackState>
@@ -208,7 +245,21 @@ export function MissionsPanel({
               header: "Situação",
               sortValue: (mission) => editorialOrder[mission.status],
               className: "md:w-36",
-              cell: (mission) => <Badge tone={editorialTone[mission.status]}>{statusLabels[mission.status]}</Badge>,
+              cell: (mission) => (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge tone={editorialTone[mission.status]}>{statusLabels[mission.status]}</Badge>
+                  {mission.outcome ? (
+                    <>
+                      <Badge tone={outcomeTone[mission.outcome]}>{outcomeLabels[mission.outcome]}</Badge>
+                      {mission.number !== null ? (
+                        <span className="w-full text-xs text-fg-subtle">{missionNumberLabel(mission.number)}</span>
+                      ) : null}
+                    </>
+                  ) : mission.status === "published" ? (
+                    <span className="text-xs text-fg-subtle">Chamado aberto</span>
+                  ) : null}
+                </div>
+              ),
             },
             {
               id: "party",
@@ -232,8 +283,13 @@ export function MissionsPanel({
               cell: (mission) => (
                 <RowActions>
                   {editable(mission) && mission.status !== "archived" ? (
-                    <Button size="sm" variant="ghost" onClick={(event) => { remember(event); save.reset(); setEditor({ mission }); }}>
+                    <Button size="sm" variant="ghost" onClick={(event) => { remember(event); save.reset(); setEditor({ mission, mode: "call" }); }}>
                       Editar
+                    </Button>
+                  ) : null}
+                  {mission.status === "published" && canPublish ? (
+                    <Button size="sm" variant={mission.outcome ? "ghost" : "secondary"} onClick={(event) => { remember(event); record.reset(); setRecording(mission); }}>
+                      {mission.outcome ? "Atualizar registro" : "Registrar"}
                     </Button>
                   ) : null}
                   {(mission.status === "draft" || mission.status === "rejected") && editable(mission) ? (
@@ -278,19 +334,47 @@ export function MissionsPanel({
         onOpenChange={(next) => {
           if (!next && !save.isPending) setEditor(null);
         }}
-        title={editor?.mission ? "Editar missão" : "Nova missão"}
-        description={editor?.mission ? editor.mission.title : "O chamado começa como rascunho e passa por revisão antes de ser publicado."}
+        title={editor?.mission ? "Editar missão" : editor?.mode === "record" ? "Registrar missão antiga" : "Nova missão"}
+        description={
+          editor?.mission
+            ? editor.mission.title
+            : editor?.mode === "record"
+              ? "Para missões que já aconteceram. Ela entra direto no registro público, sem passar pelo quadro de inscrições."
+              : "O chamado começa como rascunho e passa por revisão antes de ser publicado."
+        }
         returnFocusRef={triggerRef}
       >
         {editor ? (
           <MissionForm
-            key={editor.mission?.id ?? "new"}
+            key={editor.mission?.id ?? `new-${editor.mode}`}
             campaignId={campaignId}
             mission={editor.mission}
+            mode={editor.mode}
             busy={save.isPending}
             error={save.isError ? errorMessage(save.error) : null}
             onCancel={() => setEditor(null)}
             onSubmit={(payload) => save.mutate(payload)}
+          />
+        ) : null}
+      </Dialog>
+
+      <Dialog
+        open={Boolean(recording)}
+        onOpenChange={(next) => {
+          if (!next && !record.isPending) setRecording(null);
+        }}
+        title="Registro da missão"
+        description={recording ? `${recording.title}. O registro aparece na hora para todos, em Registro de missões.` : undefined}
+        returnFocusRef={triggerRef}
+      >
+        {recording ? (
+          <RecordForm
+            key={recording.id}
+            mission={recording}
+            busy={record.isPending}
+            error={record.isError ? errorMessage(record.error) : null}
+            onCancel={() => setRecording(null)}
+            onSubmit={(value) => record.mutate({ mission: recording, ...value })}
           />
         ) : null}
       </Dialog>
@@ -324,9 +408,34 @@ export function MissionsPanel({
   );
 }
 
+type FormMode = "call" | "record";
+
+/** Leva o foco ao erro do formulário assim que ele aparece. */
+function useFocusOnError(error: string | null) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (error) ref.current?.focus();
+  }, [error]);
+  return ref;
+}
+
+type RecordFields = Readonly<{ number: number | null; outcome: MissionOutcome | null; report: string }>;
+
+/** Lê número, situação e relato do formulário; número vazio = sem número. */
+function readRecordFields(data: FormData): RecordFields {
+  const number = String(data.get("number") ?? "").trim();
+  const outcome = String(data.get("outcome") ?? "");
+  return {
+    number: number ? Number(number) : null,
+    outcome: outcome ? (outcome as MissionOutcome) : null,
+    report: String(data.get("report") ?? "").trim(),
+  };
+}
+
 function MissionForm({
   campaignId,
   mission,
+  mode,
   busy,
   error,
   onCancel,
@@ -334,6 +443,8 @@ function MissionForm({
 }: Readonly<{
   campaignId: string;
   mission: MissionSummary | null;
+  /** `record`: missão antiga, criada direto no registro. */
+  mode: FormMode;
   busy: boolean;
   error: string | null;
   onCancel: () => void;
@@ -341,6 +452,8 @@ function MissionForm({
 }>) {
   const [cover, setCover] = useState<string[]>(mission?.coverMediaId ? [mission.coverMediaId] : []);
   const [uploading, setUploading] = useState(false);
+  const recording = mode === "record" && !mission;
+  const errorRef = useFocusOnError(error);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -353,19 +466,25 @@ function MissionForm({
       region: String(data.get("region")),
       risk: String(data.get("risk")) as CreateMissionInput["risk"],
       scheduledFor: scheduled ? new Date(scheduled).toISOString() : null,
-      partySize: Number(data.get("partySize")),
+      partySize: recording ? 5 : Number(data.get("partySize")),
       coverMediaId: cover[0] ?? null,
       estimatedDuration: duration || null,
     };
-    onSubmit(mission ? { ...fields, id: mission.id, version: mission.version } : { ...fields, campaignId });
+    if (mission) {
+      onSubmit({ ...fields, id: mission.id, version: mission.version });
+      return;
+    }
+    const record = recording ? readRecordFields(data) : { number: null, outcome: null, report: "" };
+    onSubmit({ ...fields, ...record, campaignId });
   }
 
   return (
     <form className="space-y-6" onSubmit={submit}>
       <FormGrid>
-        <Field label="Título" className="full">
+        <Field label={recording ? "Nome da missão" : "Título"} className={recording ? undefined : "full"}>
           {({ id }) => <Input id={id} name="title" defaultValue={mission?.title} required minLength={3} maxLength={100} />}
         </Field>
+        {recording ? <NumberField defaultValue={null} /> : null}
         <Field label="Região">
           {({ id }) => <Input id={id} name="region" defaultValue={mission?.region} required maxLength={80} />}
         </Field>
@@ -379,12 +498,18 @@ function MissionForm({
             </Select>
           )}
         </Field>
-        <Field label="Partida" optional>
-          {({ id }) => <Input id={id} name="scheduledFor" type="datetime-local" defaultValue={toLocalInput(mission?.scheduledFor)} />}
-        </Field>
-        <Field label="Vagas">
-          {({ id }) => <Input id={id} name="partySize" type="number" min={1} max={12} defaultValue={mission?.partySize ?? 5} required />}
-        </Field>
+        {recording ? (
+          <OutcomeField defaultValue="completed" allowOpenCall={false} />
+        ) : (
+          <>
+            <Field label="Partida" optional>
+              {({ id }) => <Input id={id} name="scheduledFor" type="datetime-local" defaultValue={toLocalInput(mission?.scheduledFor)} />}
+            </Field>
+            <Field label="Vagas">
+              {({ id }) => <Input id={id} name="partySize" type="number" min={1} max={12} defaultValue={mission?.partySize ?? 5} required />}
+            </Field>
+          </>
+        )}
         <Field label="Duração estimada" optional hint="Como no chamado do Discord, por exemplo: 1-3 sessões.">
           {({ id, describedBy }) => (
             <Input
@@ -396,30 +521,132 @@ function MissionForm({
             />
           )}
         </Field>
-        <Field label="Descrição" className="full" hint="Até 1.200 caracteres. Aparece no quadro e na página do chamado.">
+        <Field
+          label={recording ? "Chamado" : "Descrição"}
+          className="full"
+          hint={
+            recording
+              ? "O texto do chamado original, em até 1.200 caracteres. Aparece no topo da página da missão."
+              : "Até 1.200 caracteres. Aparece no quadro e na página do chamado."
+          }
+        >
           {({ id, describedBy }) => (
-            <Textarea id={id} name="summary" rows={7} maxLength={1_200} defaultValue={mission?.summary} required aria-describedby={describedBy} />
+            <Textarea id={id} name="summary" rows={recording ? 4 : 7} maxLength={1_200} defaultValue={mission?.summary} required aria-describedby={describedBy} />
           )}
         </Field>
+        {recording ? <ReportField defaultValue="" /> : null}
         <div className="full">
           <ImagePicker
             campaignId={campaignId}
             label="Capa"
-            hint="Aparece no quadro de missões, na página do chamado e no post do Discord."
+            hint={recording ? "Aparece no registro e na página da missão." : "Aparece no quadro de missões, na página do chamado e no post do Discord."}
             value={cover}
             onChange={setCover}
             onBusyChange={setUploading}
           />
         </div>
       </FormGrid>
-      {error ? <Notice tone="danger" role="alert">{error}</Notice> : null}
+      {error ? <Notice ref={errorRef} tone="danger" role="alert">{error}</Notice> : null}
       <div className="flex flex-col-reverse gap-3 border-t border-line-soft pt-4 sm:flex-row sm:justify-end">
         <Button disabled={busy} onClick={onCancel}>Cancelar</Button>
         <Button type="submit" variant="primary" disabled={busy || uploading}>
-          {busy ? "Salvando…" : uploading ? "Aguarde o envio…" : mission ? "Salvar alterações" : "Criar rascunho"}
+          {busy ? "Salvando…" : uploading ? "Aguarde o envio…" : mission ? "Salvar alterações" : recording ? "Salvar no registro" : "Criar rascunho"}
         </Button>
       </div>
     </form>
+  );
+}
+
+/** Número, situação e relato de uma missão publicada. */
+function RecordForm({
+  mission,
+  busy,
+  error,
+  onCancel,
+  onSubmit,
+}: Readonly<{
+  mission: MissionSummary;
+  busy: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onSubmit: (value: RecordFields) => void;
+}>) {
+  const errorRef = useFocusOnError(error);
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onSubmit(readRecordFields(new FormData(event.currentTarget)));
+  }
+
+  return (
+    <form className="space-y-6" onSubmit={submit}>
+      <FormGrid>
+        <OutcomeField defaultValue={mission.outcome ?? "in_progress"} allowOpenCall />
+        <NumberField defaultValue={mission.number} />
+        <ReportField defaultValue={mission.report} />
+      </FormGrid>
+      {error ? <Notice ref={errorRef} tone="danger" role="alert">{error}</Notice> : null}
+      <div className="flex flex-col-reverse gap-3 border-t border-line-soft pt-4 sm:flex-row sm:justify-end">
+        <Button disabled={busy} onClick={onCancel}>Cancelar</Button>
+        <Button type="submit" variant="primary" disabled={busy}>
+          {busy ? "Salvando…" : "Salvar registro"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function OutcomeField({
+  defaultValue,
+  allowOpenCall,
+}: Readonly<{ defaultValue: MissionOutcome; allowOpenCall: boolean }>) {
+  return (
+    <Field
+      label="Situação no registro"
+      hint={allowOpenCall ? "Em andamento tira a missão do quadro e encerra as inscrições." : undefined}
+    >
+      {({ id, describedBy }) => (
+        <Select id={id} name="outcome" defaultValue={defaultValue} aria-describedby={describedBy}>
+          {allowOpenCall ? <option value="">Chamado aberto (aceita inscrições)</option> : null}
+          <option value="in_progress">{outcomeLabels.in_progress}</option>
+          <option value="completed">{outcomeLabels.completed}</option>
+          <option value="failed">{outcomeLabels.failed}</option>
+        </Select>
+      )}
+    </Field>
+  );
+}
+
+function NumberField({ defaultValue }: Readonly<{ defaultValue: number | null }>) {
+  return (
+    <Field label="Número" optional hint="Missão N° 001. Cada número aparece uma vez no registro.">
+      {({ id, describedBy }) => (
+        <Input
+          id={id}
+          name="number"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={9_999}
+          defaultValue={defaultValue ?? ""}
+          aria-describedby={describedBy}
+        />
+      )}
+    </Field>
+  );
+}
+
+function ReportField({ defaultValue }: Readonly<{ defaultValue: string }>) {
+  return (
+    <Field
+      label="Relato"
+      optional
+      className="full"
+      hint="O que aconteceu na aventura, como nas crônicas: parágrafos separados por linha em branco, **negrito** e *itálico*."
+    >
+      {({ id, describedBy }) => (
+        <Textarea id={id} name="report" rows={8} maxLength={20_000} defaultValue={defaultValue} aria-describedby={describedBy} />
+      )}
+    </Field>
   );
 }
 

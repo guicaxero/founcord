@@ -39,3 +39,25 @@ export function signupStatusLabel(mission: MissionSummary): string | null {
   if (mission.currentUserSignup === "waitlisted") return "Você está na lista de espera";
   return null;
 }
+
+export const outcomeLabels = {
+  in_progress: "Em andamento",
+  completed: "Concluída",
+  failed: "Fracassada",
+} as const;
+
+export const outcomeTone = {
+  in_progress: "info",
+  completed: "success",
+  failed: "danger",
+} as const;
+
+/** "Missão N° 001", como no registro do Discord. */
+export function missionNumberLabel(number: number | null): string | null {
+  return number === null ? null : `Missão N° ${String(number).padStart(3, "0")}`;
+}
+
+/** Chamado aberto: publicado e ainda sem situação no registro. */
+export function isOpenCall(mission: MissionSummary): boolean {
+  return mission.outcome === null;
+}

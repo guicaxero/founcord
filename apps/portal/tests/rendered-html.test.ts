@@ -105,6 +105,7 @@ test("renderiza a entrada protegida do painel", async () => {
 test("cada área do produto tem rota própria, inclusive páginas de detalhe", async () => {
   const routes = [
     ["/missoes", /Chamados da Ordem/],
+    ["/missoes/registro", /Registro de missões/],
     ["/missoes/11111111-1111-4111-8111-111111111111", /Voltar ao quadro|Consultando o chamado/],
     ["/cronicas", /Crônicas/],
     ["/cronicas/33333333-3333-4333-8333-333333333331", /Abrindo a crônica|Voltar ao arquivo/],
