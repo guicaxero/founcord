@@ -1,0 +1,1 @@
+ALTER TABLE `campaigns` ADD `diary_public` integer DEFAULT false NOT NULL;

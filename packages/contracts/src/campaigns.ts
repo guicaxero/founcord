@@ -11,6 +11,8 @@ export const CampaignSchema = z
     description: z.string().trim().max(2_000),
     status: CampaignStatusSchema,
     isPublic: z.boolean(),
+    /** Diário de Sessões aberto aos jogadores; fechado, só a gestão o lê. */
+    diaryPublic: z.boolean(),
     version: z.number().int().positive(),
     createdAt: IsoDateTimeSchema,
     updatedAt: IsoDateTimeSchema,
@@ -31,6 +33,7 @@ export const UpdateCampaignSchema = z
     description: z.string().trim().max(2_000).optional(),
     status: CampaignStatusSchema.optional(),
     isPublic: z.boolean().optional(),
+    diaryPublic: z.boolean().optional(),
     version: z.number().int().positive(),
   })
   .strict()

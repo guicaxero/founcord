@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { PageContainer } from "@/components/layout/page-container";
-import { SessionDiary } from "@/components/editorial/diary";
+import { DiaryClosedNotice, SessionDiary } from "@/components/editorial/diary";
 import { PageHeader } from "@/components/ui/surface";
 import { DEFAULT_CAMPAIGN_ID } from "@/server/shared/constants";
 
@@ -19,6 +19,7 @@ export default function SessionDiaryPage() {
         title="Diário de Sessões"
         description="O que aconteceu em cada noite de jogo, ligado à sessão e à missão correspondentes."
       />
+      <DiaryClosedNotice campaignId={DEFAULT_CAMPAIGN_ID} />
       <SessionDiary campaignId={DEFAULT_CAMPAIGN_ID} />
     </PageContainer>
   );

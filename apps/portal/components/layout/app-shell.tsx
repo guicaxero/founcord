@@ -11,7 +11,7 @@ import { cn } from "@/lib/cn";
 import { apiFetch } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import { AccountMenu } from "./account-menu";
-import { canManage, isCurrent, playerNavigation, publicNavigation } from "./navigation";
+import { canManage, isCurrent, playerNavigation, visiblePublicNavigation } from "./navigation";
 
 /**
  * Moldura de todas as telas: pular para o conteúdo, cabeçalho fixo com a
@@ -26,7 +26,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   });
   const authenticated = me.data?.authenticated === true;
   const items = [
-    ...publicNavigation,
+    ...visiblePublicNavigation(me.data),
     ...(authenticated ? playerNavigation : []),
     ...(canManage(me.data) ? [{ href: "/dashboard", label: "Gestão", hint: "Painel da campanha" }] : []),
   ];

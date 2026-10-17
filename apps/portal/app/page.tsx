@@ -1,7 +1,6 @@
-import Link from "next/link";
 import { PageContainer, Section } from "@/components/layout/page-container";
 import { Chronicles } from "@/components/editorial/chronicles";
-import { SessionDiary } from "@/components/editorial/diary";
+import { HomeDiarySection, PortalDestinations } from "@/components/home/home-sections";
 import { MissionBoard } from "@/components/missions/mission-board";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, Eyebrow } from "@/components/ui/surface";
@@ -9,29 +8,6 @@ import { fiveTruths, orderMotto } from "@/content/ordem-da-ultima-luz";
 import { DEFAULT_CAMPAIGN_ID } from "@/server/shared/constants";
 
 export const dynamic = "force-dynamic";
-
-const destinations = [
-  {
-    href: "/missoes",
-    label: "Missões",
-    description: "Chamados publicados, inscrições e lista de espera.",
-  },
-  {
-    href: "/cronicas",
-    label: "Crônicas",
-    description: "O que a Ordem registrou sobre o mundo e seus mortos.",
-  },
-  {
-    href: "/diario",
-    label: "Diário de Sessões",
-    description: "Registros factuais de cada noite jogada.",
-  },
-  {
-    href: "/lojista",
-    label: "Lojista",
-    description: "Estoque sincronizado do Foundry e pedidos ao mestre.",
-  },
-];
 
 export default function Home() {
   // A crise imperial é o gancho principal da campanha nesta fase.
@@ -69,32 +45,7 @@ export default function Home() {
         </div>
       </section>
 
-      <nav aria-label="Áreas do portal">
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {destinations.map((destination) => (
-            <li key={destination.href}>
-              <Link
-                href={destination.href}
-                className="group block h-full rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus"
-              >
-                <Card
-                  interactive
-                  className="flex h-full flex-col gap-2 transition-transform duration-200 group-hover:-translate-y-0.5 motion-reduce:group-hover:translate-y-0"
-                >
-                  <strong className="font-display text-xl">{destination.label}</strong>
-                  <span className="text-sm text-fg-muted">{destination.description}</span>
-                  <span
-                    aria-hidden="true"
-                    className="mt-auto pt-3 text-sm font-semibold text-accent"
-                  >
-                    Abrir →
-                  </span>
-                </Card>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <PortalDestinations />
 
       <Section
         id="chamados"
@@ -123,18 +74,7 @@ export default function Home() {
         <Chronicles campaignId={DEFAULT_CAMPAIGN_ID} limit={2} />
       </Section>
 
-      <Section
-        eyebrow="Registro"
-        title="Diário de Sessões"
-        description="O que aconteceu nas últimas noites de jogo."
-        action={
-          <ButtonLink href="/diario" variant="ghost">
-            Ver todos
-          </ButtonLink>
-        }
-      >
-        <SessionDiary campaignId={DEFAULT_CAMPAIGN_ID} limit={2} />
-      </Section>
+      <HomeDiarySection campaignId={DEFAULT_CAMPAIGN_ID} />
 
       {truth ? (
         <Card padding="lg" className="bg-surface-2">

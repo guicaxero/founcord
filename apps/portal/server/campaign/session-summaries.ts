@@ -20,18 +20,42 @@ type SummaryRow = Readonly<{
   version: number; created_at: string; updated_at: string;
 }>;
 
+/** Quem cuida do Diário na gestão: lê tudo, inclusive com o Diário fechado. */
+function isDiaryManager(session: AuthenticatedSession | null, campaignId: string): boolean {
+  return Boolean(session && (
+    hasPermission(session.principal, "session:manage", { kind: "campaign", campaignId }) ||
+    hasPermission(session.principal, "post:review", { kind: "campaign", campaignId }) ||
+    hasPermission(session.principal, "post:publish", { kind: "campaign", campaignId }) ||
+    hasPermission(session.principal, "post:delete", { kind: "campaign", campaignId })
+  ));
+}
+
+/**
+ * O Diário pode ficar fechado aos jogadores (`campaigns.diary_public`); nesse
+ * caso só a gestão o lê. Campanha inexistente conta como fechada.
+ */
+export async function diaryAccess(
+  campaignId: string,
+  session: AuthenticatedSession | null,
+): Promise<{ visible: boolean; openToPlayers: boolean }> {
+  const row = await getD1()
+    .prepare("SELECT diary_public FROM campaigns WHERE id = ?")
+    .bind(campaignId)
+    .first<{ diary_public: number }>();
+  const openToPlayers = Boolean(row?.diary_public);
+  return { visible: openToPlayers || isDiaryManager(session, campaignId), openToPlayers };
+}
+
 export async function listSessionSummaries(
   campaignId: string,
   session: AuthenticatedSession | null,
   includeEditorial: boolean,
 ): Promise<SessionSummary[]> {
   await requireCampaignVisible(campaignId, session);
-  const canSeeAll = Boolean(session && (
-    hasPermission(session.principal, "session:manage", { kind: "campaign", campaignId }) ||
-    hasPermission(session.principal, "post:review", { kind: "campaign", campaignId }) ||
-    hasPermission(session.principal, "post:publish", { kind: "campaign", campaignId }) ||
-    hasPermission(session.principal, "post:delete", { kind: "campaign", campaignId })
-  ));
+  if (!(await diaryAccess(campaignId, session)).visible) {
+    throw new HttpError(403, "diary_restricted", "O Diário de Sessões está reservado à gestão por enquanto.");
+  }
+  const canSeeAll = isDiaryManager(session, campaignId);
   const result = await getD1().prepare(
     `SELECT ss.*, u.display_name AS author_name, cs.title AS session_title,
             m.id AS mission_id, m.title AS mission_title

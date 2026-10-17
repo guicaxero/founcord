@@ -204,6 +204,13 @@
       "when": 1791568412904,
       "tag": "0029_mission_cover",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1792254907345,
+      "tag": "0030_diary_visibility",
+      "breakpoints": true
     }
   ]
 }

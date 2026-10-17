@@ -51,7 +51,8 @@ test("renderiza a primeira superfície do portal", async () => {
   );
   assert.match(html, /Enquanto houver luz/);
   assert.match(html, /Chamados da Ordem/);
-  assert.match(html, /Diário de Sessões/);
+  // O Diário nasce fechado aos jogadores e não aparece para visitantes.
+  assert.doesNotMatch(html, /Diário de Sessões/);
   assert.match(html, /O Império está em crise/);
   assert.match(html, /Lojista/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|Your site is taking shape/i);
@@ -156,9 +157,11 @@ test("mantém a navegação essencial acessível nas superfícies públicas", as
     assert.match(html, /id="main-content"/i);
     assert.match(html, /aria-label="Navegação principal"/i);
     // As rotas do produto aparecem na navegação de toda superfície pública.
-    for (const route of ["/missoes", "/cronicas", "/diario", "/lojista", "/ordem"]) {
+    for (const route of ["/missoes", "/cronicas", "/lojista", "/ordem"]) {
       assert.match(html, new RegExp(`href="${route}"`, "i"));
     }
+    // O Diário nasce fechado aos jogadores: fora do menu e da página inicial.
+    assert.doesNotMatch(html, /href="\/diario"/i);
     assert.match(html, /aria-label="Abrir navegação"/i);
   }
 
