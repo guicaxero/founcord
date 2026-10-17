@@ -8,6 +8,7 @@ import { SessionDiary } from "@/components/editorial/diary";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/surface";
 import { apiFetch } from "@/lib/api-client";
+import { cn } from "@/lib/cn";
 import { queryKeys } from "@/lib/query-keys";
 
 const destinations = [
@@ -20,6 +21,11 @@ const destinations = [
     href: "/cronicas",
     label: "Crônicas",
     description: "O que a Ordem registrou sobre o mundo e seus mortos.",
+  },
+  {
+    href: "/corvos",
+    label: "Registro dos Corvos",
+    description: "Os personagens da Ordem e o que já viveram.",
   },
   {
     href: "/diario",
@@ -49,7 +55,7 @@ export function PortalDestinations() {
 
   return (
     <nav aria-label="Áreas do portal">
-      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <ul className={cn("grid gap-4 sm:grid-cols-2", visible.length > 4 ? "lg:grid-cols-3 xl:grid-cols-5" : "lg:grid-cols-4")}>
         {visible.map((destination) => (
           <li key={destination.href}>
             <Link

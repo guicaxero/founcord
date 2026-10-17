@@ -218,6 +218,13 @@
       "when": 1792255350615,
       "tag": "0031_mission_records",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1792256229293,
+      "tag": "0032_raven_registry",
+      "breakpoints": true
     }
   ]
 }

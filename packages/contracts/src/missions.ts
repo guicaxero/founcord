@@ -62,6 +62,10 @@ export const MissionSummarySchema = z
     outcome: MissionOutcomeSchema.nullable().default(null),
     report: z.string().max(20_000).default(""),
     recordedAt: z.string().datetime({ offset: true }).nullable().default(null),
+    /** Corvos que participaram, para o registro e o progresso de cada um. */
+    participants: z
+      .array(z.object({ id: z.string().uuid(), name: z.string().min(1), listed: z.boolean() }).strict())
+      .default([]),
     version: z.number().int().positive(),
   })
   .strict();

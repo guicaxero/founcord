@@ -96,7 +96,7 @@ function SiteHeader({
           </span>
         </Link>
 
-        <nav aria-label="Navegação principal" className="ml-auto hidden lg:block">
+        <nav aria-label="Navegação principal" className="ml-auto hidden xl:block">
           <ul className="flex items-center gap-1">
             {items.map((item) => {
               const current = isCurrent(pathname, item.href);
@@ -106,7 +106,7 @@ function SiteHeader({
                     href={item.href}
                     aria-current={current ? "page" : undefined}
                     className={cn(
-                      "relative flex min-h-11 items-center rounded-md px-3 text-sm font-medium transition-colors duration-150",
+                      "relative flex min-h-11 items-center rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors duration-150",
                       current ? "text-fg" : "text-fg-muted hover:text-fg",
                     )}
                   >
@@ -125,8 +125,8 @@ function SiteHeader({
           </ul>
         </nav>
 
-        <div className="ml-auto flex items-center gap-2 lg:ml-0">
-          <div className="lg:hidden">
+        <div className="ml-auto flex items-center gap-2 xl:ml-0">
+          <div className="xl:hidden">
             <Menu
               label="Abrir navegação"
               align="end"

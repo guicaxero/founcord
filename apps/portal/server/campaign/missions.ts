@@ -17,6 +17,7 @@ import { HttpError } from "@/server/shared/http";
 import { toIsoDateTime } from "@/server/shared/time";
 import { assertCampaignMedia } from "@/server/media/media";
 import { requireCampaignVisible } from "./campaigns";
+import { participantsByMission } from "./ravens";
 
 type MissionRow = Readonly<{
   id: string;
@@ -111,7 +112,8 @@ export async function listMissions(
       userId,
     )
     .all<MissionRow>();
-  return result.results.map(mapMission);
+  const participants = await participantsByMission(campaignId, includeEditorial && canSeeAll);
+  return result.results.map((row) => mapMission(row, participants.get(row.id)));
 }
 
 export async function getMission(
@@ -146,7 +148,11 @@ export async function getMission(
   ) {
     throw new HttpError(404, "mission_not_found", "Missão não encontrada.");
   }
-  return mapMission(row);
+  const participants = await participantsByMission(
+    row.campaign_id,
+    Boolean(session && hasPermission(session.principal, "mission:publish", { kind: "campaign", campaignId: row.campaign_id })),
+  );
+  return mapMission(row, participants.get(row.id));
 }
 
 export async function createMission(
@@ -628,7 +634,10 @@ async function requireActiveMembership(campaignId: string, userId: string) {
   }
 }
 
-function mapMission(row: MissionRow): MissionSummary {
+function mapMission(
+  row: MissionRow,
+  participants: MissionSummary["participants"] = [],
+): MissionSummary {
   return {
     id: row.id,
     campaignId: row.campaign_id,
@@ -651,6 +660,7 @@ function mapMission(row: MissionRow): MissionSummary {
     outcome: row.outcome,
     report: row.report,
     recordedAt: toIsoDateTime(row.recorded_at),
+    participants,
     version: row.version,
   };
 }
