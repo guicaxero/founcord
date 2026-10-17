@@ -1,7 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { mediaUrl, type CurrentUserResponse, type MissionSummary } from "@ordem/contracts";
+import {
+  mediaUrl,
+  type CurrentUserResponse,
+  type MissionOutcome,
+  type MissionSummary,
+} from "@ordem/contracts";
 import { motion } from "motion/react";
 import { usePathname } from "next/navigation";
 import { Button, ButtonAnchor, ButtonLink } from "@/components/ui/button";
@@ -12,9 +17,13 @@ import { ApiClientError, apiFetch, errorMessage } from "@/lib/api-client";
 import { formatDate, formatRelative } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 import { DEFAULT_CAMPAIGN_ID } from "@/server/shared/constants";
+import { ArticleBody } from "@/components/editorial/editorial-list";
 import {
   availabilityOf,
   isSignedUp,
+  missionNumberLabel,
+  outcomeLabels,
+  outcomeTone,
   riskLabels,
   riskTone,
   signupActionLabel,
@@ -74,6 +83,7 @@ export function MissionDetail({ missionId }: Readonly<{ missionId: string }>) {
   }
 
   const data = mission.data;
+  if (data.outcome !== null) return <RecordedMission mission={data} outcome={data.outcome} />;
   const availability = availabilityOf(data);
   const status = signupStatusLabel(data);
   const relative = formatRelative(data.scheduledFor);
@@ -175,6 +185,75 @@ export function MissionDetail({ missionId }: Readonly<{ missionId: string }>) {
         </ButtonLink>
         : avise com antecedência se não puder comparecer.
       </p>
+    </motion.article>
+  );
+}
+
+/** Missão que já partiu: página do registro, com o relato e sem inscrição. */
+function RecordedMission({
+  mission,
+  outcome,
+}: Readonly<{ mission: MissionSummary; outcome: MissionOutcome }>) {
+  const label = missionNumberLabel(mission.number);
+  return (
+    <motion.article className="space-y-8" variants={riseIn} initial="hidden" animate="visible">
+      <div className="space-y-4">
+        <ButtonLink variant="link" href="/missoes/registro">
+          ← Voltar ao registro
+        </ButtonLink>
+        <PageHeader
+          eyebrow={label ? `${label} · ${mission.region}` : mission.region}
+          title={mission.title}
+          description={mission.summary}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone={outcomeTone[outcome]}>{outcomeLabels[outcome]}</Badge>
+          <Badge tone={riskTone[mission.risk]}>{riskLabels[mission.risk]}</Badge>
+        </div>
+      </div>
+
+      {mission.coverMediaId ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={mediaUrl(mission.coverMediaId)}
+          alt={`Capa de ${mission.title}`}
+          className="aspect-[21/9] w-full rounded-lg border border-line-soft bg-surface-2 object-cover"
+        />
+      ) : null}
+
+      <section aria-labelledby="relato-da-missao" className="space-y-4">
+        <h2 id="relato-da-missao" className="font-display text-2xl">
+          Relato
+        </h2>
+        {mission.report.trim() ? (
+          <ArticleBody body={mission.report} />
+        ) : (
+          <p className="max-w-[68ch] text-fg-muted">
+            {outcome === "in_progress"
+              ? "A companhia ainda está em campo. O relato entra aqui quando a missão terminar."
+              : "O relato desta missão ainda não foi escrito."}
+          </p>
+        )}
+      </section>
+
+      <Card padding="lg">
+        <dl className="grid gap-6 sm:grid-cols-3">
+          <div>
+            <dt className="text-xs font-semibold text-fg-subtle uppercase">Situação</dt>
+            <dd className="mt-1 font-display text-xl">{outcomeLabels[outcome]}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold text-fg-subtle uppercase">Registrada em</dt>
+            <dd className="mt-1 font-display text-xl">
+              {formatDate(mission.recordedAt, "Data não informada")}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold text-fg-subtle uppercase">Duração estimada</dt>
+            <dd className="mt-1 font-display text-xl">{mission.estimatedDuration ?? "Não informada"}</dd>
+          </div>
+        </dl>
+      </Card>
     </motion.article>
   );
 }

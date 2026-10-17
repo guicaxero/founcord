@@ -10,6 +10,7 @@ import {
 import { roleNames } from "@ordem/authz";
 import {
   campaignSessionStatuses,
+  missionOutcomes,
   missionStatuses,
   postStatuses,
 } from "@ordem/contracts";
@@ -156,9 +157,18 @@ export const missions = sqliteTable(
     coverMediaId: text("cover_media_id"),
     estimatedDuration: text("estimated_duration"),
     discordThreadId: text("discord_thread_id"),
+    /**
+     * Registro histórico: número (Missão N° 001), situação (nula enquanto é um
+     * chamado aberto), relato da aventura e quando a situação mudou.
+     */
+    number: integer("number"),
+    outcome: text("outcome", { enum: missionOutcomes }),
+    report: text("report").notNull().default(""),
+    recordedAt: text("recorded_at"),
     ...timestamps,
   },
   (table) => [
+    uniqueIndex("uq_missions_campaign_number").on(table.campaignId, table.number),
     index("idx_missions_campaign_status_published").on(
       table.campaignId,
       table.status,

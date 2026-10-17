@@ -20,6 +20,7 @@ import { formatDate, formatRelative, normalizeSearch } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 import {
   availabilityOf,
+  isOpenCall,
   isSignedUp,
   riskLabels,
   riskTone,
@@ -73,7 +74,8 @@ export function MissionBoard({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.missions(campaignId) }),
   });
 
-  const all = useMemo(() => missions.data?.data ?? [], [missions.data]);
+  // O quadro mostra só os chamados abertos; as missões que já partiram vão para o registro.
+  const all = useMemo(() => (missions.data?.data ?? []).filter(isOpenCall), [missions.data]);
   const visible = useMemo(() => {
     const term = normalizeSearch(search);
     const filtered = all.filter((mission) => {
@@ -118,8 +120,16 @@ export function MissionBoard({
   if (all.length === 0) {
     return (
       emptyState ?? (
-        <FeedbackState title="Nenhum chamado publicado">
-          Novas missões aparecem aqui assim que a Ordem as anuncia.
+        <FeedbackState
+          title="Nenhum chamado aberto"
+          action={
+            <ButtonLink href="/missoes/registro" variant="secondary">
+              Ver o registro de missões
+            </ButtonLink>
+          }
+        >
+          Novas missões aparecem aqui assim que a Ordem as anuncia. As que já partiram ficam no
+          registro.
         </FeedbackState>
       )
     );
