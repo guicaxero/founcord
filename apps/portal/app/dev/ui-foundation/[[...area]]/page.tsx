@@ -30,6 +30,7 @@ const previewUser: CurrentUserResponse = {
     scopeId: "*",
   })),
   assignments: [{ roleName: "owner", scopeKind: "global", scopeId: "*" }],
+  diary: { visible: true, openToPlayers: false },
 };
 
 const previewCampaigns: CampaignListResponse = {
@@ -40,6 +41,7 @@ const previewCampaigns: CampaignListResponse = {
     description: "Campanha comunitária de Shadow of the Demon Lord.",
     status: "active",
     isPublic: true,
+    diaryPublic: false,
     version: 1,
     createdAt: "2026-08-01T00:00:00.000Z",
     updatedAt: "2026-08-01T00:00:00.000Z",

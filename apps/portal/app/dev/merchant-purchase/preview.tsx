@@ -31,6 +31,7 @@ const me: CurrentUserResponse = {
     { permission: "merchant:purchase:manage", scopeKind: "campaign", scopeId: campaignId },
   ],
   assignments: [{ roleName: "campaign_manager", scopeKind: "campaign", scopeId: campaignId }],
+  diary: { visible: true, openToPlayers: false },
 };
 
 const characters: PlayerCharacterListResponse = {

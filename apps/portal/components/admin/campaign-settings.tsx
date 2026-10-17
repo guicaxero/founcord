@@ -43,6 +43,7 @@ export function CampaignSettings({
       description: String(form.get("description")),
       status: String(form.get("status")),
       isPublic: form.get("isPublic") === "on",
+      diaryPublic: form.get("diaryPublic") === "on",
     });
   }
 
@@ -79,6 +80,17 @@ export function CampaignSettings({
             </Field>
             <div className="flex items-end">
               <Checkbox name="isPublic" defaultChecked={campaign.isPublic} label="Exibir no portal público" />
+            </div>
+            <div className="full space-y-1">
+              <Checkbox
+                name="diaryPublic"
+                defaultChecked={campaign.diaryPublic}
+                label="Diário de Sessões aberto aos jogadores"
+                aria-describedby="diary-public-hint"
+              />
+              <p id="diary-public-hint" className="pl-8 text-sm text-fg-subtle">
+                Desmarcado, o Diário some do menu e da página inicial e só a gestão o lê.
+              </p>
             </div>
           </FormGrid>
           {update.isError ? <Notice tone="danger" role="alert">{errorMessage(update.error)}</Notice> : null}

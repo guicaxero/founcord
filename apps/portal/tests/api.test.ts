@@ -95,11 +95,16 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
         `/api/campaigns/${privateCampaign.id}`,
         `/api/campaigns/${privateCampaign.id}/missions`,
         `/api/campaigns/${privateCampaign.id}/posts`,
-        `/api/campaigns/${privateCampaign.id}/session-summaries`,
       ]) {
         assert.equal((await api(mf, path)).status, 404);
         assert.equal((await api(mf, path, { token: identities.playerOne.token })).status, 200);
       }
+      // O Diário nasce fechado: o membro vê a campanha, mas não o Diário.
+      const privateDiary = `/api/campaigns/${privateCampaign.id}/session-summaries`;
+      assert.equal((await api(mf, privateDiary)).status, 404);
+      const closedDiary = await api(mf, privateDiary, { token: identities.playerOne.token });
+      assert.equal(closedDiary.status, 403);
+      assert.equal(closedDiary.data.error.code, "diary_restricted");
     });
 
     test("remove permissões efetivas ao suspender um membro", async () => {
@@ -276,10 +281,39 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.equal(created.status, 201, JSON.stringify(created.data));
       assert.equal(created.data.status, "draft");
 
+      // Fechado, o Diário é só da gestão: jogadores e visitantes recebem 403.
+      for (const token of [undefined, identities.playerOne.token]) {
+        const closed = await api(mf, `/api/campaigns/${defaultCampaignId}/session-summaries`, token ? { token } : {});
+        assert.equal(closed.status, 403);
+        assert.equal(closed.data.error.code, "diary_restricted");
+        const me = await api(mf, "/api/me", token ? { token } : {});
+        assert.deepEqual(me.data.diary, { visible: false, openToPlayers: false });
+      }
+      const ownerMe = await api(mf, "/api/me", { token: identities.owner.token });
+      assert.deepEqual(ownerMe.data.diary, { visible: true, openToPlayers: false });
+
+      const campaign = await api(mf, `/api/campaigns/${defaultCampaignId}`, { token: identities.owner.token });
+      const playerOpens = await api(mf, `/api/campaigns/${defaultCampaignId}`, {
+        token: identities.playerOne.token,
+        method: "PATCH",
+        body: { version: campaign.data.version, diaryPublic: true },
+      });
+      assert.equal(playerOpens.status, 403);
+      const opened = await api(mf, `/api/campaigns/${defaultCampaignId}`, {
+        token: identities.owner.token,
+        method: "PATCH",
+        body: { version: campaign.data.version, diaryPublic: true },
+      });
+      assert.equal(opened.status, 200, JSON.stringify(opened.data));
+      assert.equal(opened.data.diaryPublic, true);
+      const playerMe = await api(mf, "/api/me", { token: identities.playerOne.token });
+      assert.deepEqual(playerMe.data.diary, { visible: true, openToPlayers: true });
+
       const publicDrafts = await api(
         mf,
         `/api/campaigns/${defaultCampaignId}/session-summaries`,
       );
+      assert.equal(publicDrafts.status, 200);
       assert.equal(publicDrafts.data.data.some((item: Json) => item.id === created.data.id), false);
 
       const directPublish = await api(

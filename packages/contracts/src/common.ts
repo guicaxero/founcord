@@ -78,6 +78,11 @@ export const CurrentUserResponseSchema = z
     user: UserSchema.nullable(),
     capabilities: z.array(CapabilitySchema),
     assignments: z.array(RoleAssignmentViewSchema),
+    /**
+     * Diário de Sessões da campanha do portal: se esta pessoa o lê e se ele
+     * está aberto aos jogadores (fechado, só a gestão o lê).
+     */
+    diary: z.object({ visible: z.boolean(), openToPlayers: z.boolean() }).strict(),
   })
   .strict();
 

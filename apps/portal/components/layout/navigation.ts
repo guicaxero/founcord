@@ -18,6 +18,14 @@ export const publicNavigation: readonly NavigationItem[] = [
   { href: "/ordem", label: "A Ordem", hint: "Código e ambientação" },
 ];
 
+/**
+ * Itens públicos para quem está vendo. O Diário pode estar fechado aos
+ * jogadores; enquanto `/api/me` não responde, ele fica de fora.
+ */
+export function visiblePublicNavigation(me: CurrentUserResponse | undefined): readonly NavigationItem[] {
+  return publicNavigation.filter((item) => item.href !== "/diario" || me?.diary.visible === true);
+}
+
 /** Área autenticada do jogador. */
 export const playerNavigation: readonly NavigationItem[] = [
   { href: "/eu", label: "Minha área", hint: "Personagem, inscrições e pedidos" },

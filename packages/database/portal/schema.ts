@@ -92,6 +92,10 @@ export const campaigns = sqliteTable(
     isPublic: integer("is_public", { mode: "boolean" })
       .notNull()
       .default(true),
+    /** Diário de Sessões aberto aos jogadores; fechado, só a gestão o lê. */
+    diaryPublic: integer("diary_public", { mode: "boolean" })
+      .notNull()
+      .default(false),
     version: integer("version").notNull().default(1),
     ...timestamps,
   },

@@ -178,6 +178,8 @@ export function DashboardClient({
             me={user}
             initialSummaries={initialSessionSummaries}
             initialSessions={initialSessions}
+            openToPlayers={campaign?.diaryPublic ?? false}
+            settingsHref={hrefFor("configuracoes")}
           />
         );
         break;

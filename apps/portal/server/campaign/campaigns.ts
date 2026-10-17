@@ -25,6 +25,7 @@ type CampaignRow = Readonly<{
   description: string;
   status: "draft" | "active" | "archived";
   is_public: number;
+  diary_public: number;
   version: number;
   created_at: string;
   updated_at: string;
@@ -190,6 +191,7 @@ export async function updateCampaign(
           description = COALESCE(?, description),
           status = COALESCE(?, status),
           is_public = COALESCE(?, is_public),
+          diary_public = COALESCE(?, diary_public),
           version = version + 1,
           updated_at = CURRENT_TIMESTAMP
          WHERE id = ? AND version = ?`,
@@ -200,6 +202,7 @@ export async function updateCampaign(
         input.description ?? null,
         input.status ?? null,
         input.isPublic === undefined ? null : input.isPublic ? 1 : 0,
+        input.diaryPublic === undefined ? null : input.diaryPublic ? 1 : 0,
         campaignId,
         input.version,
       ),
@@ -462,6 +465,7 @@ function mapCampaign(row: CampaignRow): Campaign {
     description: row.description,
     status: row.status,
     isPublic: Boolean(row.is_public),
+    diaryPublic: Boolean(row.diary_public),
     version: row.version,
     createdAt: toIsoDateTime(row.created_at)!,
     updatedAt: toIsoDateTime(row.updated_at)!,

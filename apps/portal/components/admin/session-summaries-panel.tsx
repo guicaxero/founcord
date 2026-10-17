@@ -11,7 +11,7 @@ import type {
   UpdateSessionSummaryInput,
 } from "@ordem/contracts";
 import { useRef, useState, type FormEvent } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable, RowActions } from "@/components/ui/data-table";
 import { Dialog } from "@/components/ui/dialog";
@@ -58,9 +58,15 @@ export function SessionSummariesPanel({
   me,
   initialSummaries,
   initialSessions,
+  openToPlayers,
+  settingsHref,
 }: Readonly<{
   campaignId: string;
   me: CurrentUserResponse;
+  /** O Diário está aberto aos jogadores; fechado, só a gestão o lê. */
+  openToPlayers: boolean;
+  /** Configurações da campanha, onde o Diário é aberto ou fechado. */
+  settingsHref: string;
   initialSummaries?: SessionSummaryListResponse | undefined;
   initialSessions?: CampaignSessionListResponse | undefined;
 }>) {
@@ -135,6 +141,15 @@ export function SessionSummariesPanel({
 
   return (
     <div className="space-y-6">
+      {openToPlayers ? null : (
+        <Notice
+          title="O Diário está fechado aos jogadores"
+          action={<ButtonLink href={settingsHref} variant="secondary" size="sm">Abrir aos jogadores</ButtonLink>}
+        >
+          Os resumos publicados aqui só aparecem para a gestão até você abrir o Diário nas
+          configurações da campanha.
+        </Notice>
+      )}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <FilterChips
           label="Filtrar resumos por estado"
