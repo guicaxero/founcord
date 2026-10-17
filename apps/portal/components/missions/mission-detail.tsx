@@ -236,6 +236,29 @@ function RecordedMission({
         )}
       </section>
 
+      {mission.participants.some((participant) => participant.listed) ? (
+        <section aria-labelledby="companhia-da-missao" className="space-y-3">
+          <h2 id="companhia-da-missao" className="font-display text-2xl">
+            Companhia
+          </h2>
+          <ul className="flex max-w-full flex-wrap gap-2">
+            {mission.participants
+              .filter((participant) => participant.listed)
+              .map((participant) => (
+                <li key={participant.id}>
+                  <ButtonLink
+                    variant="secondary"
+                    href={`/corvos/${participant.id}`}
+                    className="h-auto max-w-full py-2 text-left whitespace-normal"
+                  >
+                    {participant.name}
+                  </ButtonLink>
+                </li>
+              ))}
+          </ul>
+        </section>
+      ) : null}
+
       <Card padding="lg">
         <dl className="grid gap-6 sm:grid-cols-3">
           <div>

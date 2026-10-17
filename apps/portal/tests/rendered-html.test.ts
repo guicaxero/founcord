@@ -106,6 +106,8 @@ test("cada área do produto tem rota própria, inclusive páginas de detalhe", a
   const routes = [
     ["/missoes", /Chamados da Ordem/],
     ["/missoes/registro", /Registro de missões/],
+    ["/corvos", /Registro dos Corvos/],
+    ["/corvos/44444444-4444-4444-8444-444444444444", /Abrindo a ficha|Voltar ao registro/],
     ["/missoes/11111111-1111-4111-8111-111111111111", /Voltar ao quadro|Consultando o chamado/],
     ["/cronicas", /Crônicas/],
     ["/cronicas/33333333-3333-4333-8333-333333333331", /Abrindo a crônica|Voltar ao arquivo/],
@@ -158,7 +160,7 @@ test("mantém a navegação essencial acessível nas superfícies públicas", as
     assert.match(html, /id="main-content"/i);
     assert.match(html, /aria-label="Navegação principal"/i);
     // As rotas do produto aparecem na navegação de toda superfície pública.
-    for (const route of ["/missoes", "/cronicas", "/lojista", "/ordem"]) {
+    for (const route of ["/missoes", "/cronicas", "/corvos", "/lojista", "/ordem"]) {
       assert.match(html, new RegExp(`href="${route}"`, "i"));
     }
     // O Diário nasce fechado aos jogadores: fora do menu e da página inicial.
