@@ -6,7 +6,7 @@ import { motion } from "motion/react";
 import { ButtonLink } from "@/components/ui/button";
 import { FeedbackState } from "@/components/ui/feedback-state";
 import { riseIn } from "@/components/ui/motion";
-import { PageHeader, Skeleton } from "@/components/ui/surface";
+import { Badge, PageHeader, Skeleton } from "@/components/ui/surface";
 import { ApiClientError, apiFetch, errorMessage } from "@/lib/api-client";
 import { formatDate } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
@@ -19,7 +19,8 @@ function toEntry(post: Post): EditorialEntry {
     body: post.body,
     authorName: post.authorName,
     publishedAt: post.publishedAt,
-    tags: post.source === "manual" ? [] : [sourceLabel(post.source)],
+    tags: [...post.tags, ...(post.source === "manual" ? [] : [sourceLabel(post.source)])],
+    topics: post.tags,
     coverUrl: post.coverMediaId ? mediaUrl(post.coverMediaId) : null,
   };
 }
@@ -52,6 +53,7 @@ export function Chronicles({
       emptyTitle="Nenhuma crônica publicada"
       emptyDescription="Os textos aprovados pela Ordem aparecem aqui depois da revisão."
       limit={limit}
+      topicFilterLabel="Filtrar crônicas por tag"
     />
   );
 }
@@ -101,6 +103,15 @@ export function ChronicleDetail({
           title={post.data.title}
           description={`Por ${post.data.authorName} · ${formatDate(post.data.publishedAt, "Sem data")}`}
         />
+        {post.data.tags.length > 0 ? (
+          <ul className="flex flex-wrap gap-2" aria-label="Tags da crônica">
+            {post.data.tags.map((tag) => (
+              <li key={tag}>
+                <Badge>{tag}</Badge>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
       {post.data.coverMediaId ? (
         // eslint-disable-next-line @next/next/no-img-element
