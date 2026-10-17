@@ -7,6 +7,7 @@ import { FeedbackState } from "@/components/ui/feedback-state";
 import { listItem, staggerList } from "@/components/ui/motion";
 import { Badge, Card, Skeleton } from "@/components/ui/surface";
 import { Button } from "@/components/ui/button";
+import { FilterChips } from "@/components/ui/filter-chips";
 import { excerpt, formatDate, normalizeSearch } from "@/lib/format";
 import { RichText, plainText } from "./rich-text";
 
@@ -18,6 +19,8 @@ export type EditorialEntry = Readonly<{
   publishedAt: string | null;
   /** Selos curtos: sessão, missão ou origem do texto. */
   tags?: readonly string[];
+  /** Tags escolhidas pela Ordem, usadas no filtro do arquivo. */
+  topics?: readonly string[];
   /** Capa do texto, mostrada no topo do cartão. */
   coverUrl?: string | null;
 }>;
@@ -37,6 +40,7 @@ export function EditorialList({
   emptyTitle,
   emptyDescription,
   limit,
+  topicFilterLabel,
 }: Readonly<{
   entries: readonly EditorialEntry[];
   basePath: string;
@@ -48,17 +52,29 @@ export function EditorialList({
   emptyTitle: string;
   emptyDescription: string;
   limit?: number | undefined;
+  /** Rótulo do filtro por tag; sem ele, o filtro não aparece. */
+  topicFilterLabel?: string | undefined;
 }>) {
   const searchId = useId();
   const [search, setSearch] = useState("");
+  const [topic, setTopic] = useState("");
+
+  const topics = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const entry of entries) for (const name of entry.topics ?? []) counts.set(name, (counts.get(name) ?? 0) + 1);
+    return [...counts].sort(([left], [right]) => left.localeCompare(right, "pt-BR"));
+  }, [entries]);
+  const showTopics = Boolean(topicFilterLabel) && !limit && topics.length > 0;
 
   const visible = useMemo(() => {
     const term = normalizeSearch(search);
-    const filtered = term
-      ? entries.filter((entry) => normalizeSearch(`${entry.title} ${entry.body}`).includes(term))
-      : entries;
+    const filtered = entries.filter(
+      (entry) =>
+        (!term || normalizeSearch(`${entry.title} ${entry.body}`).includes(term)) &&
+        (!topic || (entry.topics ?? []).includes(topic)),
+    );
     return limit ? filtered.slice(0, limit) : filtered;
-  }, [entries, limit, search]);
+  }, [entries, limit, search, topic]);
 
   if (isPending) {
     return (
@@ -93,28 +109,47 @@ export function EditorialList({
   return (
     <div className="space-y-6">
       {limit ? null : (
-        <div className="max-w-md space-y-2">
-          <label className="block text-sm font-semibold text-fg-muted" htmlFor={searchId}>
-            {searchLabel}
-          </label>
-          <input
-            id={searchId}
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={searchPlaceholder}
-            autoComplete="off"
-            className="min-h-11 w-full rounded-md border border-line bg-surface px-3 text-fg placeholder:text-fg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-          />
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="w-full max-w-md space-y-2">
+            <label className="block text-sm font-semibold text-fg-muted" htmlFor={searchId}>
+              {searchLabel}
+            </label>
+            <input
+              id={searchId}
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={searchPlaceholder}
+              autoComplete="off"
+              className="min-h-11 w-full rounded-md border border-line bg-surface px-3 text-fg placeholder:text-fg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            />
+          </div>
+          {showTopics ? (
+            <FilterChips
+              label={topicFilterLabel ?? ""}
+              value={topic}
+              onChange={setTopic}
+              options={[
+                { value: "", label: "Todas", count: entries.length },
+                ...topics.map(([name, count]) => ({ value: name, label: name, count })),
+              ]}
+            />
+          ) : null}
         </div>
       )}
 
       {visible.length === 0 ? (
         <FeedbackState
-          title="Nenhum texto corresponde à busca"
+          title={topic ? "Nenhum texto corresponde à busca nesta tag" : "Nenhum texto corresponde à busca"}
           action={
-            <Button variant="secondary" onClick={() => setSearch("")}>
-              Limpar busca
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setSearch("");
+                setTopic("");
+              }}
+            >
+              {topic ? "Limpar busca e tag" : "Limpar busca"}
             </Button>
           }
         >

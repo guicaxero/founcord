@@ -2,11 +2,13 @@ import { hasPermission, requirePermission } from "@ordem/authz";
 import type {
   CreatePostInput,
   Post,
+  PostArrangementInput,
   PostStatus,
   UpdatePostInput,
 } from "@ordem/contracts";
 import { getD1 } from "@/server/shared/db";
 import {
+  prepareAudit,
   prepareAuditAfterChange,
   prepareOutboxEventAfterChange,
 } from "@/server/shared/audit";
@@ -30,6 +32,8 @@ type PostRow = Readonly<{
   cover_media_id: string | null;
   gallery_json: string | null;
   discord_thread_id: string | null;
+  pinned_order: number | null;
+  tags_json: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -70,7 +74,10 @@ export async function listPosts(
          OR (? = 1)
          OR (? = 1 AND p.author_user_id = ?)
        )
-       ORDER BY COALESCE(p.published_at, p.updated_at) DESC`,
+       ORDER BY
+         CASE WHEN p.status = 'published' AND p.pinned_order IS NOT NULL THEN 0 ELSE 1 END,
+         p.pinned_order,
+         COALESCE(p.published_at, p.updated_at) DESC`,
     )
     .bind(
       campaignId,
@@ -101,8 +108,8 @@ export async function createPost(
     db
       .prepare(
         `INSERT INTO posts (
-          id, campaign_id, author_user_id, title, body, source, status, cover_media_id, gallery_json
-        ) VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?)`,
+          id, campaign_id, author_user_id, title, body, source, status, cover_media_id, gallery_json, tags_json
+        ) VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)`,
       )
       .bind(
         id,
@@ -113,6 +120,7 @@ export async function createPost(
         input.source,
         input.coverMediaId,
         JSON.stringify(input.galleryMediaIds),
+        JSON.stringify(input.tags),
       ),
     prepareAuditAfterChange(db, {
       actorUserId: session.user.id,
@@ -141,7 +149,8 @@ export async function updatePost(
 ): Promise<Post> {
   const existing = await getPostRow(postId);
   const changesImages = input.coverMediaId !== undefined || input.galleryMediaIds !== undefined;
-  const changesContent = input.title !== undefined || input.body !== undefined || changesImages;
+  const changesContent =
+    input.title !== undefined || input.body !== undefined || input.tags !== undefined || changesImages;
   if (input.status === existing.status && !changesContent) {
     if (input.status === "approved" || input.status === "rejected") {
       requirePermission(session.principal, "post:review", {
@@ -189,6 +198,7 @@ export async function updatePost(
           body = COALESCE(?, body),
           cover_media_id = CASE WHEN ? = 1 THEN ? ELSE cover_media_id END,
           gallery_json = COALESCE(?, gallery_json),
+          tags_json = COALESCE(?, tags_json),
           status = COALESCE(?, status),
           reviewed_by = COALESCE(?, reviewed_by),
           published_at = COALESCE(?, published_at),
@@ -202,6 +212,7 @@ export async function updatePost(
         input.coverMediaId === undefined ? 0 : 1,
         input.coverMediaId ?? null,
         input.galleryMediaIds ? JSON.stringify(input.galleryMediaIds) : null,
+        input.tags ? JSON.stringify(input.tags) : null,
         input.status ?? null,
         reviewer,
         publishedAt,
@@ -326,6 +337,56 @@ export async function deletePostPermanently(
     correlationId,
     details: { previousStatus: existing.status, source: existing.source },
   }).run();
+}
+
+/**
+ * Organiza o arquivo público: as crônicas com `pinned` ficam no topo, na ordem
+ * da lista; as demais seguem pela data. Também grava as tags de cada uma. Não
+ * muda a versão do texto, porque não toca no conteúdo.
+ */
+export async function arrangePosts(
+  session: AuthenticatedSession,
+  campaignId: string,
+  input: PostArrangementInput,
+  correlationId: string,
+): Promise<Post[]> {
+  requirePermission(session.principal, "post:publish", { kind: "campaign", campaignId });
+  const ids = input.items.map((item) => item.postId);
+  if (new Set(ids).size !== ids.length) {
+    throw new HttpError(422, "duplicate_post", "Uma crônica apareceu duas vezes na organização.");
+  }
+  if (ids.length > 0) {
+    const found = await getD1()
+      .prepare(
+        `SELECT COUNT(*) AS total FROM posts
+         WHERE campaign_id = ? AND status = 'published' AND id IN (${ids.map(() => "?").join(", ")})`,
+      )
+      .bind(campaignId, ...ids)
+      .first<{ total: number }>();
+    if ((found?.total ?? 0) !== ids.length) {
+      throw new HttpError(422, "post_not_published", "Só crônicas publicadas desta campanha entram na organização.");
+    }
+  }
+  const db = getD1();
+  let position = 0;
+  await db.batch([
+    db.prepare("UPDATE posts SET pinned_order = NULL WHERE campaign_id = ?").bind(campaignId),
+    ...input.items.map((item) =>
+      db
+        .prepare("UPDATE posts SET pinned_order = ?, tags_json = ? WHERE id = ?")
+        .bind(item.pinned ? (position += 1) : null, JSON.stringify(item.tags), item.postId),
+    ),
+    prepareAudit(db, {
+      actorUserId: session.user.id,
+      campaignId,
+      action: "post.arranged",
+      entityType: "campaign",
+      entityId: campaignId,
+      correlationId,
+      details: { pinned: input.items.filter((item) => item.pinned).map((item) => item.postId) },
+    }),
+  ]);
+  return listPosts(campaignId, session, false);
 }
 
 export async function getPublishedPostForIntegration(
@@ -455,12 +516,15 @@ function mapPost(row: PostRow): Post {
     coverMediaId: row.cover_media_id,
     galleryMediaIds: parseGallery(row.gallery_json),
     discordThreadId: row.discord_thread_id,
+    pinnedOrder: row.pinned_order,
+    tags: parseGallery(row.tags_json),
     version: row.version,
     createdAt: toIsoDateTime(row.created_at)!,
     updatedAt: toIsoDateTime(row.updated_at)!,
   };
 }
 
+/** Lista de textos guardada como JSON (galeria e tags). */
 function parseGallery(value: string | null): string[] {
   try {
     const parsed: unknown = JSON.parse(value ?? "[]");
