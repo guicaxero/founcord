@@ -1098,6 +1098,8 @@ function postFixture(status: Post["status"]): Post {
     coverMediaId: null,
     galleryMediaIds: [],
     discordThreadId: null,
+    pinnedOrder: null,
+    tags: [],
     version: 2,
     createdAt: "2026-08-21T19:00:00.000Z",
     updatedAt: "2026-08-21T20:00:00.000Z",

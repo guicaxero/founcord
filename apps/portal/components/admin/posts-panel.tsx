@@ -12,6 +12,7 @@ import {
 } from "@ordem/contracts";
 import { useRef, useState, type FormEvent } from "react";
 import { ImagePicker } from "@/components/media/image-picker";
+import { ChroniclesArrangementDialog } from "./chronicles-arrangement";
 import { DiscordImportDialog } from "./discord-import-dialog";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -72,6 +73,7 @@ export function PostsPanel({
   const [archiving, setArchiving] = useState<Post | null>(null);
   const [deleting, setDeleting] = useState<Post | null>(null);
   const [importing, setImporting] = useState(false);
+  const [arranging, setArranging] = useState(false);
   const [filter, setFilter] = useState<Filter>("active");
   const [search, setSearch] = useState("");
   const posts = useQuery({
@@ -162,12 +164,17 @@ export function PostsPanel({
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <SearchField label="Buscar crônica" value={search} onChange={setSearch} placeholder="Título ou autoria" className="max-w-md" />
-        {canCreate ? (
+        {canCreate || canPublish ? (
           <div className="flex flex-wrap gap-3">
-            <Button onClick={(event) => { remember(event); setImporting(true); }}>Importar do Discord</Button>
-            <Button variant="accent" onClick={(event) => { remember(event); save.reset(); setEditor({ post: null }); }}>
-              Nova crônica
-            </Button>
+            {canPublish ? (
+              <Button onClick={(event) => { remember(event); setArranging(true); }}>Organizar o arquivo</Button>
+            ) : null}
+            {canCreate ? <Button onClick={(event) => { remember(event); setImporting(true); }}>Importar do Discord</Button> : null}
+            {canCreate ? (
+              <Button variant="accent" onClick={(event) => { remember(event); save.reset(); setEditor({ post: null }); }}>
+                Nova crônica
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -212,8 +219,16 @@ export function PostsPanel({
               sortValue: (post) => post.title,
               cell: (post) => (
                 <div className="min-w-0 space-y-1">
-                  <p className="font-semibold text-fg">{post.title}</p>
-                  <p className="text-xs text-fg-subtle">{post.authorName} · {sourceLabels[post.source]}</p>
+                  <p className="font-semibold text-fg">
+                    {post.pinnedOrder !== null && post.status === "published" ? (
+                      <span className="mr-1.5 text-xs font-bold text-accent">No topo · {post.pinnedOrder}º</span>
+                    ) : null}
+                    {post.title}
+                  </p>
+                  <p className="text-xs text-fg-subtle">
+                    {post.authorName} · {sourceLabels[post.source]}
+                    {post.tags.length > 0 ? ` · ${post.tags.join(", ")}` : ""}
+                  </p>
                 </div>
               ),
             },
@@ -309,6 +324,19 @@ export function PostsPanel({
         ) : null}
       </Dialog>
 
+      <ChroniclesArrangementDialog
+        open={arranging}
+        posts={data.filter((post) => post.status === "published")}
+        campaignId={campaignId}
+        returnFocusRef={triggerRef}
+        onClose={() => setArranging(false)}
+        onSaved={async () => {
+          setArranging(false);
+          toast({ title: "Arquivo organizado", description: "A ordem e as tags já valem em Crônicas." });
+          await invalidatePosts(queryClient, campaignId);
+        }}
+      />
+
       <DiscordImportDialog
         campaignId={campaignId}
         open={importing}
@@ -379,6 +407,7 @@ function PostForm({
       body: String(data.get("body")),
       coverMediaId: cover[0] ?? null,
       galleryMediaIds: gallery,
+      tags: parseTags(String(data.get("tags") ?? "")),
     };
     onSubmit(post ? { ...fields, id: post.id, version: post.version } : { ...fields, campaignId, source: "manual" });
   }
@@ -389,6 +418,7 @@ function PostForm({
         <Field label="Título" className="full">
           {({ id }) => <Input id={id} name="title" required minLength={3} maxLength={140} defaultValue={post?.title} />}
         </Field>
+        <TagsField defaultValue={post?.tags ?? []} />
         <Field label="Conteúdo" className="full" hint="Separe parágrafos com uma linha em branco.">
           {({ id, describedBy }) => (
             <Textarea id={id} name="body" required rows={14} maxLength={20_000} defaultValue={post?.body} aria-describedby={describedBy} />
@@ -424,6 +454,29 @@ function PostForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+/** "Temporada 1, Crônicas do Farol" → ["Temporada 1", "Crônicas do Farol"]. */
+export function parseTags(value: string): string[] {
+  return value
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+}
+
+function TagsField({ defaultValue }: Readonly<{ defaultValue: readonly string[] }>) {
+  return (
+    <Field
+      label="Tags"
+      optional
+      className="full"
+      hint="Separe por vírgula, até 8. Servem para filtrar o arquivo, por exemplo: Temporada 1, Crônicas do Farol."
+    >
+      {({ id, describedBy }) => (
+        <Input id={id} name="tags" defaultValue={defaultValue.join(", ")} maxLength={300} aria-describedby={describedBy} />
+      )}
+    </Field>
   );
 }
 

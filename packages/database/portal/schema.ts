@@ -280,6 +280,10 @@ export const posts = sqliteTable(
     galleryJson: text("gallery_json").notNull().default("[]"),
     /** Tópico do Discord de onde a crônica foi importada. */
     discordThreadId: text("discord_thread_id"),
+    /** Posição entre as crônicas fixadas no topo do arquivo; nula segue pela data. */
+    pinnedOrder: integer("pinned_order"),
+    /** Tags (temporada, sequência, assunto), como JSON. */
+    tagsJson: text("tags_json").notNull().default("[]"),
     version: integer("version").notNull().default(1),
     ...timestamps,
   },
