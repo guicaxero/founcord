@@ -385,6 +385,49 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.deepEqual(publicMission.data.participants, []);
     });
 
+    test("nome no portal e assinatura definem a autoria mostrada", async () => {
+      const before = await api(mf, "/api/me", { token: identities.owner.token });
+      const discordName = before.data.user.displayName;
+      assert.equal(before.data.profile.portalName, null);
+
+      const renamed = await api(mf, "/api/me/profile", {
+        token: identities.owner.token,
+        method: "PATCH",
+        body: { portalName: "Guardião da Chama" },
+      });
+      assert.equal(renamed.status, 200, JSON.stringify(renamed.data));
+      const after = await api(mf, "/api/me", { token: identities.owner.token });
+      assert.equal(after.data.user.displayName, "Guardião da Chama");
+
+      const signed = await api(mf, `/api/campaigns/${defaultCampaignId}/posts`, {
+        token: identities.owner.token,
+        method: "POST",
+        body: { campaignId: defaultCampaignId, title: "Assinada por um Corvo", body: "Texto.", byline: "Aster" },
+      });
+      const unsigned = await api(mf, `/api/campaigns/${defaultCampaignId}/posts`, {
+        token: identities.owner.token,
+        method: "POST",
+        body: { campaignId: defaultCampaignId, title: "Sem assinatura", body: "Texto." },
+      });
+      assert.equal(signed.data.authorName, "Aster");
+      assert.equal(unsigned.data.authorName, "Guardião da Chama");
+
+      const cleared = await api(mf, `/api/posts/${signed.data.id}`, {
+        token: identities.owner.token,
+        method: "PATCH",
+        body: { version: signed.data.version, byline: "" },
+      });
+      assert.equal(cleared.data.byline, null);
+      assert.equal(cleared.data.authorName, "Guardião da Chama");
+
+      // Vazio volta ao nome do Discord.
+      await api(mf, "/api/me/profile", { token: identities.owner.token, method: "PATCH", body: { portalName: "" } });
+      const restored = await api(mf, "/api/me", { token: identities.owner.token });
+      assert.equal(restored.data.user.displayName, discordName);
+      assert.equal(restored.data.profile.portalName, null);
+      assert.equal((await api(mf, "/api/me/profile", { method: "PATCH", body: { portalName: "X" } })).status, 401);
+    });
+
     test("organiza o arquivo de crônicas com fixadas no topo e tags", async () => {
       const publish = async (title: string, tags: string[] = []) => {
         const created = await api(mf, `/api/campaigns/${defaultCampaignId}/posts`, {
@@ -642,7 +685,10 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.equal(created.status, 201, JSON.stringify(created.data));
       assert.equal(created.data.post.status, "pending_review");
       assert.equal(created.data.post.source, "discord");
-      assert.match(created.data.post.body, /Escrito por \*\*Aster\*\*/);
+      // O nome narrativo vira a assinatura, fora do texto.
+      assert.equal(created.data.post.byline, "Aster");
+      assert.equal(created.data.post.authorName, "Aster");
+      assert.doesNotMatch(created.data.post.body, /Escrito por/);
 
       const approved = await transitionPost(
         mf,

@@ -38,12 +38,23 @@ export const PostTagsSchema = z
       });
   });
 
+/** Assinatura da crônica; vazia usa o nome no portal de quem escreveu. */
+export const PostBylineSchema = z
+  .string()
+  .trim()
+  .max(80)
+  .nullable()
+  .transform((value) => value || null);
+
 export const PostSchema = z
   .object({
     id: EntityIdSchema,
     campaignId: EntityIdSchema,
     authorUserId: EntityIdSchema,
+    /** Quem aparece como autor: a assinatura, se houver, ou o nome no portal de quem escreveu. */
     authorName: z.string().min(1),
+    /** Assinatura escolhida para a crônica (personagem, Guardião da Chama…). */
+    byline: z.string().nullable().default(null),
     title: z.string().trim().min(3).max(140),
     body: z.string().trim().min(1).max(20_000),
     status: PostStatusSchema,
@@ -73,6 +84,7 @@ export const CreatePostSchema = z
     coverMediaId: EntityIdSchema.nullable().default(null),
     galleryMediaIds: GalleryMediaIdsSchema.default([]),
     tags: PostTagsSchema.default([]),
+    byline: PostBylineSchema.default(null),
   })
   .strict();
 
@@ -83,6 +95,7 @@ export const UpdatePostSchema = z
     coverMediaId: EntityIdSchema.nullable().optional(),
     galleryMediaIds: GalleryMediaIdsSchema.optional(),
     tags: PostTagsSchema.optional(),
+    byline: PostBylineSchema.optional(),
     status: PostStatusSchema.optional(),
     version: z.number().int().positive(),
   })
@@ -98,7 +111,17 @@ export const UpdatePostSchema = z
 export const PostArrangementSchema = z
   .object({
     items: z
-      .array(z.object({ postId: EntityIdSchema, pinned: z.boolean(), tags: PostTagsSchema }).strict())
+      .array(
+        z
+          .object({
+            postId: EntityIdSchema,
+            pinned: z.boolean(),
+            tags: PostTagsSchema,
+            /** Ausente mantém a assinatura atual. */
+            byline: PostBylineSchema.optional(),
+          })
+          .strict(),
+      )
       .max(500),
   })
   .strict();

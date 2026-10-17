@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { MyPurchaseRequests } from "@/components/merchant/my-purchases";
 import { MissionBoard } from "@/components/missions/mission-board";
 import { PlayerCharacters } from "@/components/player-characters";
+import { ProfileSettings } from "@/components/profile-settings";
 import { ButtonAnchor } from "@/components/ui/button";
 import { FeedbackState } from "@/components/ui/feedback-state";
 import { UrlTabs } from "@/components/ui/tabs";
@@ -15,7 +16,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { DEFAULT_CAMPAIGN_ID } from "@/server/shared/constants";
 import { SedeLife } from "@/components/sede/sede-life";
 
-/** Área privada do jogador: personagem, Vida na Sede, inscrições e pedidos do Lojista. */
+/** Área privada do jogador: personagem, Vida na Sede, inscrições, pedidos do Lojista e nome no portal. */
 export function PlayerArea() {
   const pathname = usePathname();
   const me = useQuery({
@@ -77,6 +78,11 @@ export function PlayerArea() {
           value: "pedidos",
           label: "Pedidos do Lojista",
           content: <MyPurchaseRequests campaignId={DEFAULT_CAMPAIGN_ID} />,
+        },
+        {
+          value: "perfil",
+          label: "Nome no portal",
+          content: <ProfileSettings me={me.data} />,
         },
       ]}
     />

@@ -21,7 +21,7 @@ const previewUser: CurrentUserResponse = {
   user: {
     id: "22222222-2222-4222-8222-222222222222",
     discordUserId: "preview-only",
-    displayName: "Guardião da Chama AP",
+    displayName: "Guardião da Chama",
     avatarUrl: null,
   },
   capabilities: permissions.map((permission) => ({
@@ -31,6 +31,7 @@ const previewUser: CurrentUserResponse = {
   })),
   assignments: [{ roleName: "owner", scopeKind: "global", scopeId: "*" }],
   diary: { visible: true, openToPlayers: false },
+  profile: null,
 };
 
 const previewCampaigns: CampaignListResponse = {
@@ -54,6 +55,7 @@ const previewPosts: PostListResponse = {
     campaignId,
     authorUserId: previewUser.user!.id,
     authorName: previewUser.user!.displayName,
+    byline: null,
     title: "A Chama que Permaneceu",
     body: "Registro oficial preservado para validar o fluxo editorial.",
     status: "archived",

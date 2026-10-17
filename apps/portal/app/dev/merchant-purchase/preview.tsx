@@ -32,6 +32,7 @@ const me: CurrentUserResponse = {
   ],
   assignments: [{ roleName: "campaign_manager", scopeKind: "campaign", scopeId: campaignId }],
   diary: { visible: true, openToPlayers: false },
+  profile: null,
 };
 
 const characters: PlayerCharacterListResponse = {

@@ -64,6 +64,7 @@ export function AccountMenu() {
     >
       <MenuLabel>{globalRole ? roleLabel(globalRole) : "Membro da Ordem"}</MenuLabel>
       <MenuLink href="/eu">Minha área</MenuLink>
+      <MenuLink href="/eu?aba=perfil">Nome no portal</MenuLink>
       {canManage(me.data) ? <MenuLink href="/dashboard">Painel de gestão</MenuLink> : null}
       <MenuSeparator />
       <MenuButton onSelect={() => logout.mutate()} disabled={logout.isPending}>

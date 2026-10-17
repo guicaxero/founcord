@@ -83,15 +83,23 @@ export const GET = withApiHandler(async ({ request, correlationId }) => {
     : null;
   const user = await db
     .prepare(
-      `INSERT INTO iam_users (id, discord_user_id, display_name, avatar_url)
-       VALUES (?, ?, ?, ?)
+      `INSERT INTO iam_users (id, discord_user_id, display_name, discord_name, avatar_url)
+       VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(discord_user_id) DO UPDATE SET
-         display_name = excluded.display_name,
+         discord_name = excluded.discord_name,
+         -- O nome escolhido no portal vale mais que o do Discord.
+         display_name = COALESCE(iam_users.portal_name, excluded.display_name),
          avatar_url = excluded.avatar_url,
          updated_at = CURRENT_TIMESTAMP
        RETURNING id`,
     )
-    .bind(userId, profile.id, profile.global_name ?? profile.username, avatarUrl)
+    .bind(
+      userId,
+      profile.id,
+      profile.global_name ?? profile.username,
+      profile.global_name ?? profile.username,
+      avatarUrl,
+    )
     .first<UserIdRow>();
   if (!user) {
     throw new HttpError(500, "user_upsert_failed", "Não foi possível criar o perfil.");

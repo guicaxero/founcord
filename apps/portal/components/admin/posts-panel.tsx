@@ -408,6 +408,7 @@ function PostForm({
       coverMediaId: cover[0] ?? null,
       galleryMediaIds: gallery,
       tags: parseTags(String(data.get("tags") ?? "")),
+      byline: String(data.get("byline") ?? "").trim() || null,
     };
     onSubmit(post ? { ...fields, id: post.id, version: post.version } : { ...fields, campaignId, source: "manual" });
   }
@@ -417,6 +418,16 @@ function PostForm({
       <FormGrid>
         <Field label="Título" className="full">
           {({ id }) => <Input id={id} name="title" required minLength={3} maxLength={140} defaultValue={post?.title} />}
+        </Field>
+        <Field
+          label="Assinatura"
+          optional
+          className="full"
+          hint="Como o autor aparece no portal: um personagem ou Guardião da Chama. Vazio, aparece o nome no portal de quem escreveu."
+        >
+          {({ id, describedBy }) => (
+            <Input id={id} name="byline" maxLength={80} defaultValue={post?.byline ?? ""} aria-describedby={describedBy} />
+          )}
         </Field>
         <TagsField defaultValue={post?.tags ?? []} />
         <Field label="Conteúdo" className="full" hint="Separe parágrafos com uma linha em branco.">
