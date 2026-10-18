@@ -293,6 +293,98 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.equal(byId.has(draftRecord.data.id), false);
     });
 
+    test("Registro dos Corvos: avulsos, correções, participantes e visibilidade", async () => {
+      const ravensPath = `/api/campaigns/${defaultCampaignId}/ravens`;
+      const blank = {
+        name: null, playerName: null, ancestry: null, novicePath: null, expertPath: null, masterPath: null,
+        level: null, sessionsPlayed: null, missionsCompleted: null, missionsFailed: null, lastMission: null,
+        activities: null,
+        attributes: { strength: null, agility: null, intellect: null, will: null, perception: null },
+        stats: { health: null, healingRate: null, defense: null, speed: null, power: null, insanity: null, corruption: null },
+      };
+      const body = {
+        campaignId: defaultCampaignId,
+        status: "dead",
+        listed: true,
+        userId: null,
+        imageMediaId: null,
+        overrides: { ...blank, name: "Brom, o Fauno", ancestry: "Fauno", novicePath: "Sacerdote", level: 1, attributes: { ...blank.attributes, will: 12 } },
+      };
+
+      const denied = await api(mf, ravensPath, { token: identities.playerOne.token, method: "POST", body });
+      assert.equal(denied.status, 403);
+      const nameless = await api(mf, ravensPath, {
+        token: identities.owner.token,
+        method: "POST",
+        body: { ...body, overrides: { ...body.overrides, name: null } },
+      });
+      assert.equal(nameless.status, 422);
+
+      const created = await api(mf, ravensPath, { token: identities.owner.token, method: "POST", body });
+      assert.equal(created.status, 201, JSON.stringify(created.data));
+      assert.equal(created.data.effective.source, "manual");
+      assert.equal(created.data.effective.attributes.will, 12);
+      const ravenId = created.data.id;
+
+      // Participou de uma missão concluída: a contagem e a última missão são automáticas.
+      const mission = await api(mf, `/api/campaigns/${defaultCampaignId}/missions`, {
+        token: identities.owner.token,
+        method: "POST",
+        body: { ...missionInput("A cripta do Fauno"), number: 42, outcome: "completed" },
+      });
+      const gmParticipants = await api(mf, `/api/missions/${mission.data.id}/participants`, {
+        token: identities.gm.token,
+        method: "PUT",
+        body: { ravenIds: [ravenId] },
+      });
+      assert.equal(gmParticipants.status, 403);
+      const participants = await api(mf, `/api/missions/${mission.data.id}/participants`, {
+        token: identities.owner.token,
+        method: "PUT",
+        body: { ravenIds: [ravenId] },
+      });
+      assert.equal(participants.status, 200, JSON.stringify(participants.data));
+      assert.deepEqual(participants.data.participants.map((participant: Json) => participant.id), [ravenId]);
+
+      const sheet = await api(mf, `/api/ravens/${ravenId}`);
+      assert.equal(sheet.status, 200, JSON.stringify(sheet.data));
+      assert.equal(sheet.data.missionsCompleted, 1);
+      assert.equal(sheet.data.lastMission.id, mission.data.id);
+      assert.equal(sheet.data.paths.novice, "Sacerdote");
+
+      // Correção manual substitui o automático; apagada, ele volta.
+      const corrected = await api(mf, `/api/ravens/${ravenId}`, {
+        token: identities.owner.token,
+        method: "PATCH",
+        body: { ...body, campaignId: undefined, version: created.data.version, overrides: { ...body.overrides, missionsCompleted: 3 } },
+      });
+      assert.equal(corrected.status, 200, JSON.stringify(corrected.data));
+      assert.equal(corrected.data.effective.missionsCompleted, 3);
+      assert.equal(corrected.data.automatic.missionsCompleted, 1);
+      const stale = await api(mf, `/api/ravens/${ravenId}`, {
+        token: identities.owner.token,
+        method: "PATCH",
+        body: { ...body, campaignId: undefined, version: created.data.version },
+      });
+      assert.equal(stale.status, 409);
+
+      // Oculto: some do registro público, mas a gestão continua vendo.
+      const hidden = await api(mf, `/api/ravens/${ravenId}`, {
+        token: identities.owner.token,
+        method: "PATCH",
+        body: { ...body, campaignId: undefined, listed: false, version: corrected.data.version },
+      });
+      assert.equal(hidden.status, 200, JSON.stringify(hidden.data));
+      assert.equal((await api(mf, `/api/ravens/${ravenId}`)).status, 404);
+      const publicList = await api(mf, ravensPath);
+      assert.equal(publicList.data.data.some((raven: Json) => raven.id === ravenId), false);
+      const managed = await api(mf, `${ravensPath}/manage`, { token: identities.owner.token });
+      assert.equal(managed.data.data.some((raven: Json) => raven.id === ravenId), true);
+      assert.equal((await api(mf, `${ravensPath}/manage`, { token: identities.playerOne.token })).status, 403);
+      const publicMission = await api(mf, `/api/missions/${mission.data.id}`);
+      assert.deepEqual(publicMission.data.participants, []);
+    });
+
     test("obriga revisão humana no fluxo de posts", async () => {
       const created = await api(mf, `/api/campaigns/${defaultCampaignId}/posts`, {
         token: identities.automation.token,
@@ -729,6 +821,13 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.equal(linked.data.userId, identities.playerOne.id);
       assert.equal(linked.data.actorName, "Aster");
       assert.equal(linked.data.character.name, "Aster");
+
+      // O vínculo coloca o personagem no Registro dos Corvos, com os dados do Foundry.
+      const registry = await api(mf, `${campaignPath}/ravens`);
+      const aster = registry.data.data.find((raven: Json) => raven.name === "Aster");
+      assert.ok(aster, JSON.stringify(registry.data));
+      assert.equal(aster.source, "foundry");
+      assert.equal(aster.playerName, identities.playerOne.displayName);
 
       const ownCharacters = await api(mf, "/api/me/characters", {
         token: identities.playerOne.token,

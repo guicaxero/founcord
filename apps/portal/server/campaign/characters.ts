@@ -13,6 +13,7 @@ import {
   parseDiscordThreadReference,
 } from "@ordem/contracts";
 import { listRegistroThreads } from "@/server/integrations/discord-registro";
+import { prepareRavenForLink } from "./ravens";
 import { getD1 } from "@/server/shared/db";
 import { prepareAudit } from "@/server/shared/audit";
 import type { AuthenticatedSession } from "@/server/identity/session";
@@ -220,6 +221,8 @@ export async function saveCampaignCharacterLink(
           actor.name,
           session.user.id,
         ),
+      // Todo personagem vinculado entra no Registro dos Corvos.
+      prepareRavenForLink(db, campaignId, userId, actor.world_id, actor.foundry_actor_id),
       prepareAudit(db, {
         actorUserId: session.user.id,
         campaignId,

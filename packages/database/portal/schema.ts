@@ -13,6 +13,7 @@ import {
   missionOutcomes,
   missionStatuses,
   postStatuses,
+  ravenStatuses,
 } from "@ordem/contracts";
 
 const timestamps = {
@@ -868,5 +869,65 @@ export const sedeDeclarations = sqliteTable(
   (table) => [
     index("idx_sede_declarations_owner").on(table.campaignId, table.userId, table.createdAt),
     index("idx_sede_declarations_status").on(table.campaignId, table.status, table.createdAt),
+  ],
+);
+
+/**
+ * Registro dos Corvos. Um Corvo por personagem vinculado ao Foundry (criado
+ * junto com o vínculo) ou avulso, cadastrado pelo mestre. As colunas de
+ * correção, quando preenchidas, substituem o que vem do Foundry ou o que o
+ * portal calcula.
+ */
+export const ravens = sqliteTable(
+  "ravens",
+  {
+    id: text("id").primaryKey(),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+    worldId: text("world_id"),
+    foundryActorId: text("foundry_actor_id"),
+    status: text("status", { enum: ravenStatuses }).notNull().default("active"),
+    listed: integer("listed", { mode: "boolean" }).notNull().default(true),
+    imageMediaId: text("image_media_id"),
+    name: text("name"),
+    playerName: text("player_name"),
+    ancestry: text("ancestry"),
+    novicePath: text("novice_path"),
+    expertPath: text("expert_path"),
+    masterPath: text("master_path"),
+    level: integer("level"),
+    sessionsPlayed: integer("sessions_played"),
+    missionsCompleted: integer("missions_completed"),
+    missionsFailed: integer("missions_failed"),
+    lastMission: text("last_mission"),
+    activities: text("activities"),
+    attributesJson: text("attributes_json"),
+    statsJson: text("stats_json"),
+    version: integer("version").notNull().default(1),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("uq_ravens_actor").on(table.campaignId, table.worldId, table.foundryActorId),
+    index("idx_ravens_campaign").on(table.campaignId, table.listed),
+  ],
+);
+
+/** Corvos que participaram de cada missão. */
+export const missionParticipants = sqliteTable(
+  "mission_participants",
+  {
+    missionId: text("mission_id")
+      .notNull()
+      .references(() => missions.id, { onDelete: "cascade" }),
+    ravenId: text("raven_id")
+      .notNull()
+      .references(() => ravens.id, { onDelete: "cascade" }),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    primaryKey({ columns: [table.missionId, table.ravenId] }),
+    index("idx_mission_participants_raven").on(table.ravenId),
   ],
 );

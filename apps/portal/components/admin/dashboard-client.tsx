@@ -36,6 +36,7 @@ import { MerchantPurchasesPanel } from "./merchant-purchases-panel";
 import { MerchantStockPanel } from "./merchant-stock/merchant-stock-panel";
 import { MissionsPanel } from "./missions-panel";
 import { PostsPanel } from "./posts-panel";
+import { RavensPanel } from "./ravens-panel";
 import { SessionSummariesPanel } from "./session-summaries-panel";
 import { SedePanel } from "./sede/sede-panel";
 import { SessionsPanel } from "./sessions-panel";
@@ -203,6 +204,9 @@ export function DashboardClient({
         break;
       case "cronicas":
         panel = <PostsPanel campaignId={campaignId} me={user} initialPosts={initialEditorialPosts} />;
+        break;
+      case "corvos":
+        panel = <RavensPanel campaignId={campaignId} />;
         break;
       case "foundry":
         panel = campaign ? <FoundryPanel key={campaignId} campaignId={campaignId} campaignName={campaign.name} /> : null;
