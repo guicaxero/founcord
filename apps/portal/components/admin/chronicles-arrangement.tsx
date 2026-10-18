@@ -10,10 +10,10 @@ import { Notice } from "@/components/ui/notice";
 import { apiFetch, errorMessage } from "@/lib/api-client";
 import { formatDate } from "@/lib/format";
 
-type Row = Readonly<{ post: Post; tags: string }>;
+type Row = Readonly<{ post: Post; tags: string; byline: string }>;
 
 function initialRows(posts: readonly Post[]): { pinned: Row[]; others: Row[] } {
-  const toRow = (post: Post): Row => ({ post, tags: post.tags.join(", ") });
+  const toRow = (post: Post): Row => ({ post, tags: post.tags.join(", "), byline: post.byline ?? "" });
   const pinned = posts
     .filter((post) => post.pinnedOrder !== null)
     .sort((left, right) => (left.pinnedOrder ?? 0) - (right.pinnedOrder ?? 0))
@@ -55,7 +55,7 @@ export function ChroniclesArrangementDialog({
         if (!next) onClose();
       }}
       title="Organizar o arquivo"
-      description="Escolha as crônicas que abrem o arquivo e a ordem delas, como uma sequência (Crônica I, II, III). As demais seguem pela data de publicação."
+      description="Escolha as crônicas que abrem o arquivo e a ordem delas, como uma sequência (Crônica I, II, III); as demais seguem pela data. Aqui também ficam as tags e a assinatura de cada crônica publicada; assinatura vazia mostra o nome no portal de quem escreveu."
       className="max-w-3xl"
       returnFocusRef={returnFocusRef}
     >
@@ -89,8 +89,8 @@ function ArrangementForm({
         method: "PUT",
         body: JSON.stringify({
           items: [
-            ...state.pinned.map((row) => ({ postId: row.post.id, pinned: true, tags: tagsOf(row.tags) })),
-            ...state.others.map((row) => ({ postId: row.post.id, pinned: false, tags: tagsOf(row.tags) })),
+            ...state.pinned.map((row) => ({ postId: row.post.id, pinned: true, tags: tagsOf(row.tags), byline: row.byline.trim() || null })),
+            ...state.others.map((row) => ({ postId: row.post.id, pinned: false, tags: tagsOf(row.tags), byline: row.byline.trim() || null })),
           ],
         }),
       }),
@@ -147,10 +147,10 @@ function ArrangementForm({
     focusTarget.current = `${row.post.id}:pin`;
   }
 
-  function setTags(id: string, tags: string) {
+  function setField(id: string, field: "tags" | "byline", value: string) {
     setState((current) => ({
-      pinned: current.pinned.map((row) => (row.post.id === id ? { ...row, tags } : row)),
-      others: current.others.map((row) => (row.post.id === id ? { ...row, tags } : row)),
+      pinned: current.pinned.map((row) => (row.post.id === id ? { ...row, [field]: value } : row)),
+      others: current.others.map((row) => (row.post.id === id ? { ...row, [field]: value } : row)),
     }));
   }
 
@@ -220,7 +220,7 @@ function ArrangementForm({
                     </Button>
                   </div>
                 </div>
-                <TagsInput row={row} onChange={setTags} />
+                <RowFields row={row} onChange={setField} />
               </li>
             ))}
           </ol>
@@ -246,7 +246,7 @@ function ArrangementForm({
                     Pôr no topo
                   </Button>
                 </div>
-                <TagsInput row={row} onChange={setTags} />
+                <RowFields row={row} onChange={setField} />
               </li>
             ))}
           </ul>
@@ -270,21 +270,41 @@ function ArrangementForm({
   );
 }
 
-function TagsInput({ row, onChange }: Readonly<{ row: Row; onChange: (id: string, tags: string) => void }>) {
-  const id = `tags-${row.post.id}`;
+/** Tags e assinatura de uma crônica, editáveis mesmo depois de publicada. */
+function RowFields({
+  row,
+  onChange,
+}: Readonly<{ row: Row; onChange: (id: string, field: "tags" | "byline", value: string) => void }>) {
+  const tagsId = `tags-${row.post.id}`;
+  const bylineId = `byline-${row.post.id}`;
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <label htmlFor={id} className="text-xs font-semibold text-fg-muted">
-        Tags <span className="sr-only">de {row.post.title}</span>
-      </label>
-      <Input
-        id={id}
-        value={row.tags}
-        onChange={(event) => onChange(row.post.id, event.target.value)}
-        placeholder="Temporada 1, Crônicas do Farol"
-        maxLength={300}
-        className="min-w-0 flex-1"
-      />
+    <div className="grid gap-2 sm:grid-cols-2">
+      <div className="flex min-w-0 items-center gap-2">
+        <label htmlFor={tagsId} className="w-20 shrink-0 text-xs font-semibold text-fg-muted">
+          Tags <span className="sr-only">de {row.post.title}</span>
+        </label>
+        <Input
+          id={tagsId}
+          value={row.tags}
+          onChange={(event) => onChange(row.post.id, "tags", event.target.value)}
+          placeholder="Temporada 1, Crônicas do Farol"
+          maxLength={300}
+          className="min-w-0 flex-1"
+        />
+      </div>
+      <div className="flex min-w-0 items-center gap-2">
+        <label htmlFor={bylineId} className="w-20 shrink-0 text-xs font-semibold text-fg-muted">
+          Assinatura <span className="sr-only">de {row.post.title}</span>
+        </label>
+        <Input
+          id={bylineId}
+          value={row.byline}
+          onChange={(event) => onChange(row.post.id, "byline", event.target.value)}
+          placeholder={row.post.byline ? "Nome no portal de quem escreveu" : row.post.authorName}
+          maxLength={80}
+          className="min-w-0 flex-1"
+        />
+      </div>
     </div>
   );
 }

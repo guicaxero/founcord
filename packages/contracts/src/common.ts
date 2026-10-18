@@ -83,11 +83,23 @@ export const CurrentUserResponseSchema = z
      * está aberto aos jogadores (fechado, só a gestão o lê).
      */
     diary: z.object({ visible: z.boolean(), openToPlayers: z.boolean() }).strict(),
+    /** Nome escolhido no portal e o do Discord, para a pessoa ajustar como aparece. */
+    profile: z
+      .object({ portalName: z.string().nullable(), discordName: z.string().nullable() })
+      .strict()
+      .nullable(),
   })
   .strict();
+
+/** Nome no portal: vazio volta ao nome do Discord. */
+export const UpdateProfileSchema = z
+  .object({ portalName: z.string().trim().max(60).nullable() })
+  .strict()
+  .transform((value) => ({ portalName: value.portalName || null }));
 
 export type ApiError = z.infer<typeof ApiErrorSchema>;
 export type User = z.infer<typeof UserSchema>;
 export type Capability = z.infer<typeof CapabilitySchema>;
 export type RoleAssignmentView = z.infer<typeof RoleAssignmentViewSchema>;
 export type CurrentUserResponse = z.infer<typeof CurrentUserResponseSchema>;
+export type UpdateProfileInput = z.infer<typeof UpdateProfileSchema>;

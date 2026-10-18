@@ -3,6 +3,7 @@ import {
   getOptionalSession,
 } from "@/server/identity/session";
 import { diaryAccess } from "@/server/campaign/session-summaries";
+import { getProfile } from "@/server/identity/profile";
 import { DEFAULT_CAMPAIGN_ID } from "@/server/shared/constants";
 import { jsonResponse, withApiHandler } from "@/server/shared/http";
 
@@ -10,7 +11,10 @@ export const dynamic = "force-dynamic";
 
 export const GET = withApiHandler(async ({ request, correlationId }) => {
   const session = await getOptionalSession(request);
-  const diary = await diaryAccess(DEFAULT_CAMPAIGN_ID, session);
+  const [diary, profile] = await Promise.all([
+    diaryAccess(DEFAULT_CAMPAIGN_ID, session),
+    session ? getProfile(session.user.id) : null,
+  ]);
   return jsonResponse(
     session
       ? {
@@ -26,8 +30,9 @@ export const GET = withApiHandler(async ({ request, correlationId }) => {
                 : assignment.scope.campaignId,
           })),
           diary,
+          profile,
         }
-      : { authenticated: false, user: null, capabilities: [], assignments: [], diary },
+      : { authenticated: false, user: null, capabilities: [], assignments: [], diary, profile: null },
     {},
     correlationId,
   );

@@ -23,19 +23,18 @@ export const POST = withApiHandler(async ({ request, correlationId }) => {
     );
   }
 
-  const body = input.personaName
-    ? `> Escrito por **${escapeMarkdown(input.personaName)}**\n\n${input.body}`
-    : input.body;
   const draft = await createPost(
     session,
     {
       campaignId: input.campaignId,
       title: input.title,
-      body,
+      body: input.body,
       source: "discord",
       coverMediaId: null,
       galleryMediaIds: [],
       tags: [],
+      // O nome narrativo do /post vira a assinatura da crônica.
+      byline: input.personaName ?? null,
     },
     correlationId,
   );
@@ -48,7 +47,3 @@ export const POST = withApiHandler(async ({ request, correlationId }) => {
 
   return jsonResponse({ post: pendingReview }, { status: 201 }, correlationId);
 });
-
-function escapeMarkdown(value: string): string {
-  return value.replace(/([\\`*_{}[\]()<>#+\-.!|])/g, "\\$1");
-}
