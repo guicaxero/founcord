@@ -205,6 +205,94 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       );
     });
 
+    test("separa os chamados abertos do registro de missões", async () => {
+      const created = await api(mf, `/api/campaigns/${defaultCampaignId}/missions`, {
+        token: identities.gm.token,
+        method: "POST",
+        body: missionInput("A ponte dos enforcados"),
+      });
+      const pending = await transitionMission(mf, created.data, "pending_review", identities.gm.token);
+      const approved = await transitionMission(mf, pending, "approved", identities.owner.token);
+      const published = await transitionMission(mf, approved, "published", identities.owner.token);
+      assert.equal(published.outcome, null);
+
+      // O mestre de mesa não publica, então também não registra.
+      const gmRecord = await api(mf, `/api/missions/${published.id}`, {
+        token: identities.gm.token,
+        method: "PATCH",
+        body: { version: published.version, outcome: "in_progress" },
+      });
+      assert.equal(gmRecord.status, 403);
+
+      const departed = await api(mf, `/api/missions/${published.id}`, {
+        token: identities.owner.token,
+        method: "PATCH",
+        body: { version: published.version, outcome: "in_progress", number: 7 },
+      });
+      assert.equal(departed.status, 200, JSON.stringify(departed.data));
+      assert.equal(departed.data.outcome, "in_progress");
+      assert.equal(departed.data.number, 7);
+      assert.ok(departed.data.recordedAt);
+
+      const lateSignup = await api(mf, `/api/missions/${published.id}/signups`, {
+        token: identities.playerOne.token,
+        method: "POST",
+      });
+      assert.equal(lateSignup.status, 409);
+      assert.equal(lateSignup.data.error.code, "mission_not_open");
+
+      const finished = await api(mf, `/api/missions/${published.id}`, {
+        token: identities.owner.token,
+        method: "PATCH",
+        body: { version: departed.data.version, outcome: "completed", report: "A ponte caiu com os enforcados." },
+      });
+      assert.equal(finished.data.outcome, "completed");
+      assert.equal(finished.data.report, "A ponte caiu com os enforcados.");
+
+      // Missão antiga: entra publicada direto no registro, e o número é único.
+      const old = await api(mf, `/api/campaigns/${defaultCampaignId}/missions`, {
+        token: identities.owner.token,
+        method: "POST",
+        body: { ...missionInput("Problemas na Vila de Asilo"), number: 1, outcome: "failed", report: "Ninguém voltou." },
+      });
+      assert.equal(old.status, 201, JSON.stringify(old.data));
+      assert.equal(old.data.status, "published");
+      assert.equal(old.data.outcome, "failed");
+      const duplicate = await api(mf, `/api/campaigns/${defaultCampaignId}/missions`, {
+        token: identities.owner.token,
+        method: "POST",
+        body: { ...missionInput("Outra missão número um"), number: 1, outcome: "completed" },
+      });
+      assert.equal(duplicate.status, 409);
+      assert.equal(duplicate.data.error.code, "mission_number_taken");
+      const gmOld = await api(mf, `/api/campaigns/${defaultCampaignId}/missions`, {
+        token: identities.gm.token,
+        method: "POST",
+        body: { ...missionInput("Registro sem permissão"), outcome: "completed" },
+      });
+      assert.equal(gmOld.status, 403);
+
+      // Rascunho não entra no registro.
+      const draftRecord = await api(mf, `/api/campaigns/${defaultCampaignId}/missions`, {
+        token: identities.gm.token,
+        method: "POST",
+        body: missionInput("Rascunho qualquer"),
+      });
+      const notPublished = await api(mf, `/api/missions/${draftRecord.data.id}`, {
+        token: identities.owner.token,
+        method: "PATCH",
+        body: { version: draftRecord.data.version, outcome: "completed" },
+      });
+      assert.equal(notPublished.status, 409);
+      assert.equal(notPublished.data.error.code, "mission_not_published");
+
+      const listed = await api(mf, `/api/campaigns/${defaultCampaignId}/missions`);
+      const byId = new Map(listed.data.data.map((mission: Json) => [mission.id, mission]));
+      assert.equal((byId.get(published.id) as Json).outcome, "completed");
+      assert.equal((byId.get(old.data.id) as Json).number, 1);
+      assert.equal(byId.has(draftRecord.data.id), false);
+    });
+
     test("obriga revisão humana no fluxo de posts", async () => {
       const created = await api(mf, `/api/campaigns/${defaultCampaignId}/posts`, {
         token: identities.automation.token,

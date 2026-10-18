@@ -5,8 +5,8 @@ import { PageContainer } from "@/components/layout/page-container";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Chamado",
-  description: "Detalhes de um chamado da Ordem da Última Luz.",
+  title: "Missão",
+  description: "Um chamado ou um registro de missão da Ordem da Última Luz.",
 };
 
 export default async function MissionDetailPage({

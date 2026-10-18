@@ -1,6 +1,7 @@
 import { hasPermission, requirePermission } from "@ordem/authz";
 import type {
   CreateMissionInput,
+  MissionOutcome,
   MissionSignup,
   MissionStatus,
   MissionSummary,
@@ -35,6 +36,10 @@ type MissionRow = Readonly<{
   cover_media_id: string | null;
   estimated_duration: string | null;
   discord_thread_id: string | null;
+  number: number | null;
+  outcome: MissionOutcome | null;
+  report: string;
+  recorded_at: string | null;
   version: number;
 }>;
 
@@ -50,6 +55,7 @@ type MissionOwnership = Readonly<{
   campaign_id: string;
   author_user_id: string;
   status: MissionStatus;
+  outcome: MissionOutcome | null;
 }>;
 
 export async function listMissions(
@@ -79,6 +85,7 @@ export async function listMissions(
         m.id, m.campaign_id, m.author_user_id, u.display_name AS author_name,
         m.title, m.summary, m.region, m.status, m.risk, m.scheduled_for,
         m.party_size, m.version, m.cover_media_id, m.estimated_duration, m.discord_thread_id,
+        m.number, m.outcome, m.report, m.recorded_at,
         COALESCE(SUM(CASE WHEN ms.status = 'confirmed' THEN 1 ELSE 0 END), 0) AS signup_count,
         COALESCE(SUM(CASE WHEN ms.status = 'waitlisted' THEN 1 ELSE 0 END), 0) AS waitlist_count,
         mine.status AS current_user_signup
@@ -118,6 +125,7 @@ export async function getMission(
         m.id, m.campaign_id, m.author_user_id, u.display_name AS author_name,
         m.title, m.summary, m.region, m.status, m.risk, m.scheduled_for,
         m.party_size, m.version, m.cover_media_id, m.estimated_duration, m.discord_thread_id,
+        m.number, m.outcome, m.report, m.recorded_at,
         COALESCE(SUM(CASE WHEN ms.status = 'confirmed' THEN 1 ELSE 0 END), 0) AS signup_count,
         COALESCE(SUM(CASE WHEN ms.status = 'waitlisted' THEN 1 ELSE 0 END), 0) AS waitlist_count,
         mine.status AS current_user_signup
@@ -150,17 +158,27 @@ export async function createMission(
     kind: "campaign",
     campaignId: input.campaignId,
   });
+  // Missão antiga: entra publicada direto no registro, então exige publicar.
+  const recorded = input.outcome !== null;
+  if (recorded || input.number !== null || input.report) {
+    requirePermission(session.principal, "mission:publish", {
+      kind: "campaign",
+      campaignId: input.campaignId,
+    });
+  }
   await requireActiveMembership(input.campaignId, session.user.id);
   await assertCampaignMedia(input.campaignId, input.coverMediaId ? [input.coverMediaId] : []);
   const db = getD1();
   const id = crypto.randomUUID();
-  await db.batch([
+  const now = recorded ? new Date().toISOString() : null;
+  await withNumberConflict(() => db.batch([
     db
       .prepare(
         `INSERT INTO missions (
           id, campaign_id, author_user_id, title, summary, region, risk,
-          scheduled_for, party_size, status, cover_media_id, estimated_duration
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`,
+          scheduled_for, party_size, status, cover_media_id, estimated_duration,
+          number, outcome, report, published_at, recorded_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         id,
@@ -172,8 +190,14 @@ export async function createMission(
         input.risk,
         input.scheduledFor,
         input.partySize,
+        recorded ? "published" : "draft",
         input.coverMediaId,
         input.estimatedDuration || null,
+        input.number,
+        input.outcome,
+        input.report,
+        now,
+        now,
       ),
     prepareAuditAfterChange(db, {
       actorUserId: session.user.id,
@@ -182,7 +206,7 @@ export async function createMission(
       entityType: "mission",
       entityId: id,
       correlationId,
-      details: { title: input.title },
+      details: { title: input.title, outcome: input.outcome },
     }),
     prepareOutboxEventAfterChange(db, {
       aggregateType: "mission",
@@ -190,7 +214,7 @@ export async function createMission(
       eventType: "mission.created",
       payload: { missionId: id, campaignId: input.campaignId },
     }),
-  ]);
+  ]));
   return getMission(id, session);
 }
 
@@ -211,9 +235,20 @@ export async function updateMission(
     input.coverMediaId,
     input.estimatedDuration,
   ].some((value) => value !== undefined);
+  const changesRecord = [input.number, input.outcome, input.report].some((value) => value !== undefined);
   const isReviewOnly = input.status === "approved" || input.status === "rejected";
   const isPublishOnly = input.status === "published";
-  if (input.status === existing.status && !changesContent) {
+  if (changesRecord) {
+    // O registro é público na hora: só quem publica missões mexe nele.
+    requirePermission(session.principal, "mission:publish", {
+      kind: "campaign",
+      campaignId: existing.campaign_id,
+    });
+    if ((input.status ?? existing.status) !== "published") {
+      throw new HttpError(409, "mission_not_published", "Publique a missão antes de registrá-la.");
+    }
+  }
+  if (input.status === existing.status && !changesContent && !changesRecord) {
     if (isReviewOnly) {
       requirePermission(session.principal, "mission:review", {
         kind: "campaign",
@@ -229,7 +264,7 @@ export async function updateMission(
     }
     throw new HttpError(422, "no_effect", "A missão já está nesse estado.");
   }
-  if (changesContent || (!isReviewOnly && !isPublishOnly)) {
+  if (changesContent || (!isReviewOnly && !isPublishOnly && !changesRecord)) {
     assertCanEditMission(session, existing);
   }
   if (input.status && input.status !== existing.status) {
@@ -238,7 +273,11 @@ export async function updateMission(
   if (input.coverMediaId) await assertCampaignMedia(existing.campaign_id, [input.coverMediaId]);
   const db = getD1();
   const publishedAt = input.status === "published" ? new Date().toISOString() : null;
-  const batch = await db.batch([
+  // A data do registro acompanha a última mudança no que o registro mostra.
+  const touchesRecord =
+    (input.outcome !== undefined && input.outcome !== existing.outcome) ||
+    (changesRecord && existing.outcome !== null);
+  const batch = await withNumberConflict(() => db.batch([
     db
       .prepare(
         `UPDATE missions SET
@@ -250,6 +289,10 @@ export async function updateMission(
           party_size = COALESCE(?, party_size),
           cover_media_id = CASE WHEN ? = 1 THEN ? ELSE cover_media_id END,
           estimated_duration = CASE WHEN ? = 1 THEN ? ELSE estimated_duration END,
+          number = CASE WHEN ? = 1 THEN ? ELSE number END,
+          outcome = CASE WHEN ? = 1 THEN ? ELSE outcome END,
+          report = COALESCE(?, report),
+          recorded_at = CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE recorded_at END,
           status = COALESCE(?, status),
           published_at = COALESCE(?, published_at),
           version = version + 1,
@@ -268,6 +311,12 @@ export async function updateMission(
         input.coverMediaId ?? null,
         input.estimatedDuration !== undefined ? 1 : 0,
         input.estimatedDuration || null,
+        input.number !== undefined ? 1 : 0,
+        input.number ?? null,
+        input.outcome !== undefined ? 1 : 0,
+        input.outcome ?? null,
+        input.report ?? null,
+        touchesRecord ? 1 : 0,
         input.status ?? null,
         publishedAt,
         missionId,
@@ -288,7 +337,7 @@ export async function updateMission(
       eventType: input.status ? `mission.${input.status}` : "mission.updated",
       payload: { missionId, campaignId: existing.campaign_id },
     }),
-  ]);
+  ]));
   if ((batch[0]?.meta.changes ?? 0) === 0) {
     throw new HttpError(409, "version_conflict", "A missão foi alterada por outra pessoa.");
   }
@@ -340,6 +389,9 @@ export async function signupForMission(
   const mission = await getMissionOwnership(missionId);
   if (mission.status !== "published") {
     throw new HttpError(409, "mission_not_open", "Esta missão não aceita inscrições.");
+  }
+  if (mission.outcome !== null) {
+    throw new HttpError(409, "mission_not_open", "Esta missão já partiu e não aceita mais inscrições.");
   }
   await requireActiveMembership(mission.campaign_id, session.user.id);
   const db = getD1();
@@ -475,7 +527,7 @@ export async function listSignups(
 
 async function getMissionOwnership(missionId: string): Promise<MissionOwnership> {
   const mission = await getD1()
-    .prepare("SELECT campaign_id, author_user_id, status FROM missions WHERE id = ?")
+    .prepare("SELECT campaign_id, author_user_id, status, outcome FROM missions WHERE id = ?")
     .bind(missionId)
     .first<MissionOwnership>();
   if (!mission) throw new HttpError(404, "mission_not_found", "Missão não encontrada.");
@@ -595,6 +647,22 @@ function mapMission(row: MissionRow): MissionSummary {
     coverMediaId: row.cover_media_id,
     estimatedDuration: row.estimated_duration,
     discordThreadId: row.discord_thread_id,
+    number: row.number,
+    outcome: row.outcome,
+    report: row.report,
+    recordedAt: toIsoDateTime(row.recorded_at),
     version: row.version,
   };
+}
+
+/** O número da missão é único na campanha; o índice do D1 garante. */
+async function withNumberConflict<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("UNIQUE")) {
+      throw new HttpError(409, "mission_number_taken", "Já existe uma missão com esse número no registro.");
+    }
+    throw error;
+  }
 }
