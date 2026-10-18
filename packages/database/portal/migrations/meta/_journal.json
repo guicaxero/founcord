@@ -225,6 +225,13 @@
       "when": 1792256229293,
       "tag": "0032_raven_registry",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1792257216455,
+      "tag": "0033_chronicle_order_tags",
+      "breakpoints": true
     }
   ]
 }

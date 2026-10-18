@@ -63,6 +63,8 @@ const previewPosts: PostListResponse = {
     coverMediaId: null,
     galleryMediaIds: [],
     discordThreadId: null,
+    pinnedOrder: null,
+    tags: [],
     version: 1,
     createdAt: "2026-08-01T00:00:00.000Z",
     updatedAt: "2026-08-01T00:00:00.000Z",

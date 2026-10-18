@@ -385,6 +385,64 @@ describe.sequential("Marco 1: autenticação, RBAC, campanha, missões, posts e 
       assert.deepEqual(publicMission.data.participants, []);
     });
 
+    test("organiza o arquivo de crônicas com fixadas no topo e tags", async () => {
+      const publish = async (title: string, tags: string[] = []) => {
+        const created = await api(mf, `/api/campaigns/${defaultCampaignId}/posts`, {
+          token: identities.owner.token,
+          method: "POST",
+          body: { campaignId: defaultCampaignId, title, body: `Texto de ${title}.`, tags },
+        });
+        assert.equal(created.status, 201, JSON.stringify(created.data));
+        const pending = await transitionPost(mf, created.data, "pending_review", identities.owner.token);
+        const approved = await transitionPost(mf, pending, "approved", identities.owner.token);
+        return transitionPost(mf, approved, "published", identities.owner.token);
+      };
+      const first = await publish("Crônica I", ["Sequência do Farol", "sequência do farol", " Temporada  1 "]);
+      assert.deepEqual(first.tags, ["Sequência do Farol", "Temporada 1"]);
+      const second = await publish("Crônica II");
+      const loose = await publish("Uma crônica solta");
+
+      const arrangement = {
+        items: [
+          { postId: second.id, pinned: true, tags: ["Sequência do Farol"] },
+          { postId: first.id, pinned: true, tags: ["Sequência do Farol"] },
+          { postId: loose.id, pinned: false, tags: [] },
+        ],
+      };
+      const denied = await api(mf, `/api/campaigns/${defaultCampaignId}/posts/arrangement`, {
+        token: identities.playerOne.token,
+        method: "PUT",
+        body: arrangement,
+      });
+      assert.equal(denied.status, 403);
+      const arranged = await api(mf, `/api/campaigns/${defaultCampaignId}/posts/arrangement`, {
+        token: identities.owner.token,
+        method: "PUT",
+        body: arrangement,
+      });
+      assert.equal(arranged.status, 200, JSON.stringify(arranged.data));
+
+      const publicList = await api(mf, `/api/campaigns/${defaultCampaignId}/posts`);
+      const titles = publicList.data.data.map((post: Json) => post.title);
+      assert.deepEqual(titles.slice(0, 2), ["Crônica II", "Crônica I"]);
+      assert.equal(publicList.data.data[0].pinnedOrder, 1);
+      assert.deepEqual(publicList.data.data[1].tags, ["Sequência do Farol"]);
+      // Organizar não muda a versão do texto.
+      assert.equal(publicList.data.data[1].version, first.version);
+
+      const draft = await api(mf, `/api/campaigns/${defaultCampaignId}/posts`, {
+        token: identities.owner.token,
+        method: "POST",
+        body: { campaignId: defaultCampaignId, title: "Rascunho fora do arquivo", body: "Ainda não." },
+      });
+      const withDraft = await api(mf, `/api/campaigns/${defaultCampaignId}/posts/arrangement`, {
+        token: identities.owner.token,
+        method: "PUT",
+        body: { items: [{ postId: draft.data.id, pinned: true, tags: [] }] },
+      });
+      assert.equal(withDraft.status, 422);
+    });
+
     test("obriga revisão humana no fluxo de posts", async () => {
       const created = await api(mf, `/api/campaigns/${defaultCampaignId}/posts`, {
         token: identities.automation.token,
