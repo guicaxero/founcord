@@ -11,6 +11,10 @@ import {
   type DiscordImportResult,
   type DiscordImportThread,
   type DiscordStarterMessage,
+  type MissionDiscordImportInput,
+  type MissionDiscordImportResult,
+  missionRegionFrom,
+  parseMissionThreadTitle,
 } from "@ordem/contracts";
 import type { z } from "zod";
 import type { AuthenticatedSession } from "@/server/identity/session";
@@ -59,7 +63,9 @@ export async function discordWorker<T>(
   return schema.parse(await response.json());
 }
 
+/** Ler os fóruns serve às crônicas (`post:create`) e aos registros de missão (`mission:publish`). */
 function requireImporter(session: AuthenticatedSession, campaignId: string): void {
+  if (hasPermission(session.principal, "mission:publish", { kind: "campaign", campaignId })) return;
   requirePermission(session.principal, "post:create", { kind: "campaign", campaignId });
 }
 
@@ -87,13 +93,25 @@ export async function listDiscordForumThreads(
       correlationId,
     )
   ).data;
-  const imported = await getD1()
-    .prepare("SELECT id, discord_thread_id FROM posts WHERE campaign_id = ? AND discord_thread_id IS NOT NULL")
-    .bind(campaignId)
-    .all<{ id: string; discord_thread_id: string }>();
+  const db = getD1();
+  const [imported, missions] = await Promise.all([
+    db
+      .prepare("SELECT id, discord_thread_id FROM posts WHERE campaign_id = ? AND discord_thread_id IS NOT NULL")
+      .bind(campaignId)
+      .all<{ id: string; discord_thread_id: string }>(),
+    db
+      .prepare("SELECT id, discord_thread_id FROM missions WHERE campaign_id = ? AND discord_thread_id IS NOT NULL")
+      .bind(campaignId)
+      .all<{ id: string; discord_thread_id: string }>(),
+  ]);
   const byThread = new Map(imported.results.map((row) => [row.discord_thread_id, row.id]));
+  const missionByThread = new Map(missions.results.map((row) => [row.discord_thread_id, row.id]));
   return threads
-    .map((thread) => ({ ...thread, importedPostId: byThread.get(thread.threadId) ?? null }))
+    .map((thread) => ({
+      ...thread,
+      importedPostId: byThread.get(thread.threadId) ?? null,
+      importedMissionId: missionByThread.get(thread.threadId) ?? null,
+    }))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
@@ -239,6 +257,116 @@ export async function importDiscordThreads(
         reason: `${images.failed} ${images.failed === 1 ? "imagem não pôde ser copiada" : "imagens não puderam ser copiadas"}; a crônica foi importada sem elas.`,
       });
     }
+  }
+  return result;
+}
+
+/**
+ * Importa tópicos de um fórum (registros-das-missões) como missões publicadas
+ * direto no registro. O título dá o número e o nome; a linha "Local:" dá a
+ * região; a mensagem inicial é o chamado e o relato; a primeira imagem é a capa.
+ */
+export async function importMissionThreads(
+  session: AuthenticatedSession,
+  campaignId: string,
+  input: MissionDiscordImportInput,
+  correlationId: string,
+): Promise<MissionDiscordImportResult> {
+  requirePermission(session.principal, "mission:publish", { kind: "campaign", campaignId });
+  const db = getD1();
+  const result: MissionDiscordImportResult = { imported: [], skipped: [], notes: [] };
+
+  for (const { threadId, outcome } of input.items) {
+    const existing = await db
+      .prepare("SELECT id FROM missions WHERE campaign_id = ? AND discord_thread_id = ?")
+      .bind(campaignId, threadId)
+      .first<{ id: string }>();
+    if (existing) {
+      result.skipped.push({ threadId, reason: "Já está no registro." });
+      continue;
+    }
+    let starter: DiscordStarterMessage;
+    try {
+      starter = await discordWorker(
+        `/internal/discord/threads/${encodeURIComponent(threadId)}/starter`,
+        DiscordStarterMessageSchema,
+        correlationId,
+      );
+    } catch {
+      result.skipped.push({ threadId, reason: "O Discord não devolveu a mensagem inicial deste tópico." });
+      continue;
+    }
+    if (starter.forumChannelId !== input.forumChannelId) {
+      result.skipped.push({ threadId, reason: "O tópico não é deste fórum." });
+      continue;
+    }
+    const content = starter.content.trim();
+    if (!content) {
+      result.skipped.push({
+        threadId,
+        reason:
+          "O Discord devolveu a mensagem vazia. Ative o Message Content Intent do bot no Discord Developer Portal e tente de novo.",
+      });
+      continue;
+    }
+
+    const parsed = parseMissionThreadTitle(starter.title);
+    const name = parsed.title.trim().slice(0, 100);
+    const title = name.length >= 3 ? name : "Missão do Discord";
+    // O resumo aparece como texto simples no quadro e no topo da página.
+    const summary = content.replace(/\*\*|__/gu, "").slice(0, 1_200);
+    let number = parsed.number;
+    if (number !== null) {
+      const taken = await db
+        .prepare("SELECT 1 AS found FROM missions WHERE campaign_id = ? AND number = ?")
+        .bind(campaignId, number)
+        .first<{ found: number }>();
+      if (taken) {
+        result.notes.push({ threadId, note: `O número ${number} já estava no registro; a missão entrou sem número.` });
+        number = null;
+      }
+    }
+    const images = await copyImages(campaignId, { ...starter, attachments: starter.attachments.slice(0, 1) }, session.user.id);
+    const id = crypto.randomUUID();
+    try {
+      await db.batch([
+        db
+          .prepare(
+            `INSERT INTO missions (
+              id, campaign_id, author_user_id, title, summary, region, risk, party_size, status,
+              published_at, cover_media_id, discord_thread_id, number, outcome, report, recorded_at
+            ) VALUES (?, ?, ?, ?, ?, ?, 'unknown', 5, 'published', ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .bind(
+            id,
+            campaignId,
+            session.user.id,
+            title,
+            summary,
+            missionRegionFrom(content) ?? "Não informada",
+            starter.createdAt,
+            images.ids[0] ?? null,
+            threadId,
+            number,
+            outcome,
+            content.length > 1_200 ? content.slice(0, 20_000) : "",
+            starter.createdAt,
+          ),
+        prepareAudit(db, {
+          actorUserId: session.user.id,
+          campaignId,
+          action: "mission.imported",
+          entityType: "mission",
+          entityId: id,
+          correlationId,
+          details: { threadId, forumChannelId: input.forumChannelId, outcome, number },
+        }),
+      ]);
+    } catch {
+      result.skipped.push({ threadId, reason: "Não foi possível gravar a missão. Tente de novo." });
+      continue;
+    }
+    result.imported.push({ threadId, missionId: id, title, number, images: images.ids.length });
   }
   return result;
 }
